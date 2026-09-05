@@ -88,28 +88,6 @@ php tests/smoke.php                           # output checks against WordPress 
 CI runs those on PHP 7.4 and 8.3 plus [WordPress Plugin Check](https://github.com/WordPress/plugin-check-action),
 the same checks the wordpress.org review uses.
 
-## Publishing to wordpress.org
-
-One-time, then per release. Everything below is done by a person with the `sendbeam` wordpress.org account.
-
-1. **Submit** — <https://wordpress.org/plugins/developers/add/> with `build/sendbeam.zip`. The reviewer checks
-   the readme, the licence, escaping, and the external-service disclosure (already in `readme.txt`). Expect a
-   reply within a couple of weeks; fix anything they ask and re-upload.
-2. **First SVN commit** once approved (the slug is `sendbeam`):
-   ```bash
-   svn co https://plugins.svn.wordpress.org/sendbeam sendbeam-svn
-   bin/build-zip.sh && rsync -a --delete build/sendbeam/ sendbeam-svn/trunk/
-   # screenshots-1.png … into sendbeam-svn/assets/ (plus icon-256x256.png, banner-1544x500.png)
-   cd sendbeam-svn && svn add --force trunk assets && svn ci -m "1.0.0"
-   svn cp trunk tags/1.0.0 && svn ci -m "Tag 1.0.0"
-   ```
-3. **Each release** — bump `Version:` in `sendbeam.php`, `Stable tag:` and the changelog in `readme.txt`,
-   `version` in `blocks/form/block.json` and `index.asset.php`, `SENDBEAM_VERSION`; tag on GitHub; repeat the
-   rsync + `svn ci` + `svn cp trunk tags/x.y.z`.
-
-Directory-listing users update from the wordpress.org tag; GitHub releases carry the same zip for people who
-install by upload.
-
 ## Licence
 
 GPL-2.0-or-later, as wordpress.org requires. See [LICENSE](LICENSE).
