@@ -38,4 +38,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: WordPress/plugin-check-action@v1
         with:
+          # The checkout folder is the repo name; the plugin's slug (and text domain) is "sendbeam".
+          slug: sendbeam
           exclude-directories: 'tests,bin,build'
