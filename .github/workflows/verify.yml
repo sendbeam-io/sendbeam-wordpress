@@ -1,0 +1,41 @@
+name: Verify plugin
+
+# Syntax on the oldest and newest PHP the plugin claims to support, the
+# output smoke test, and WordPress's own Plugin Check (the same checks
+# wordpress.org runs on submission).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Syntax
+        run: find . -name '*.php' -not -path './build/*' -print0 | xargs -0 -n1 php -l
+      - name: Smoke test
+        run: php tests/smoke.php
+
+  plugin-check:
+    name: WordPress Plugin Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: WordPress/plugin-check-action@v1
+        with:
+          exclude-directories: 'tests,bin,build'
