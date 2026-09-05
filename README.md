@@ -11,6 +11,7 @@ nothing stored but three form IDs.
 | Pop-up after a delay or from a floating button | Settings → SendBeam → Pop-up |
 | Your own "Subscribe" button that opens the pop-up | `[sendbeam_popup_button label="Subscribe"]` or any element with `data-sendbeam-open="<form id>"` |
 | Track a signup in analytics | `document.addEventListener('sendbeam:submitted', e => …)` |
+| The site's own email (orders, password resets, notifications) from your verified domain | Settings → SendBeam → Site email — one switch and an API key, no SMTP |
 
 Forms render as an iframe of the form's hosted page, so they always match what is set up in SendBeam
 (fields, double opt-in, thank-you text, the list people join) and the theme's CSS never fights the form's.
@@ -52,6 +53,22 @@ Then Settings → SendBeam, paste your form IDs (Forms → your form → Embed i
 
 The pop-up remembers a close (or a submission) in the visitor's browser, per form. `[sendbeam_popup_button]`
 on a page where the pop-up is off still loads it, in a mode where only the button opens it.
+
+## Site email
+
+With **Send this site's email through SendBeam** on, every `wp_mail()` call — WooCommerce orders, password
+resets, Contact Form 7 notifications, plugin alerts — becomes one HTTPS request to `POST /api/v1/transactional`
+and goes out from the workspace's verified domain. The key needs only the **Send site email** permission
+(`transactional:send`); paste it in the settings or define `SENDBEAM_API_KEY` in `wp-config.php`.
+
+- HTML and plain-text messages, `Cc`/`Bcc`, `Reply-To` and `X-*` headers are carried. A `From:` header or the
+  `wp_mail_from` filters are honoured when the address is on a verified domain; WordPress's invented
+  `wordpress@…` address is never sent (the workspace sender is used instead).
+- Messages with attachments are left to the server's own mailer.
+- **Fall back to the server's own mailer** (on by default): a refused or failed message goes out the old way and
+  the result table on the settings page says why. Off: it fails and `wp_mail_failed` fires with the reason.
+- Recipients who unsubscribed from your newsletter still get their receipts; addresses that bounced or reported
+  spam before are refused. Every message counts against the workspace's monthly quota.
 
 ## Self-hosted SendBeam
 

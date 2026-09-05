@@ -35,6 +35,11 @@ function sendbeam_default_settings() {
 		'popup_delay'   => 5,
 		'popup_once'    => 'day',
 		'popup_label'   => '',
+		'mail_enabled'    => 0,
+		'api_key'         => '',
+		'mail_from_name'  => '',
+		'mail_from_email' => '',
+		'mail_fallback'   => 1,
 	);
 }
 

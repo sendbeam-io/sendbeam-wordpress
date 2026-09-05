@@ -5,12 +5,12 @@
  * for the inputs the plugin passes it.
  */
 define( 'ABSPATH', '/stub/' );
-$GLOBALS['stub'] = array( 'options' => array(), 'hooks' => array(), 'shortcodes' => array(), 'scripts' => array(), 'inline' => array(), 'printed' => '', 'caps' => array(), 'query' => array(), 'errors' => array() );
+$GLOBALS['stub'] = array( 'remote' => array(), 'remote_reply' => null, 'actions' => array(), 'options' => array(), 'hooks' => array(), 'shortcodes' => array(), 'scripts' => array(), 'inline' => array(), 'printed' => '', 'caps' => array(), 'query' => array(), 'errors' => array() );
 
 function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
 function plugin_basename( $f ) { return 'sendbeam/sendbeam.php'; }
-function apply_filters( $tag, $value ) { return isset( $GLOBALS['stub']['hooks'][ $tag ] ) ? call_user_func( $GLOBALS['stub']['hooks'][ $tag ], $value ) : $value; }
-function add_filter( $tag, $fn ) { $GLOBALS['stub']['hooks'][ $tag ] = $fn; }
+function apply_filters( $tag, $value, ...$args ) { return isset( $GLOBALS['stub']['hooks'][ $tag ] ) ? call_user_func( $GLOBALS['stub']['hooks'][ $tag ], $value, ...$args ) : $value; }
+function add_filter( $tag, $fn, $p = 10, $a = 1 ) { $GLOBALS['stub']['hooks'][ $tag ] = $fn; }
 function add_action( $tag, $fn ) { $GLOBALS['stub']['hooks'][ $tag ] = $fn; }
 function add_shortcode( $tag, $fn ) { $GLOBALS['stub']['shortcodes'][ $tag ] = $fn; }
 function do_shortcode_tag( $tag, $atts = array() ) { return call_user_func( $GLOBALS['stub']['shortcodes'][ $tag ], $atts ); }
@@ -47,3 +47,23 @@ function wp_print_script_tag( $attrs ) {
 	foreach ( $attrs as $k => $v ) { $html .= true === $v ? ' ' . $k : ' ' . $k . '="' . esc_attr( $v ) . '"'; }
 	$GLOBALS['stub']['printed'] .= $html . '></script>';
 }
+
+// ── Site email stubs ────────────────────────────────────────────────────
+class WP_Error {
+	public $code; public $message; public $data;
+	public function __construct( $code = '', $message = '', $data = null ) { $this->code = $code; $this->message = $message; $this->data = $data; }
+	public function get_error_message() { return $this->message; }
+}
+function is_wp_error( $t ) { return $t instanceof WP_Error; }
+function wp_remote_post( $url, $args ) { $GLOBALS['stub']['remote'][] = array( 'url' => $url, 'args' => $args ); $r = $GLOBALS['stub']['remote_reply']; return is_callable( $r ) ? $r( $url, $args ) : $r; }
+function wp_remote_retrieve_response_code( $r ) { return $r['response']['code']; }
+function wp_remote_retrieve_body( $r ) { return $r['body']; }
+function do_action( $tag, ...$args ) { $GLOBALS['stub']['actions'][] = array( $tag, $args ); }
+function network_home_url() { return 'https://www.example-site.test/'; }
+function home_url() { return 'https://www.example-site.test'; }
+function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
+function is_email( $e ) { return (bool) filter_var( $e, FILTER_VALIDATE_EMAIL ); }
+function sanitize_email( $e ) { return trim( (string) $e ); }
+function checked( $a, $b = true, $echo = true ) { return $a == $b ? ' checked="checked"' : ''; }
+function get_bloginfo( $k ) { return 'Example Site'; }
+function selected( $a, $b, $echo = true ) { return $a == $b ? ' selected="selected"' : ''; }

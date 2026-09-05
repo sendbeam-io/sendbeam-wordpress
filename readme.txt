@@ -4,11 +4,11 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Newsletter signup forms, a pop-up and a contact form from your SendBeam account: a block, a shortcode and one settings page.
+Signup forms, a pop-up, a contact form — and your site's own email sent from your verified domain — from one SendBeam settings page.
 
 == Description ==
 
@@ -20,14 +20,17 @@ This plugin puts your SendBeam forms on a WordPress site without copying embed c
 * **Shortcodes** — `[sendbeam_form id="…"]`, `[sendbeam_contact]` and `[sendbeam_popup_button]` for widgets, page builders and the classic editor.
 * **Pop-up** — show a signup form in a modal after a delay or from a floating button, on every page, posts only, pages only or the home page; hidden for a day, a week or for good once a visitor closes it.
 * **A default form** — set it once under Settings → SendBeam and every block and shortcode without an ID uses it.
+* **Site email** — send everything WordPress sends with `wp_mail()` (WooCommerce order confirmations, password resets, form and comment notifications, plugin alerts) through your verified SendBeam domain. No SMTP host, port or password: one API key, one switch, a test button and a log of recent results.
 
-Forms are shown exactly as configured in SendBeam (fields, double opt-in, the thank-you message, the list they join), so changing a form there changes it on your site straight away. The plugin stores one option and makes no requests from your server.
+Forms are shown exactly as configured in SendBeam (fields, double opt-in, the thank-you message, the list they join), so changing a form there changes it on your site straight away. Forms make no requests from your server. Site email, when you switch it on, is one HTTPS call per message to SendBeam's API.
 
 A site can listen for `sendbeam:submitted` on `document` to track a signup as an analytics goal or redirect to a thank-you page.
 
 = External service =
 
-This plugin displays forms served by SendBeam (sendbeam.io). When a page containing a form or the pop-up is viewed, the visitor's browser loads the form from `https://sendbeam.io/f/<form id>` and, for the pop-up, the script `https://sendbeam.io/f/<form id>/popup.js`. Nothing is sent to SendBeam until the visitor submits a form, at which point what they typed (their email address and any other fields on the form) is sent to SendBeam to create the subscriber or deliver the message. See the [SendBeam privacy policy](https://sendbeam.io/privacy) and [terms](https://sendbeam.io/terms).
+This plugin displays forms served by SendBeam (sendbeam.io). When a page containing a form or the pop-up is viewed, the visitor's browser loads the form from `https://sendbeam.io/f/<form id>` and, for the pop-up, the script `https://sendbeam.io/f/<form id>/popup.js`. Nothing is sent to SendBeam until the visitor submits a form, at which point what they typed (their email address and any other fields on the form) is sent to SendBeam to create the subscriber or deliver the message.
+
+If you turn on **Site email** (off by default), each email your site sends is posted from your server to `https://sendbeam.io/api/v1/transactional` with your API key: the recipient addresses, subject, body and reply-to, so SendBeam can deliver it from your verified domain. Messages with attachments are not sent to SendBeam. See the [SendBeam privacy policy](https://sendbeam.io/privacy) and [terms](https://sendbeam.io/terms).
 
 = Requirements =
 
@@ -57,6 +60,18 @@ Yes. Give any element `data-sendbeam-open="<the pop-up form's ID>"`, or use `[se
 
 No. WordPress keeps sending its own mail. SendBeam only receives what visitors submit through its forms, and sends the newsletters and campaigns you write in SendBeam.
 
+= What does Site email change? =
+
+With it on, every email WordPress sends goes through SendBeam's API instead of the server's `mail()` function, from your verified domain, so it stops landing in spam. WooCommerce, membership, booking and form plugins all use `wp_mail()`, so they are covered without any setting of their own. Turn it off and everything goes back to how it was.
+
+= Which API key permission does Site email need? =
+
+Only **Send site email** (`transactional:send`). Make a separate key for each site under Settings → API keys in SendBeam; nothing else on the key is needed. You can define `SENDBEAM_API_KEY` in `wp-config.php` instead of saving the key in the database.
+
+= What about emails with attachments? =
+
+They are left to the server's own mailer for now, and the recent-email table on the settings page says so.
+
 = Does it work with caching plugins? =
 
 Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
@@ -68,6 +83,9 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 3. The pop-up on a post.
 
 == Changelog ==
+
+= 1.1.0 =
+* Site email: send everything WordPress sends with wp_mail() through your verified SendBeam domain (switch, API key or SENDBEAM_API_KEY constant, From overrides, fallback to the server mailer, test button, recent-email log).
 
 = 1.0.0 =
 * First release: form block, `[sendbeam_form]`, `[sendbeam_contact]`, `[sendbeam_popup_button]`, pop-up settings.

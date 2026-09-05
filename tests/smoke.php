@@ -90,4 +90,76 @@ has( $block, 'height:400px', 'block height' );
 add_filter( 'sendbeam_app_url', function () { return 'https://mail.example.com/'; } );
 has( sendbeam_form_html( $form ), 'src="https://mail.example.com/f/', 'app url filter' );
 
+// ── Site email ──────────────────────────────────────────────────────────
+$stub = &$GLOBALS['stub'];
+unset( $stub['hooks']['sendbeam_app_url'] ); // the app-url filter test above must not leak into here
+$stub['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{"ok":true,"sent":[{"to":"a@b.test","message_id":"m1"}]}' );
+$mail_atts = array( 'to' => 'Ada <ada@customer.test>', 'subject' => 'Order #1001', 'message' => '<p>Thanks</p>', 'headers' => array( 'Content-Type: text/html; charset=UTF-8', 'Reply-To: Shop <shop@example-site.test>', 'Bcc: owner@example-site.test', 'X-Order-Id: 1001', 'List-Unsubscribe: <x>' ), 'attachments' => array() );
+
+// Off by default: WordPress keeps sending.
+update_option( 'sendbeam_settings', array() );
+ok( null === apply_filters( 'pre_wp_mail', null, $mail_atts ), 'disabled → null (WordPress sends)' );
+ok( count( $stub['remote'] ) === 0, 'no API call when disabled' );
+
+// On, with a saved key: relayed, headers mapped, From falls back to the workspace sender.
+update_option( 'sendbeam_settings', array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 1 ) );
+ok( true === apply_filters( 'pre_wp_mail', null, $mail_atts ), 'enabled → true (sent)' );
+$req = $stub['remote'][0];
+ok( $req['url'] === 'https://sendbeam.io/api/v1/transactional', 'posts to the transactional endpoint' );
+ok( $req['args']['headers']['x-api-key'] === 'sb_live_abcdefghijklmnop', 'key header' );
+$sent = json_decode( $req['args']['body'], true );
+ok( $sent['to'] === 'Ada <ada@customer.test>' && $sent['subject'] === 'Order #1001', 'to + subject' );
+ok( $sent['html'] === '<p>Thanks</p>' && ! isset( $sent['text'] ), 'html content type → html' );
+ok( $sent['reply_to'] === 'Shop <shop@example-site.test>', 'reply-to' );
+ok( $sent['bcc'] === array( 'owner@example-site.test' ), 'bcc' );
+ok( $sent['headers'] === array( 'X-Order-Id' => '1001' ), 'only X-* headers forwarded' );
+ok( ! isset( $sent['from_email'] ), 'no From when WordPress would invent wordpress@…' );
+$log = get_option( 'sendbeam_mail_log' );
+ok( $log[0]['result'] === 'sent' && $log[0]['to'] === 'Ada <ada@customer.test>', 'log entry' );
+
+// Plain text (WordPress default), From header on the site's domain, wp_mail_from_name filter honoured.
+$stub['remote'] = array();
+add_filter( 'wp_mail_from_name', function ( $n ) { return 'Filtered Name'; } );
+apply_filters( 'pre_wp_mail', null, array( 'to' => array( 'a@b.test', 'c@d.test' ), 'subject' => 'Reset', 'message' => "Line 1\nLine 2", 'headers' => 'From: Orders <orders@example-site.test>', 'attachments' => array() ) );
+$sent = json_decode( $stub['remote'][0]['args']['body'], true );
+ok( $sent['text'] === "Line 1\nLine 2" && ! isset( $sent['html'] ), 'plain text stays text' );
+ok( $sent['to'] === array( 'a@b.test', 'c@d.test' ), 'array of recipients' );
+ok( $sent['from_email'] === 'orders@example-site.test' && $sent['from_name'] === 'Filtered Name', 'From header + name filter' );
+unset( $stub['hooks']['wp_mail_from_name'] );
+
+// The settings' From wins over the caller's header.
+$stub['remote'] = array();
+update_option( 'sendbeam_settings', array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 1, 'mail_from_email' => 'hello@example-site.test', 'mail_from_name' => 'Example' ) );
+apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm', 'headers' => 'From: x@y.test' ) );
+$sent = json_decode( $stub['remote'][0]['args']['body'], true );
+ok( $sent['from_email'] === 'hello@example-site.test' && $sent['from_name'] === 'Example', 'settings From wins' );
+
+// Attachments → server mailer.
+$stub['remote'] = array();
+ok( null === apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm', 'headers' => '', 'attachments' => array( '/tmp/invoice.pdf' ) ) ), 'attachments → null' );
+ok( count( $stub['remote'] ) === 0 && get_option( 'sendbeam_mail_log' )[0]['result'] === 'fallback', 'no call, logged as fallback' );
+
+// API refusal: fallback on → null; fallback off → false + wp_mail_failed.
+$stub['remote_reply'] = array( 'response' => array( 'code' => 403 ), 'body' => '{"error":"Monthly email limit reached"}' );
+ok( null === apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm' ) ), 'refused + fallback → null' );
+ok( get_option( 'sendbeam_mail_log' )[0]['note'] === 'Monthly email limit reached', 'API error in the log' );
+update_option( 'sendbeam_settings', array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 0 ) );
+$stub['actions'] = array();
+ok( false === apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm' ) ), 'refused, no fallback → false' );
+ok( $stub['actions'][0][0] === 'wp_mail_failed' && $stub['actions'][0][1][0]->get_error_message() === 'Monthly email limit reached', 'wp_mail_failed fired with the reason' );
+$stub['remote_reply'] = new WP_Error( 'http_request_failed', 'cURL error 28' );
+ok( false === apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm' ) ), 'network error handled' );
+
+// Settings sanitising: blank key keeps the saved one; remove clears; bad key rejected.
+$stub['errors'] = array();
+$clean = sendbeam_sanitize_settings( array( 'mail_enabled' => '1', 'api_key' => '', 'mail_from_email' => 'not-an-email', 'mail_fallback' => '' ) );
+ok( $clean['api_key'] === 'sb_live_abcdefghijklmnop' && $clean['mail_enabled'] === 1 && $clean['mail_fallback'] === 0 && $clean['mail_from_email'] === '', 'blank key kept, bad from dropped' );
+ok( sendbeam_sanitize_settings( array( 'api_key' => 'bad key!' ) )['api_key'] === 'sb_live_abcdefghijklmnop' && count( $stub['errors'] ) === 1, 'malformed key rejected with a notice' );
+ok( sendbeam_sanitize_settings( array( 'api_key_remove' => '1' ) )['api_key'] === '', 'remove clears the key' );
+ok( sendbeam_sanitize_settings( array( 'api_key' => 'sb_new_0123456789abcdef' ) )['api_key'] === 'sb_new_0123456789abcdef', 'new key saved' );
+
+// wp-config constant wins over the option.
+define( 'SENDBEAM_API_KEY', 'sb_const_0123456789abcdef' );
+ok( sendbeam_api_key() === 'sb_const_0123456789abcdef', 'constant wins' );
+
 echo "smoke: $pass checks passed\n";

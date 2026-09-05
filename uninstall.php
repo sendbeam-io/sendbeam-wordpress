@@ -8,3 +8,4 @@
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
 delete_option( 'sendbeam_settings' );
+delete_option( 'sendbeam_mail_log' );
