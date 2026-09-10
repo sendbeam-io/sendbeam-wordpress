@@ -53,7 +53,7 @@ function sendbeam_setup_steps() {
 	$connected  = in_array( $connection['state'], array( 'ok', 'no_scope' ), true );
 
 	$using_form  = '' !== $settings['default_form'] || '' !== $settings['contact_form'];
-	$using_popup = 'off' !== $settings['popup_where'] && '' !== $settings['popup_form'];
+	$using_popup = (bool) sendbeam_popups();
 	$using_mail  = ! empty( $settings['mail_enabled'] );
 
 	return array(

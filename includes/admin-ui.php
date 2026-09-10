@@ -210,6 +210,17 @@ function sendbeam_admin_css() {
 	.sendbeam-app .description{font-size:12px;color:var(--ink-60)}
 	.sendbeam-app h2{color:var(--ink)}
 
+	.sb-rule{border:1px solid var(--ink);background:var(--paper);padding:14px 16px;margin:0 0 14px}
+	.sb-rule legend{padding:0 6px;background:var(--ink);color:var(--paper);font-size:10px;letter-spacing:.1em;
+		text-transform:uppercase;font-weight:700}
+	.sb-rule__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;align-items:end}
+	.sb-rule__grid label{display:block}
+	.sb-rule__grid select,.sb-rule__grid input[type=text]{width:100%;max-width:100%}
+	.sb-rule__foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
+		margin-top:14px;padding-top:12px;border-top:1px solid #d8d6d0}
+	.sb-inline{display:inline-flex;align-items:center;gap:6px;font-size:13px}
+	.sb-rule [hidden]{display:none!important}
+
 	@media (max-width:782px){ .sb-head{padding:14px} .sb-tabs{padding:0 8px} .sb-wrap{padding:14px} }
 	';
 }

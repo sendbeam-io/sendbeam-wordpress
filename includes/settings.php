@@ -63,40 +63,6 @@ function sendbeam_admin_init() {
 	add_settings_field( 'default_form', __( 'Default signup form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_forms_page', 'sendbeam_forms', array( 'key' => 'default_form', 'kind' => 'signup', 'help' => __( 'Used by the SendBeam Form block and [sendbeam_form] when no ID is given.', 'sendbeam' ) ) );
 	add_settings_field( 'contact_form', __( 'Contact form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_forms_page', 'sendbeam_forms', array( 'key' => 'contact_form', 'kind' => 'contact', 'help' => __( 'Used by [sendbeam_contact]. Messages are emailed to you by SendBeam.', 'sendbeam' ) ) );
 
-	add_settings_section( 'sendbeam_popup', __( 'Pop-up', 'sendbeam' ), 'sendbeam_section_popup_intro', 'sendbeam_popup_page' );
-	add_settings_field( 'popup_where', __( 'Show on', 'sendbeam' ), 'sendbeam_field_select', 'sendbeam_popup_page', 'sendbeam_popup', array(
-		'key'     => 'popup_where',
-		'options' => array(
-			'off'        => __( 'Nowhere (off)', 'sendbeam' ),
-			'everywhere' => __( 'Every page', 'sendbeam' ),
-			'posts'      => __( 'Single posts only', 'sendbeam' ),
-			'pages'      => __( 'Pages only', 'sendbeam' ),
-			'home'       => __( 'Home page only', 'sendbeam' ),
-		),
-	) );
-	add_settings_field( 'popup_form', __( 'Pop-up form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_popup_page', 'sendbeam_popup', array( 'key' => 'popup_form', 'kind' => 'signup', 'help' => __( 'The signup form to show in the pop-up.', 'sendbeam' ), 'class' => 'sendbeam-when-popup' ) );
-	add_settings_field( 'popup_trigger', __( 'Open', 'sendbeam' ), 'sendbeam_field_select', 'sendbeam_popup_page', 'sendbeam_popup', array(
-		'key'     => 'popup_trigger',
-		'class'   => 'sendbeam-when-popup',
-		'options' => array(
-			'timer'  => __( 'After a delay', 'sendbeam' ),
-			'button' => __( 'From a floating button', 'sendbeam' ),
-		),
-	) );
-	add_settings_field( 'popup_delay', __( 'Delay (seconds)', 'sendbeam' ), 'sendbeam_field_number', 'sendbeam_popup_page', 'sendbeam_popup', array( 'key' => 'popup_delay', 'min' => 0, 'max' => 120, 'class' => 'sendbeam-when-popup', 'help' => __( '0 opens it as soon as the page loads. Ignored when opening from a button.', 'sendbeam' ) ) );
-	add_settings_field( 'popup_once', __( 'After it is closed', 'sendbeam' ), 'sendbeam_field_select', 'sendbeam_popup_page', 'sendbeam_popup', array(
-		'key'     => 'popup_once',
-		'class'   => 'sendbeam-when-popup',
-		'options' => array(
-			'day'     => __( 'Stay hidden for a day', 'sendbeam' ),
-			'week'    => __( 'Stay hidden for a week', 'sendbeam' ),
-			'forever' => __( 'Never show it again', 'sendbeam' ),
-			'never'   => __( 'Show it on every visit', 'sendbeam' ),
-		),
-		'help'    => __( 'Remembered in the visitor\'s browser. A submission counts as a close.', 'sendbeam' ),
-	) );
-	add_settings_field( 'popup_label', __( 'Button label', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam_popup_page', 'sendbeam_popup', array( 'key' => 'popup_label', 'placeholder' => __( 'Subscribe', 'sendbeam' ), 'class' => 'sendbeam-when-popup', 'help' => __( 'Text on the floating button, when that trigger is used.', 'sendbeam' ) ) );
-
 	add_settings_section( 'sendbeam_mail', __( 'Site email', 'sendbeam' ), 'sendbeam_section_mail_intro', 'sendbeam_mail_page' );
 	add_settings_field( 'mail_enabled', __( 'Site email', 'sendbeam' ), 'sendbeam_field_checkbox', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_enabled', 'label' => __( 'Send this site\'s email through SendBeam', 'sendbeam' ), 'help' => __( 'Everything WordPress sends with wp_mail(): order confirmations, password resets, comment and form notifications, plugin alerts.', 'sendbeam' ) ) );
 	add_settings_field( 'mail_from_name', __( 'From name', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_from_name', 'placeholder' => get_bloginfo( 'name' ), 'class' => 'sendbeam-when-mail', 'help' => __( 'Leave empty to use the name the sending plugin sets, or the workspace sender.', 'sendbeam' ) ) );
@@ -126,14 +92,13 @@ function sendbeam_sanitize_settings( $input ) {
 	$groups = array(
 		'connect' => array( 'api_key' ),
 		'forms'   => array( 'default_form', 'contact_form' ),
-		'popup'   => array( 'popup_form', 'popup_where', 'popup_trigger', 'popup_delay', 'popup_once', 'popup_label' ),
 		'mail'    => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback' ),
 	);
 	$tab  = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
 	$keys = isset( $groups[ $tab ] ) ? $groups[ $tab ] : array_merge( ...array_values( $groups ) );
 	$touch = array_flip( $keys );
 
-	foreach ( array( 'default_form', 'contact_form', 'popup_form' ) as $key ) {
+	foreach ( array( 'default_form', 'contact_form' ) as $key ) {
 		if ( ! isset( $touch[ $key ] ) ) {
 			continue;
 		}
@@ -148,14 +113,6 @@ function sendbeam_sanitize_settings( $input ) {
 			$value = (string) $saved[ $key ];
 		}
 		$out[ $key ] = strtolower( $value );
-	}
-
-	if ( isset( $touch['popup_where'] ) ) {
-		$out['popup_where']   = sendbeam_pick( $input, 'popup_where', array( 'off', 'everywhere', 'posts', 'pages', 'home' ), $defaults['popup_where'] );
-		$out['popup_trigger'] = sendbeam_pick( $input, 'popup_trigger', array( 'timer', 'button' ), $defaults['popup_trigger'] );
-		$out['popup_once']    = sendbeam_pick( $input, 'popup_once', array( 'day', 'week', 'forever', 'never' ), $defaults['popup_once'] );
-		$out['popup_delay']   = isset( $input['popup_delay'] ) ? max( 0, min( 120, (int) $input['popup_delay'] ) ) : $defaults['popup_delay'];
-		$out['popup_label']   = isset( $input['popup_label'] ) ? sanitize_text_field( wp_unslash( $input['popup_label'] ) ) : '';
 	}
 
 	if ( isset( $touch['mail_enabled'] ) ) {
@@ -265,10 +222,6 @@ function sendbeam_field_api_key() {
 	}
 }
 
-/** Intro for the Pop-up section. */
-function sendbeam_section_popup_intro() {
-	echo '<p>' . esc_html__( 'Shows a signup form in a modal on the pages you choose. Any link or button with data-sendbeam-open="<form id>" opens it too, and the [sendbeam_popup_button] shortcode makes one for you.', 'sendbeam' ) . '</p>';
-}
 
 /**
  * Form chooser.
@@ -522,15 +475,54 @@ function sendbeam_admin_assets( $hook ) {
 		function toggle( cls, on ) {
 			document.querySelectorAll( "tr." + cls ).forEach( function ( tr ) { tr.hidden = ! on; } );
 		}
-		var where = document.getElementById( "sendbeam_popup_where" );
-		var mail  = document.getElementById( "sendbeam_mail_enabled" );
+		var mail = document.getElementById( "sendbeam_mail_enabled" );
 		function sync() {
-			if ( where ) { toggle( "sendbeam-when-popup", where.value !== "off" ); }
-			if ( mail )  { toggle( "sendbeam-when-mail", mail.checked ); }
+			if ( mail ) { toggle( "sendbeam-when-mail", mail.checked ); }
 		}
-		if ( where ) { where.addEventListener( "change", sync ); }
-		if ( mail )  { mail.addEventListener( "change", sync ); }
+		if ( mail ) { mail.addEventListener( "change", sync ); }
 		sync();
+
+		// Repeatable pop-up rules.
+		var host = document.getElementById( "sb-popups" );
+		var tpl  = document.getElementById( "sb-popup-template" );
+		var addBtn = document.getElementById( "sb-add-popup" );
+		function syncRule( rule ) {
+			var where = rule.querySelector( ".sb-where" ), trig = rule.querySelector( ".sb-trigger" );
+			var urlBox = rule.querySelector( ".sb-when-url" );
+			if ( where && urlBox ) { urlBox.hidden = where.value !== "url"; }
+			if ( trig ) {
+				var map = { timer: ".sb-when-timer", scroll: ".sb-when-scroll", button: ".sb-when-button" };
+				Object.keys( map ).forEach( function ( k ) {
+					var box = rule.querySelector( map[ k ] );
+					if ( box ) { box.hidden = trig.value !== k; }
+				} );
+			}
+		}
+		if ( host ) {
+			host.querySelectorAll( ".sb-rule" ).forEach( syncRule );
+			host.addEventListener( "change", function ( e ) {
+				var rule = e.target.closest( ".sb-rule" );
+				if ( rule ) { syncRule( rule ); }
+			} );
+			host.addEventListener( "click", function ( e ) {
+				if ( ! e.target.closest( ".sb-remove" ) ) { return; }
+				var rule = e.target.closest( ".sb-rule" );
+				if ( rule ) { rule.remove(); }
+			} );
+		}
+		if ( addBtn && tpl && host ) {
+			addBtn.addEventListener( "click", function () {
+				var i = host.querySelectorAll( ".sb-rule" ).length;
+				var html = tpl.innerHTML.split( "__i__" ).join( String( i ) );
+				var box = document.createElement( "div" );
+				box.innerHTML = html;
+				var rule = box.firstElementChild;
+				host.appendChild( rule );
+				syncRule( rule );
+				var first = rule.querySelector( "select, input" );
+				if ( first ) { first.focus(); }
+			} );
+		}
 
 		document.addEventListener( "click", function ( e ) {
 			var btn = e.target.closest( ".sb-copy" );

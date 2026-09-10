@@ -181,16 +181,228 @@ function sendbeam_screen_audience() {
 	}
 	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'Which list a form subscribes people to is set on the form itself, in SendBeam.', 'sendbeam' ) . '</p>';
 	sendbeam_card_close();
+
+	sendbeam_screen_sync( $lists );
+}
+
+/**
+ * Subscribing people who are already doing something else on the site.
+ *
+ * @param array<int,array<string,mixed>>|null $lists Lists, or null when unreadable.
+ */
+function sendbeam_screen_sync( $lists ) {
+	$sync = sendbeam_sync_settings();
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice only.
+	if ( isset( $_GET['sendbeam_sync_saved'] ) ) {
+		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Saved.', 'sendbeam' ) . '</p>';
+	}
+
+	sendbeam_card_open( __( 'Collect subscribers elsewhere on the site', 'sendbeam' ) );
+
+	echo '<p style="margin-top:0">' . esc_html__( 'Adds an opt-in tick box to things people already do here. Nobody is subscribed without ticking it, and the box is never pre-ticked.', 'sendbeam' ) . '</p>';
+
+	if ( null === $lists || ! $lists ) {
+		echo '<p class="sb-msg sb-msg--warn">' . esc_html__( 'This needs at least one list, read with a key that has the Lists (read) permission. Add one on the Overview tab.', 'sendbeam' ) . '</p>';
+		sendbeam_card_close();
+		return;
+	}
+
+	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	echo '<input type="hidden" name="action" value="sendbeam_save_sync" />';
+	wp_nonce_field( 'sendbeam_save_sync' );
+
+	$sources = array(
+		'registration' => array( __( 'When someone registers an account', 'sendbeam' ), true ),
+		'comments'     => array( __( 'When someone leaves a comment', 'sendbeam' ), true ),
+		'woocommerce'  => array( __( 'When someone checks out in WooCommerce', 'sendbeam' ), class_exists( 'WooCommerce' ) ),
+	);
+
+	echo '<p class="sb-label">' . esc_html__( 'Ask on', 'sendbeam' ) . '</p>';
+	foreach ( $sources as $key => $meta ) {
+		printf(
+			'<p class="sb-inline" style="display:flex"><label class="sb-inline"><input type="checkbox" name="sendbeam_sync[%1$s]" value="1" %2$s %3$s /> %4$s</label>%5$s</p>',
+			esc_attr( $key ),
+			checked( ! empty( $sync[ $key ] ), true, false ),
+			$meta[1] ? '' : 'disabled',
+			esc_html( $meta[0] ),
+			$meta[1] ? '' : ' <span class="sb-note" style="margin-left:8px">' . esc_html__( 'WooCommerce is not active on this site.', 'sendbeam' ) . '</span>'
+		);
+	}
+
+	echo '<p class="sb-label" style="margin-top:18px">' . esc_html__( 'Add them to', 'sendbeam' ) . '</p>';
+	foreach ( $lists as $list ) {
+		printf(
+			'<p><label class="sb-inline"><input type="checkbox" name="sendbeam_sync[lists][]" value="%1$s" %2$s /> %3$s%4$s</label></p>',
+			esc_attr( $list['id'] ),
+			checked( in_array( $list['id'], $sync['lists'], true ), true, false ),
+			esc_html( $list['name'] ),
+			$list['double_optin'] ? ' <span class="sb-chip">' . esc_html__( 'Double opt-in', 'sendbeam' ) . '</span>' : ''
+		);
+	}
+	echo '<p class="sb-note">' . esc_html__( 'A list set to double opt-in still sends its own confirmation email before anyone receives anything.', 'sendbeam' ) . '</p>';
+
+	printf(
+		'<p style="margin-top:18px"><label><span class="sb-label">%1$s</span>' .
+		'<input type="text" name="sendbeam_sync[label]" value="%2$s" placeholder="%3$s" class="regular-text" style="width:100%%;max-width:36em" /></label></p>',
+		esc_html__( 'Wording next to the tick box', 'sendbeam' ),
+		esc_attr( $sync['label'] ),
+		esc_attr( sendbeam_sync_label() )
+	);
+
+	echo '<p><button type="submit" class="sb-btn">' . esc_html__( 'Save', 'sendbeam' ) . '</button></p>';
+	echo '</form>';
+	sendbeam_card_close();
+
+	$log = get_option( SENDBEAM_SYNC_LOG, array() );
+	if ( is_array( $log ) && $log ) {
+		sendbeam_card_open( __( 'Recent subscriptions', 'sendbeam' ) );
+		echo '<table class="sb-table"><thead><tr>';
+		echo '<th>' . esc_html__( 'When', 'sendbeam' ) . '</th><th>' . esc_html__( 'Who', 'sendbeam' ) . '</th>';
+		echo '<th>' . esc_html__( 'From', 'sendbeam' ) . '</th><th>' . esc_html__( 'Result', 'sendbeam' ) . '</th>';
+		echo '</tr></thead><tbody>';
+		foreach ( $log as $row ) {
+			echo '<tr>';
+			echo '<td class="sb-mono">' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $row['at'] ) ) . '</td>';
+			echo '<td>' . esc_html( $row['email'] ) . '</td>';
+			echo '<td><span class="sb-chip">' . esc_html( $row['source'] ) . '</span></td>';
+			echo '<td>' . ( $row['ok'] ? esc_html__( 'Subscribed', 'sendbeam' ) : esc_html( __( 'Failed', 'sendbeam' ) . ' — ' . $row['note'] ) ) . '</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table>';
+		sendbeam_card_close();
+	}
 }
 
 /* --------------------------------------------------------------- Pop-ups */
 
 function sendbeam_screen_popup() {
-	sendbeam_card_open( __( 'Pop-up', 'sendbeam' ) );
-	sendbeam_form_open( 'popup' );
-	do_settings_sections( 'sendbeam_popup_page' );
-	sendbeam_form_close();
+	$rules = sendbeam_popups();
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice text only.
+	if ( isset( $_GET['sendbeam_saved'] ) ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$n = (int) $_GET['sendbeam_saved'];
+		echo '<p class="sb-msg sb-msg--ok">' . esc_html(
+			sprintf( /* translators: %d: number of pop-ups */ _n( '%d pop-up saved.', '%d pop-ups saved.', $n, 'sendbeam' ), $n )
+		) . '</p>';
+	}
+
+	sendbeam_card_open( __( 'Pop-ups', 'sendbeam' ), __( 'First match wins, top to bottom.', 'sendbeam' ) );
+
+	echo '<p class="sb-note" style="margin-top:0">' . esc_html__( 'Add as many as you like and target each one. Only the first rule that matches a page opens by itself, so two pop-ups can never fight over the same visitor.', 'sendbeam' ) . '</p>';
+
+	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	echo '<input type="hidden" name="action" value="sendbeam_save_popups" />';
+	wp_nonce_field( 'sendbeam_save_popups' );
+
+	echo '<div id="sb-popups">';
+	foreach ( $rules as $i => $rule ) {
+		sendbeam_popup_row( $i, $rule );
+	}
+	echo '</div>';
+
+	echo '<p style="margin-top:14px"><button type="button" class="sb-btn sb-btn--ghost" id="sb-add-popup">' . esc_html__( '+ Add a pop-up', 'sendbeam' ) . '</button></p>';
+	echo '<p><button type="submit" class="sb-btn">' . esc_html__( 'Save pop-ups', 'sendbeam' ) . '</button></p>';
+	echo '</form>';
+
+	// The blank row the "add" button clones. __i__ is swapped for the index.
+	echo '<template id="sb-popup-template">';
+	sendbeam_popup_row( '__i__', sendbeam_popup_defaults() );
+	echo '</template>';
+
 	sendbeam_card_close();
+}
+
+/**
+ * One pop-up rule as a fieldset.
+ *
+ * @param int|string $i    Index, or __i__ for the template.
+ * @param array      $rule Rule values.
+ */
+function sendbeam_popup_row( $i, $rule ) {
+	$name    = 'sendbeam_popup[' . $i . ']';
+	$choices = sendbeam_form_choices( 'signup' );
+	?>
+	<fieldset class="sb-rule">
+		<legend class="sb-label"><?php esc_html_e( 'Pop-up', 'sendbeam' ); ?></legend>
+
+		<div class="sb-rule__grid">
+			<label>
+				<span class="sb-label"><?php esc_html_e( 'Form', 'sendbeam' ); ?></span>
+				<?php if ( null === $choices ) : ?>
+					<input type="text" name="<?php echo esc_attr( $name ); ?>[form]" value="<?php echo esc_attr( $rule['form'] ); ?>"
+						placeholder="8f3c1a2e-0000-4000-8000-000000000000" spellcheck="false" class="regular-text code" />
+				<?php else : ?>
+					<select name="<?php echo esc_attr( $name ); ?>[form]">
+						<option value=""><?php esc_html_e( '— choose a form —', 'sendbeam' ); ?></option>
+						<?php foreach ( $choices as $id => $label ) : ?>
+							<option value="<?php echo esc_attr( $id ); ?>" <?php selected( $rule['form'], $id ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+						<?php if ( '' !== $rule['form'] && ! isset( $choices[ $rule['form'] ] ) ) : ?>
+							<option value="<?php echo esc_attr( $rule['form'] ); ?>" selected><?php echo esc_html( sprintf( /* translators: %s: id */ __( 'Saved form %s', 'sendbeam' ), substr( $rule['form'], 0, 8 ) ) ); ?></option>
+						<?php endif; ?>
+					</select>
+				<?php endif; ?>
+			</label>
+
+			<label>
+				<span class="sb-label"><?php esc_html_e( 'Show on', 'sendbeam' ); ?></span>
+				<select name="<?php echo esc_attr( $name ); ?>[where]" class="sb-where">
+					<?php foreach ( sendbeam_popup_wheres() as $k => $v ) : ?>
+						<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $rule['where'], $k ); ?>><?php echo esc_html( $v ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+
+			<label class="sb-when-url" <?php echo 'url' === $rule['where'] ? '' : 'hidden'; ?>>
+				<span class="sb-label"><?php esc_html_e( 'Address contains', 'sendbeam' ); ?></span>
+				<input type="text" name="<?php echo esc_attr( $name ); ?>[url]" value="<?php echo esc_attr( $rule['url'] ); ?>" placeholder="/pricing" class="regular-text" />
+			</label>
+
+			<label>
+				<span class="sb-label"><?php esc_html_e( 'Open', 'sendbeam' ); ?></span>
+				<select name="<?php echo esc_attr( $name ); ?>[trigger]" class="sb-trigger">
+					<?php foreach ( sendbeam_popup_triggers() as $k => $v ) : ?>
+						<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $rule['trigger'], $k ); ?>><?php echo esc_html( $v ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+
+			<label class="sb-when-timer" <?php echo 'timer' === $rule['trigger'] ? '' : 'hidden'; ?>>
+				<span class="sb-label"><?php esc_html_e( 'Delay (seconds)', 'sendbeam' ); ?></span>
+				<input type="number" min="0" max="120" name="<?php echo esc_attr( $name ); ?>[delay]" value="<?php echo esc_attr( $rule['delay'] ); ?>" class="small-text" />
+			</label>
+
+			<label class="sb-when-scroll" <?php echo 'scroll' === $rule['trigger'] ? '' : 'hidden'; ?>>
+				<span class="sb-label"><?php esc_html_e( 'Scroll depth (%)', 'sendbeam' ); ?></span>
+				<input type="number" min="5" max="100" name="<?php echo esc_attr( $name ); ?>[scroll]" value="<?php echo esc_attr( $rule['scroll'] ); ?>" class="small-text" />
+			</label>
+
+			<label class="sb-when-button" <?php echo 'button' === $rule['trigger'] ? '' : 'hidden'; ?>>
+				<span class="sb-label"><?php esc_html_e( 'Button label', 'sendbeam' ); ?></span>
+				<input type="text" name="<?php echo esc_attr( $name ); ?>[label]" value="<?php echo esc_attr( $rule['label'] ); ?>" placeholder="<?php esc_attr_e( 'Subscribe', 'sendbeam' ); ?>" class="regular-text" />
+			</label>
+
+			<label>
+				<span class="sb-label"><?php esc_html_e( 'After it is closed', 'sendbeam' ); ?></span>
+				<select name="<?php echo esc_attr( $name ); ?>[once]">
+					<?php foreach ( sendbeam_popup_frequencies() as $k => $v ) : ?>
+						<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $rule['once'], $k ); ?>><?php echo esc_html( $v ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+		</div>
+
+		<div class="sb-rule__foot">
+			<label class="sb-inline">
+				<input type="checkbox" name="<?php echo esc_attr( $name ); ?>[enabled]" value="1" <?php checked( ! empty( $rule['enabled'] ) ); ?> />
+				<?php esc_html_e( 'Active', 'sendbeam' ); ?>
+			</label>
+			<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-remove"><?php esc_html_e( 'Remove', 'sendbeam' ); ?></button>
+		</div>
+	</fieldset>
+	<?php
 }
 
 /* ------------------------------------------------------------ Site email */

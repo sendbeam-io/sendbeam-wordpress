@@ -136,79 +136,151 @@ function sendbeam_shortcode_contact( $atts ) {
  * @return string
  */
 function sendbeam_shortcode_popup_button( $atts ) {
-	$settings = sendbeam_settings();
-	$atts     = shortcode_atts(
+	$atts = shortcode_atts(
 		array(
 			'label' => __( 'Subscribe', 'sendbeam' ),
-			'class' => 'wp-element-button',
+			'class' => '',
+			'id'    => '',
 		),
 		$atts,
 		'sendbeam_popup_button'
 	);
-	if ( ! sendbeam_is_form_id( $settings['popup_form'] ) ) {
-		return sendbeam_editor_notice( __( 'SendBeam: no pop-up form chosen under Settings → SendBeam.', 'sendbeam' ) );
+
+	// An explicit id wins; otherwise the pop-up that owns this page, otherwise
+	// the first rule that has a form at all.
+	$form_id = strtolower( trim( (string) $atts['id'] ) );
+	if ( ! sendbeam_is_form_id( $form_id ) ) {
+		$active  = sendbeam_active_popup();
+		$form_id = $active ? $active['form'] : '';
 	}
-	$GLOBALS['sendbeam_popup_button_used'] = true;
+	if ( ! sendbeam_is_form_id( $form_id ) ) {
+		foreach ( sendbeam_popups() as $rule ) {
+			if ( sendbeam_is_form_id( $rule['form'] ) ) {
+				$form_id = $rule['form'];
+				break;
+			}
+		}
+	}
+	if ( ! sendbeam_is_form_id( $form_id ) ) {
+		return sendbeam_editor_notice( __( 'SendBeam: add a pop-up under Settings → SendBeam → Pop-ups first.', 'sendbeam' ) );
+	}
+
+	if ( ! isset( $GLOBALS['sendbeam_popup_buttons'] ) || ! is_array( $GLOBALS['sendbeam_popup_buttons'] ) ) {
+		$GLOBALS['sendbeam_popup_buttons'] = array();
+	}
+	$GLOBALS['sendbeam_popup_buttons'][ $form_id ] = $form_id;
+
 	return sprintf(
 		'<button type="button" class="sendbeam-popup-button %s" data-sendbeam-open="%s">%s</button>',
 		esc_attr( $atts['class'] ),
-		esc_attr( $settings['popup_form'] ),
+		esc_attr( $form_id ),
 		esc_html( $atts['label'] )
 	);
 }
 
 /**
- * Whether the pop-up belongs on the current request, per the "Show on" setting.
+ * Print the loader(s) in the footer.
  *
- * @param array $settings Plugin settings.
- * @return bool
+ * At most one pop-up opens by itself — the first rule that matches this page.
+ * Any form targeted by a [sendbeam_popup_button] on the page is also loaded,
+ * in manual mode, so the button has something to open.
  */
-function sendbeam_popup_wanted_here( $settings ) {
-	switch ( $settings['popup_where'] ) {
-		case 'everywhere':
-			return true;
-		case 'posts':
-			return is_singular( 'post' );
-		case 'pages':
-			return is_page();
-		case 'home':
-			return is_front_page();
-		default:
-			return false;
+function sendbeam_print_popup_loader() {
+	if ( is_admin() ) {
+		return;
+	}
+
+	$load = array();
+
+	$rule = sendbeam_active_popup();
+	if ( $rule ) {
+		$load[ $rule['form'] ] = $rule;
+	}
+
+	$buttons = isset( $GLOBALS['sendbeam_popup_buttons'] ) && is_array( $GLOBALS['sendbeam_popup_buttons'] )
+		? $GLOBALS['sendbeam_popup_buttons']
+		: array();
+	foreach ( $buttons as $form_id ) {
+		if ( ! isset( $load[ $form_id ] ) ) {
+			$load[ $form_id ] = array_merge( sendbeam_popup_defaults(), array( 'form' => $form_id, 'trigger' => 'manual' ) );
+		}
+	}
+
+	if ( ! $load ) {
+		return;
+	}
+
+	sendbeam_enqueue_relay();
+
+	foreach ( $load as $form_id => $popup ) {
+		$trigger    = $popup['trigger'];
+		$attributes = array(
+			'src'       => sendbeam_popup_script_url( $form_id ),
+			'async'     => true,
+			'data-once' => $popup['once'],
+		);
+
+		if ( 'timer' === $trigger ) {
+			$attributes['data-delay'] = (string) ( (int) $popup['delay'] * 1000 );
+		} elseif ( 'button' === $trigger ) {
+			$attributes['data-trigger'] = 'button';
+			if ( '' !== $popup['label'] ) {
+				$attributes['data-label'] = $popup['label'];
+			}
+		} else {
+			// manual, scroll and exit all open through data-sendbeam-open.
+			$attributes['data-trigger'] = 'manual';
+		}
+
+		wp_print_script_tag( $attributes );
+
+		if ( 'scroll' === $trigger || 'exit' === $trigger ) {
+			sendbeam_print_popup_opener( $form_id, $trigger, (int) $popup['scroll'] );
+		}
 	}
 }
 
 /**
- * Print the loader in the footer when the pop-up is on for this page, or
- * when a [sendbeam_popup_button] on the page needs it (then the modal only
- * opens from the button).
+ * Hidden opener plus the few lines that decide when to click it.
+ *
+ * The hosted loader already remembers "do not show this again" and handles the
+ * modal itself; all this adds is *when*. Exit intent is pointer-based, so it
+ * is bound only where a pointer exists — on a phone it would either never fire
+ * or fire on every scroll flick.
+ *
+ * @param string $form_id Form ID.
+ * @param string $trigger 'scroll' or 'exit'.
+ * @param int    $percent Scroll depth to fire at.
  */
-function sendbeam_print_popup_loader() {
-	$settings = sendbeam_settings();
-	if ( ! sendbeam_is_form_id( $settings['popup_form'] ) || is_admin() ) {
-		return;
-	}
-	$auto   = sendbeam_popup_wanted_here( $settings );
-	$button = ! empty( $GLOBALS['sendbeam_popup_button_used'] );
-	if ( ! $auto && ! $button ) {
-		return;
-	}
-	sendbeam_enqueue_relay();
-	$attributes = array(
-		'src'        => sendbeam_popup_script_url( $settings['popup_form'] ),
-		'async'      => true,
-		'data-once'  => $settings['popup_once'],
-		'data-delay' => (string) ( (int) $settings['popup_delay'] * 1000 ),
+function sendbeam_print_popup_opener( $form_id, $trigger, $percent ) {
+	$handle = 'sendbeam-popup-' . substr( $form_id, 0, 8 );
+	printf(
+		'<button type="button" id="%1$s" data-sendbeam-open="%2$s" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0" aria-hidden="true" tabindex="-1"></button>',
+		esc_attr( $handle ),
+		esc_attr( $form_id )
 	);
-	if ( ! $auto ) {
-		$attributes['data-trigger'] = 'manual';
-	} elseif ( 'button' === $settings['popup_trigger'] ) {
-		$attributes['data-trigger'] = 'button';
-		if ( '' !== $settings['popup_label'] ) {
-			$attributes['data-label'] = $settings['popup_label'];
-		}
+
+	$js = sprintf(
+		'(function(){var b=document.getElementById(%1$s);if(!b)return;var fired=false;' .
+		'function go(){if(fired)return;fired=true;b.click();}',
+		wp_json_encode( $handle )
+	);
+
+	if ( 'scroll' === $trigger ) {
+		$js .= sprintf(
+			'var pct=%d;function onScroll(){var h=document.documentElement;' .
+			'var max=(h.scrollHeight-h.clientHeight);if(max<=0)return;' .
+			'if(((h.scrollTop||document.body.scrollTop)/max)*100>=pct){window.removeEventListener("scroll",onScroll);go();}}' .
+			'window.addEventListener("scroll",onScroll,{passive:true});onScroll();',
+			max( 5, min( 100, $percent ) )
+		);
+	} else {
+		$js .= 'if(window.matchMedia&&window.matchMedia("(pointer:fine)").matches){' .
+			'document.addEventListener("mouseout",function(e){if(!e.relatedTarget&&e.clientY<=0)go();});}';
 	}
-	wp_print_script_tag( $attributes );
+
+	$js .= '}());';
+	wp_print_inline_script_tag( $js );
 }
 
 /**

@@ -287,3 +287,45 @@ function sendbeam_rest_forms() {
 	}
 	return rest_ensure_response( array( 'available' => true, 'forms' => $out ) );
 }
+
+/**
+ * POST JSON to the SendBeam API with the saved key.
+ *
+ * @param string $path Path beginning with a slash.
+ * @param array  $body Payload.
+ * @return array{ok:bool,status:int,data:array<mixed>,error:string}
+ */
+function sendbeam_api_post( $path, $body ) {
+	$key = sendbeam_api_key();
+	if ( '' === $key ) {
+		return array( 'ok' => false, 'status' => 0, 'data' => array(), 'error' => __( 'No API key saved.', 'sendbeam' ) );
+	}
+
+	$response = wp_remote_post(
+		sendbeam_app_url() . $path,
+		array(
+			'timeout' => 12,
+			'headers' => array(
+				'x-api-key'    => $key,
+				'Content-Type' => 'application/json',
+				'Accept'       => 'application/json',
+			),
+			'body'    => wp_json_encode( $body ),
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		return array( 'ok' => false, 'status' => 0, 'data' => array(), 'error' => $response->get_error_message() );
+	}
+
+	$status = (int) wp_remote_retrieve_response_code( $response );
+	$parsed = json_decode( wp_remote_retrieve_body( $response ), true );
+	$data   = is_array( $parsed ) ? $parsed : array();
+
+	return array(
+		'ok'     => $status >= 200 && $status < 300,
+		'status' => $status,
+		'data'   => $data,
+		'error'  => isset( $data['error'] ) ? (string) $data['error'] : '',
+	);
+}

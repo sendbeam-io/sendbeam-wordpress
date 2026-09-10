@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0
+
+- **Pop-ups became a list, not a setting.** Add as many as you like; each has its own form, targeting (every page / home / single posts / pages / address contains…) and frequency. The first enabled rule that matches a page wins and nothing else is printed, so two modals can never fight over the same visitor.
+- **Two new triggers: scroll depth and exit intent.** Built on the hosted loader's manual mode — a hidden opener plus a few lines of script — rather than by inventing attributes it would ignore. Exit intent binds only where a real pointer exists, so it does not misfire on phones.
+- **Audience sync.** An opt-in tick box on account registration, comment forms and WooCommerce checkout, adding people to any number of lists. Three things it will not do: subscribe anyone who has not ticked the box, pre-tick the box, or bulk-import existing users who never agreed to anything.
+- A returning customer who ticks the box still lands on the list: the API answers 409 with no ID for an address already on file, so the contact is looked up by exact address instead of failing.
+- Recent subscriptions are logged, so a failure is visible rather than silent.
+- Upgrades fold the old single pop-up into rule one, so nothing stops working on update.
+
 ## 1.2.0
 
 - **The admin is SendBeam's own design now** — warm paper, ink rules, mono labels and the vermilion/cobalt/moss accents from the product, instead of a default WordPress settings page. Fonts are the system stack, not a remote webfont, so nothing is fetched from a third party inside wp-admin.
