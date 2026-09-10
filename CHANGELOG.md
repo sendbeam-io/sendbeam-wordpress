@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0
+
+- **Each pop-up carries its own headline and line of copy.** A pop-up arrives over whatever someone was reading with no page around it to explain itself; previously it showed either nothing or the internal form name and workspace name.
+- Pop-ups size themselves to the form inside them, and the close button no longer sits on top of the first field.
+- The pop-up loader URL now carries a fingerprint of the appearance settings, so a colour change reaches returning visitors immediately instead of waiting out the four-hour browser cache on `popup.js`.
+
 ## 1.4.0
 
 - **Forms take your site's colours.** New Appearance panel on the Forms tab: button, text, field and border colours, corner radius, text size and typeface. The values are sent to the hosted form, which validates every one of them before use — a colour must be hex, numbers are clamped, and the typeface is *named* from a list rather than supplied as a stack.

@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -83,6 +83,11 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 3. The pop-up on a post.
 
 == Changelog ==
+
+= 1.5.0 =
+* Give each pop-up its own headline and supporting line, so it says what it is for.
+* Pop-ups size themselves to their form; the close button no longer overlaps the first field.
+* Appearance changes reach returning visitors straight away instead of waiting out the loader's browser cache.
 
 = 1.4.0 =
 * Appearance settings: give embedded forms and pop-ups your own button, text, field and border colours, corner radius, text size and typeface.
