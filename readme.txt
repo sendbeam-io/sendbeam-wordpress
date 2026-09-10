@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -83,6 +83,10 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 3. The pop-up on a post.
 
 == Changelog ==
+
+= 1.5.1 =
+* Fixed: a pop-up set to stay hidden for a day or a week reappeared on every visit when it used the scroll or exit-intent trigger.
+* Fixed: the Overview and Audience tabs reported the wrong subscriber and per-list numbers.
 
 = 1.5.0 =
 * Give each pop-up its own headline and supporting line, so it says what it is for.

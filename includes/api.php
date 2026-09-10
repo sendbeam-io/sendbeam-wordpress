@@ -183,6 +183,7 @@ function sendbeam_flush_cache() {
 	delete_transient( SENDBEAM_CACHE_CONN );
 	delete_transient( SENDBEAM_CACHE_FORMS );
 	delete_transient( SENDBEAM_CACHE_LISTS );
+	delete_transient( SENDBEAM_CACHE_SUBS );
 }
 
 const SENDBEAM_CACHE_LISTS = 'sendbeam_remote_lists';
@@ -225,8 +226,12 @@ function sendbeam_lists( $force = false ) {
 		if ( ! isset( $row['id'] ) ) {
 			continue;
 		}
+		// Members come from the list's own endpoint. /contacts has no list_id
+		// filter — it accepts page, limit, q, status and tag only — so passing
+		// one was silently ignored and every list reported the whole
+		// workspace's contact count instead of its own.
 		$count   = null;
-		$counted = sendbeam_api_get( '/api/v1/contacts?limit=1&list_id=' . rawurlencode( (string) $row['id'] ) );
+		$counted = sendbeam_api_get( '/api/v1/lists/' . rawurlencode( (string) $row['id'] ) . '/contacts?limit=1' );
 		if ( $counted['ok'] && isset( $counted['data']['pagination']['total'] ) ) {
 			$count = (int) $counted['data']['pagination']['total'];
 		}
@@ -328,4 +333,38 @@ function sendbeam_api_post( $path, $body ) {
 		'data'   => $data,
 		'error'  => isset( $data['error'] ) ? (string) $data['error'] : '',
 	);
+}
+
+const SENDBEAM_CACHE_SUBS = 'sendbeam_subscriber_count';
+
+/**
+ * How many people this workspace can actually email.
+ *
+ * Not the sum of the list counts: somebody on three lists is one subscriber,
+ * and adding the lists up would report them three times. The API can answer
+ * this directly, so ask it rather than deriving it.
+ *
+ * @param bool $force Skip the cache.
+ * @return int|null Null when it cannot be read.
+ */
+function sendbeam_subscriber_count( $force = false ) {
+	if ( ! $force ) {
+		$cached = get_transient( SENDBEAM_CACHE_SUBS );
+		if ( is_numeric( $cached ) ) {
+			return (int) $cached;
+		}
+		if ( 'missing' === $cached ) {
+			return null;
+		}
+	}
+
+	$result = sendbeam_api_get( '/api/v1/contacts?limit=1&status=subscribed' );
+	if ( ! $result['ok'] || ! isset( $result['data']['pagination']['total'] ) ) {
+		set_transient( SENDBEAM_CACHE_SUBS, 'missing', SENDBEAM_CACHE_TTL );
+		return null;
+	}
+
+	$total = (int) $result['data']['pagination']['total'];
+	set_transient( SENDBEAM_CACHE_SUBS, $total, SENDBEAM_CACHE_TTL );
+	return $total;
 }

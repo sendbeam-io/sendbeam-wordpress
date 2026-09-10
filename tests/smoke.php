@@ -127,14 +127,14 @@ $GLOBALS['stub']['printed'] = '';
 unset( $GLOBALS['sendbeam_popup_buttons'] );
 update_option( 'sendbeam_popups', array( array( 'enabled' => 1, 'form' => $other, 'trigger' => 'scroll', 'delay' => 5, 'scroll' => 75, 'label' => '', 'once' => 'day', 'where' => 'everywhere', 'url' => '' ) ) );
 $out = popup_output();
-has( $out, 'data-trigger="manual"', 'scroll uses manual mode' );
-has( $out, 'data-sendbeam-open="' . $other . '"', 'hidden opener for the scroll trigger' );
-has( $out, 'pct=75', 'scroll depth reaches the script' );
+has( $out, 'data-trigger="scroll"', 'scroll is declared to the loader, not faked with a click' );
+has( $out, 'data-scroll="75"', 'scroll depth travels with it' );
+lacks( $out, 'data-sendbeam-open', 'no synthetic opener — that path ignores suppression' );
 
 $GLOBALS['stub']['printed'] = '';
 unset( $GLOBALS['sendbeam_popup_buttons'] );
 update_option( 'sendbeam_popups', array( array( 'enabled' => 1, 'form' => $other, 'trigger' => 'exit', 'delay' => 5, 'scroll' => 50, 'label' => '', 'once' => 'day', 'where' => 'everywhere', 'url' => '' ) ) );
-has( popup_output(), 'pointer:fine', 'exit intent only binds where a pointer exists' );
+has( popup_output(), 'data-trigger="exit"', 'exit intent is declared to the loader' );
 
 // Address targeting.
 $GLOBALS['stub']['printed'] = '';

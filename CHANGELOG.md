@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.1
+
+- **Fixed: a pop-up set to stay hidden reappeared on every visit.** Scroll-depth and exit-intent pop-ups were opened by clicking a hidden element, and that route deliberately ignores "do not show this again" — it is the route a visitor takes when they press a button they chose to press. Both are now real triggers in the loader, behind the same check as the delay trigger.
+- **Fixed: subscriber and list numbers were wrong.** The plugin asked for a list's members with a `list_id` filter the contacts endpoint does not have, so every list reported the workspace's entire contact count, and the Overview total was that figure multiplied by the number of lists. Members now come from each list's own endpoint, and Subscribers is asked for directly — someone on three lists is one subscriber, not three.
+
 ## 1.5.0
 
 - **Each pop-up carries its own headline and line of copy.** A pop-up arrives over whatever someone was reading with no page around it to explain itself; previously it showed either nothing or the internal form name and workspace name.

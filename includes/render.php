@@ -242,60 +242,20 @@ function sendbeam_print_popup_loader() {
 			if ( '' !== $popup['label'] ) {
 				$attributes['data-label'] = $popup['label'];
 			}
+		} elseif ( 'scroll' === $trigger || 'exit' === $trigger ) {
+			// Declared to the loader rather than faked by clicking a hidden
+			// opener: that route is the one a visitor takes when they press a
+			// button, so it ignores "do not show this again" on purpose.
+			$attributes['data-trigger'] = $trigger;
+			if ( 'scroll' === $trigger ) {
+				$attributes['data-scroll'] = (string) (int) $popup['scroll'];
+			}
 		} else {
-			// manual, scroll and exit all open through data-sendbeam-open.
 			$attributes['data-trigger'] = 'manual';
 		}
 
 		wp_print_script_tag( $attributes );
-
-		if ( 'scroll' === $trigger || 'exit' === $trigger ) {
-			sendbeam_print_popup_opener( $form_id, $trigger, (int) $popup['scroll'] );
-		}
 	}
-}
-
-/**
- * Hidden opener plus the few lines that decide when to click it.
- *
- * The hosted loader already remembers "do not show this again" and handles the
- * modal itself; all this adds is *when*. Exit intent is pointer-based, so it
- * is bound only where a pointer exists — on a phone it would either never fire
- * or fire on every scroll flick.
- *
- * @param string $form_id Form ID.
- * @param string $trigger 'scroll' or 'exit'.
- * @param int    $percent Scroll depth to fire at.
- */
-function sendbeam_print_popup_opener( $form_id, $trigger, $percent ) {
-	$handle = 'sendbeam-popup-' . substr( $form_id, 0, 8 );
-	printf(
-		'<button type="button" id="%1$s" data-sendbeam-open="%2$s" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0" aria-hidden="true" tabindex="-1"></button>',
-		esc_attr( $handle ),
-		esc_attr( $form_id )
-	);
-
-	$js = sprintf(
-		'(function(){var b=document.getElementById(%1$s);if(!b)return;var fired=false;' .
-		'function go(){if(fired)return;fired=true;b.click();}',
-		wp_json_encode( $handle )
-	);
-
-	if ( 'scroll' === $trigger ) {
-		$js .= sprintf(
-			'var pct=%d;function onScroll(){var h=document.documentElement;' .
-			'var max=(h.scrollHeight-h.clientHeight);if(max<=0)return;' .
-			'if(((h.scrollTop||document.body.scrollTop)/max)*100>=pct){window.removeEventListener("scroll",onScroll);go();}}' .
-			'window.addEventListener("scroll",onScroll,{passive:true});onScroll();',
-			max( 5, min( 100, $percent ) )
-		);
-	} else {
-		$js .= 'if(window.matchMedia&&window.matchMedia("(pointer:fine)").matches){' .
-			'document.addEventListener("mouseout",function(e){if(!e.relatedTarget&&e.clientY<=0)go();});}';
-	}
-
-	$js .= '}());';
-	wp_print_inline_script_tag( $js );
 }
 
 /**

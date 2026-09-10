@@ -36,13 +36,9 @@ function sendbeam_screen_overview() {
 	$forms    = sendbeam_remote_forms();
 	$lists    = sendbeam_lists();
 
-	$subscribers = null;
-	if ( is_array( $lists ) ) {
-		$subscribers = 0;
-		foreach ( $lists as $list ) {
-			$subscribers += (int) $list['count'];
-		}
-	}
+	// Asked for directly, not summed from the lists: one person on three lists
+	// is one subscriber, and adding the lists up counted them three times.
+	$subscribers = sendbeam_subscriber_count();
 
 	echo '<div class="sb-grid">';
 
@@ -69,7 +65,7 @@ function sendbeam_screen_overview() {
 	sendbeam_stat( __( 'Lists', 'sendbeam' ), is_array( $lists ) ? count( $lists ) : null );
 	sendbeam_stat( __( 'Subscribers', 'sendbeam' ), $subscribers );
 	echo '</div>';
-	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'Counts come from your SendBeam workspace and are cached for five minutes.', 'sendbeam' ) . '</p>';
+	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'Subscribers counts people, not list memberships — someone on three lists is one subscriber. Figures come from your SendBeam workspace and are cached for five minutes.', 'sendbeam' ) . '</p>';
 	sendbeam_card_close();
 
 	echo '</div>';
