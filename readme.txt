@@ -40,7 +40,7 @@ This plugin talks to SendBeam (sendbeam.io) in four distinct ways. Nothing is se
 
 **Site email** (off by default) posts each email your site sends from your server to `https://sendbeam.io/api/v1/transactional` with your API key: the recipient addresses, subject, body and reply-to, so SendBeam can deliver it from your verified domain. Messages with attachments are left to the server's own mailer.
 
-See the [SendBeam privacy policy](https://sendbeam.io/privacy) and [terms](https://sendbeam.io/terms).
+Full setup documentation: [sendbeam.io/docs/wordpress](https://sendbeam.io/docs/wordpress). See also the [SendBeam privacy policy](https://sendbeam.io/privacy) and [terms](https://sendbeam.io/terms).
 
 = Requirements =
 

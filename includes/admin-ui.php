@@ -77,6 +77,7 @@ function sendbeam_render_header() {
 		</div>
 		<div class="sb-head__right">
 			<span class="sb-state sb-state--<?php echo esc_attr( $state[0] ); ?>"><?php echo esc_html( $state[1] ); ?></span>
+			<a class="sb-btn sb-btn--ghost" href="<?php echo esc_url( sendbeam_app_url() . '/docs/wordpress' ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Documentation', 'sendbeam' ); ?></a>
 			<a class="sb-btn sb-btn--ghost" href="<?php echo esc_url( sendbeam_app_url() ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Open SendBeam', 'sendbeam' ); ?></a>
 		</div>
 	</div>
