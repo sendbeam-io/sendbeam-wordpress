@@ -7,22 +7,51 @@ require dirname( __DIR__ ) . '/sendbeam.php';
 
 $pass = 0;
 function ok( $cond, $what ) { global $pass; if ( ! $cond ) { fwrite( STDERR, "FAIL: $what\n" ); exit( 1 ); } $pass++; }
+/**
+ * Everything the footer hook emits: the stubs record wp_print_*_tag calls,
+ * but the hidden opener is echoed straight out, so both must be collected or
+ * the assertion passes on half the output.
+ */
+function popup_output() {
+	$GLOBALS['stub']['printed'] = '';
+	ob_start();
+	sendbeam_print_popup_loader();
+	$echoed = ob_get_clean();
+	return $GLOBALS['stub']['printed'] . $echoed;
+}
 function has( $hay, $needle, $what ) { ok( false !== strpos( $hay, $needle ), "$what — expected to find: $needle\nGOT: $hay" ); }
 function lacks( $hay, $needle, $what ) { ok( false === strpos( $hay, $needle ), "$what — did not expect: $needle\nGOT: $hay" ); }
 
 $form = '8f3c1a2e-3b1d-4c55-9a0e-1f2d3c4b5a69';
 $other = '11111111-2222-4333-8444-555555555555';
 
-// Sanitising settings: bad IDs are dropped with a notice, enums fall back, delay is clamped.
-$clean = sendbeam_sanitize_settings( array( 'default_form' => strtoupper( $form ), 'contact_form' => 'not-an-id', 'popup_form' => $other, 'popup_where' => 'moon', 'popup_trigger' => 'button', 'popup_delay' => '999', 'popup_once' => 'week', 'popup_label' => '<b>Join</b>' ) );
+// Sanitising settings: bad IDs are dropped with a notice.
+$clean = sendbeam_sanitize_settings( array( '_tab' => 'forms', 'default_form' => strtoupper( $form ), 'contact_form' => 'not-an-id' ) );
 ok( $clean['default_form'] === $form, 'form id lower-cased' );
 ok( $clean['contact_form'] === '', 'bad contact id dropped' );
 ok( count( $GLOBALS['stub']['errors'] ) === 1, 'one settings error for the bad id' );
-ok( $clean['popup_where'] === 'off', 'unknown where falls back to off' );
-ok( $clean['popup_trigger'] === 'button' && $clean['popup_once'] === 'week', 'enums kept' );
-ok( $clean['popup_delay'] === 120, 'delay clamped to 120' );
-ok( $clean['popup_label'] === 'Join', 'label stripped of tags' );
-ok( sendbeam_sanitize_settings( 'garbage' ) === sendbeam_default_settings(), 'non-array input gives defaults' );
+ok( ! isset( $clean['_tab'] ), 'the tab marker is not stored' );
+
+// Saving one tab must not flatten the others: an unchecked box and a field
+// that was never on screen look identical in $_POST.
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_keptkeptkept', 'default_form' => $form, 'mail_enabled' => 1 ) );
+$kept = sendbeam_sanitize_settings( array( '_tab' => 'forms', 'default_form' => $other, 'contact_form' => '' ) );
+ok( $kept['api_key'] === 'sb_live_keptkeptkept', 'saving Forms keeps the API key' );
+ok( (int) $kept['mail_enabled'] === 1, 'saving Forms keeps site email on' );
+$off = sendbeam_sanitize_settings( array( '_tab' => 'mail' ) );
+ok( (int) $off['mail_enabled'] === 0, 'unchecking site email on its own tab turns it off' );
+update_option( 'sendbeam_settings', array() );
+
+// Pop-up rules: unknown enums fall back, numbers are clamped, tags are stripped.
+$rule = sendbeam_clean_popup( array( 'form' => $other, 'trigger' => 'moon', 'where' => 'moon', 'delay' => '999', 'scroll' => '999', 'once' => 'week', 'label' => '<b>Join</b>', 'enabled' => '1' ) );
+ok( $rule['form'] === $other, 'rule keeps a valid form id' );
+ok( $rule['trigger'] === 'timer', 'unknown trigger falls back to timer' );
+ok( $rule['where'] === 'everywhere', 'unknown placement falls back to everywhere' );
+ok( $rule['once'] === 'week', 'known frequency kept' );
+ok( $rule['delay'] === 120, 'delay clamped to 120' );
+ok( $rule['scroll'] === 100, 'scroll depth clamped to 100' );
+ok( $rule['label'] === 'Join', 'label stripped of tags' );
+ok( sendbeam_clean_popup( array( 'form' => 'not-an-id' ) )['form'] === '', 'rule drops a bad form id' );
 
 // Form HTML.
 ok( sendbeam_form_html( 'nope' ) === '', 'invalid id renders nothing' );
@@ -45,7 +74,8 @@ has( do_shortcode_tag( 'sendbeam_form' ), '/f/' . $form . '?embed=1', 'default f
 has( do_shortcode_tag( 'sendbeam_contact' ), '/f/' . $other . '?embed=1', 'contact form used' );
 has( do_shortcode_tag( 'sendbeam_contact' ), 'title="Contact form"', 'contact title' );
 
-// Pop-up loader: not on pages, on posts with the settings as data attributes.
+// Pop-up loader: not on pages, on posts with the rule as data attributes.
+update_option( 'sendbeam_popups', array( array( 'enabled' => 1, 'form' => $other, 'trigger' => 'timer', 'delay' => 3, 'scroll' => 50, 'label' => '', 'once' => 'week', 'where' => 'posts', 'url' => '' ) ) );
 $GLOBALS['stub']['query'] = array( 'page' => true );
 sendbeam_print_popup_loader();
 ok( $GLOBALS['stub']['printed'] === '', 'no loader on a page when set to posts' );
@@ -69,11 +99,58 @@ has( $GLOBALS['stub']['printed'], 'data-trigger="manual"', 'manual trigger when 
 
 // Floating-button mode carries the label.
 $GLOBALS['stub']['printed'] = '';
-unset( $GLOBALS['sendbeam_popup_button_used'] );
-update_option( 'sendbeam_settings', array( 'popup_form' => $other, 'popup_where' => 'everywhere', 'popup_trigger' => 'button', 'popup_label' => 'Get the letter' ) );
+unset( $GLOBALS['sendbeam_popup_buttons'] );
+update_option( 'sendbeam_popups', array( array( 'enabled' => 1, 'form' => $other, 'trigger' => 'button', 'delay' => 5, 'scroll' => 50, 'label' => 'Get the letter', 'once' => 'day', 'where' => 'everywhere', 'url' => '' ) ) );
 sendbeam_print_popup_loader();
 has( $GLOBALS['stub']['printed'], 'data-trigger="button"', 'button trigger' );
 has( $GLOBALS['stub']['printed'], 'data-label="Get the letter"', 'button label' );
+
+// Several rules: the first that matches wins, and nothing else is printed.
+$GLOBALS['stub']['printed'] = '';
+unset( $GLOBALS['sendbeam_popup_buttons'] );
+update_option( 'sendbeam_popups', array(
+	array( 'enabled' => 0, 'form' => $form,  'trigger' => 'timer', 'delay' => 1, 'scroll' => 50, 'label' => '', 'once' => 'day', 'where' => 'everywhere', 'url' => '' ),
+	array( 'enabled' => 1, 'form' => $other, 'trigger' => 'timer', 'delay' => 2, 'scroll' => 50, 'label' => '', 'once' => 'day', 'where' => 'everywhere', 'url' => '' ),
+	array( 'enabled' => 1, 'form' => $form,  'trigger' => 'timer', 'delay' => 9, 'scroll' => 50, 'label' => '', 'once' => 'day', 'where' => 'everywhere', 'url' => '' ),
+) );
+sendbeam_print_popup_loader();
+has( $GLOBALS['stub']['printed'], '/f/' . $other . '/popup.js', 'a disabled rule is skipped and the next one wins' );
+lacks( $GLOBALS['stub']['printed'], '/f/' . $form . '/popup.js', 'the later matching rule is not also printed' );
+ok( substr_count( $GLOBALS['stub']['printed'], '<script' ) === 1, 'exactly one loader' );
+
+// Scroll and exit triggers open through the hosted loader's manual mode.
+$GLOBALS['stub']['printed'] = '';
+unset( $GLOBALS['sendbeam_popup_buttons'] );
+update_option( 'sendbeam_popups', array( array( 'enabled' => 1, 'form' => $other, 'trigger' => 'scroll', 'delay' => 5, 'scroll' => 75, 'label' => '', 'once' => 'day', 'where' => 'everywhere', 'url' => '' ) ) );
+$out = popup_output();
+has( $out, 'data-trigger="manual"', 'scroll uses manual mode' );
+has( $out, 'data-sendbeam-open="' . $other . '"', 'hidden opener for the scroll trigger' );
+has( $out, 'pct=75', 'scroll depth reaches the script' );
+
+$GLOBALS['stub']['printed'] = '';
+unset( $GLOBALS['sendbeam_popup_buttons'] );
+update_option( 'sendbeam_popups', array( array( 'enabled' => 1, 'form' => $other, 'trigger' => 'exit', 'delay' => 5, 'scroll' => 50, 'label' => '', 'once' => 'day', 'where' => 'everywhere', 'url' => '' ) ) );
+has( popup_output(), 'pointer:fine', 'exit intent only binds where a pointer exists' );
+
+// Address targeting.
+$GLOBALS['stub']['printed'] = '';
+unset( $GLOBALS['sendbeam_popup_buttons'] );
+update_option( 'sendbeam_popups', array( array( 'enabled' => 1, 'form' => $other, 'trigger' => 'timer', 'delay' => 5, 'scroll' => 50, 'label' => '', 'once' => 'day', 'where' => 'url', 'url' => '/pricing' ) ) );
+$_SERVER['REQUEST_URI'] = '/about/';
+sendbeam_print_popup_loader();
+ok( $GLOBALS['stub']['printed'] === '', 'address rule does not match /about/' );
+$_SERVER['REQUEST_URI'] = '/pricing/plans';
+sendbeam_print_popup_loader();
+has( $GLOBALS['stub']['printed'], '/f/' . $other . '/popup.js', 'address rule matches /pricing/plans' );
+
+// Upgrading from the single pop-up: the old settings become rule one.
+delete_option( 'sendbeam_popups' );
+update_option( 'sendbeam_settings', array( 'popup_form' => $form, 'popup_where' => 'home', 'popup_trigger' => 'button', 'popup_delay' => 3, 'popup_once' => 'week', 'popup_label' => 'Join us' ) );
+$migrated = sendbeam_popups();
+ok( count( $migrated ) === 1, 'legacy pop-up migrates to one rule' );
+ok( $migrated[0]['form'] === $form && $migrated[0]['where'] === 'home', 'migrated form and placement' );
+ok( $migrated[0]['trigger'] === 'button' && $migrated[0]['label'] === 'Join us', 'migrated trigger and label' );
+delete_option( 'sendbeam_popups' );
 
 // Block render.
 $GLOBALS['stub']['printed'] = '';

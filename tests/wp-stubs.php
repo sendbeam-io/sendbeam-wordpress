@@ -48,6 +48,49 @@ function wp_print_script_tag( $attrs ) {
 	$GLOBALS['stub']['printed'] .= $html . '></script>';
 }
 
+function wp_print_inline_script_tag( $js, $attrs = array() ) {
+	$GLOBALS['stub']['printed'] .= '<script>' . $js . '</script>';
+}
+
+/**
+ * Activation/option helpers the plugin calls at load time. WordPress always has
+ * these; the smoke test loads the plugin without WordPress, so it must too, or
+ * the whole file dies before a single assertion runs.
+ */
+function register_activation_hook( $file, $callback ) {
+	$GLOBALS['stub']['activation'][] = $callback;
+}
+function add_option( $name, $value = '', $deprecated = '', $autoload = 'yes' ) {
+	if ( ! isset( $GLOBALS['stub']['options'][ $name ] ) ) {
+		return update_option( $name, $value );
+	}
+	return false;
+}
+function register_rest_route( $ns, $route, $args = array() ) {
+	$GLOBALS['stub']['rest'][ $ns . $route ] = $args;
+	return true;
+}
+function get_user_meta( $user_id, $key = '', $single = false ) { return $single ? '' : array(); }
+
+/**
+ * Transients. The admin API client caches through these, and the settings
+ * sanitiser drops the cache whenever the key changes.
+ */
+function get_transient( $key ) {
+	return isset( $GLOBALS['stub']['transients'][ $key ] ) ? $GLOBALS['stub']['transients'][ $key ] : false;
+}
+function set_transient( $key, $value, $ttl = 0 ) { $GLOBALS['stub']['transients'][ $key ] = $value; return true; }
+function delete_transient( $key ) { unset( $GLOBALS['stub']['transients'][ $key ] ); return true; }
+
+/** GET counterpart of the wp_remote_post stub, sharing the same recorder. */
+function wp_remote_get( $url, $args = array() ) {
+	$GLOBALS['stub']['remote'][] = array( 'url' => $url, 'args' => $args, 'method' => 'GET' );
+	return isset( $GLOBALS['stub']['remote_reply'] )
+		? $GLOBALS['stub']['remote_reply']
+		: array( 'response' => array( 'code' => 200 ), 'body' => '{}' );
+}
+function update_user_meta( $user_id, $key, $value ) { return true; }
+
 // ── Site email stubs ────────────────────────────────────────────────────
 class WP_Error {
 	public $code; public $message; public $data;
