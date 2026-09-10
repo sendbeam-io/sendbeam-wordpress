@@ -33,9 +33,10 @@ add_action( 'admin_post_sendbeam_save_sync', 'sendbeam_handle_save_sync' );
 add_action( 'register_form', 'sendbeam_sync_registration_field' );
 add_action( 'user_register', 'sendbeam_sync_on_register' );
 
-// Comments.
-add_action( 'comment_form_after_fields', 'sendbeam_sync_comment_field' );
-add_action( 'comment_form_logged_in_after', 'sendbeam_sync_comment_field' );
+// Comments. The box goes immediately above the submit button, where someone is
+// actually deciding — `comment_form_submit_field` is the one hook that fires
+// for logged-in and logged-out visitors alike, so it needs no companion.
+add_filter( 'comment_form_submit_field', 'sendbeam_sync_comment_field' );
 add_action( 'comment_post', 'sendbeam_sync_on_comment', 10, 2 );
 
 // WooCommerce.
@@ -114,11 +115,19 @@ function sendbeam_sync_registration_field() {
 	}
 }
 
-/** Comment form. */
-function sendbeam_sync_comment_field() {
-	if ( sendbeam_sync_active( 'comments' ) ) {
-		sendbeam_sync_checkbox( 'sendbeam_optin_comment' );
+/**
+ * Comment form, prepended to the submit button's field.
+ *
+ * @param string $field The submit button markup.
+ * @return string
+ */
+function sendbeam_sync_comment_field( $field = '' ) {
+	if ( ! sendbeam_sync_active( 'comments' ) ) {
+		return $field;
 	}
+	ob_start();
+	sendbeam_sync_checkbox( 'sendbeam_optin_comment' );
+	return ob_get_clean() . $field;
 }
 
 /** WooCommerce checkout. */

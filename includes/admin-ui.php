@@ -82,7 +82,7 @@ function sendbeam_render_header() {
 	</div>
 	<nav class="sb-tabs" aria-label="<?php esc_attr_e( 'SendBeam sections', 'sendbeam' ); ?>">
 		<?php foreach ( sendbeam_tabs() as $key => $label ) : ?>
-			<a class="sb-tab<?php echo $key === $current ? ' is-active' : ''; ?>"
+			<a class="sb-tab<?php echo esc_attr( $key === $current ? ' is-active' : '' ); ?>"
 			   href="<?php echo esc_url( sendbeam_tab_url( $key ) ); ?>"
 			   <?php echo $key === $current ? 'aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a>
 		<?php endforeach; ?>

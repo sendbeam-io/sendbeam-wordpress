@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.2
+
+- **Uninstall now removes everything.** It deleted two options and had been left behind by five more, four transients and a user-meta key — including, on multisite, on every site in the network. The API key lives in one of those options, so this is also what revokes the site's copy of it.
+- **The comment opt-in sits above the Post Comment button on every theme.** That placement had been implemented in one site's theme; it belongs in the plugin.
+- Readme: the external-service disclosure now describes all four ways the plugin talks to SendBeam, including the settings-screen calls and the opt-in sync that were added since it was written, and the permissions FAQ lists what each feature actually needs rather than claiming only `transactional:send`.
+
 ## 1.5.1
 
 - **Fixed: a pop-up set to stay hidden reappeared on every visit.** Scroll-depth and exit-intent pop-ups were opened by clicking a hidden element, and that route deliberately ignores "do not show this again" — it is the route a visitor takes when they press a button they chose to press. Both are now real triggers in the loader, behind the same check as the delay trigger.
