@@ -83,7 +83,10 @@ ok( $GLOBALS['stub']['printed'] === '', 'no loader on a page when set to posts' 
 $GLOBALS['stub']['query'] = array( 'singular:post' => true );
 sendbeam_print_popup_loader();
 $tag = $GLOBALS['stub']['printed'];
-has( $tag, 'src="https://sendbeam.io/f/' . $other . '/popup.js"', 'loader src' );
+has( $tag, '/f/' . $other . '/popup.js?v=', 'loader src carries an appearance fingerprint' );
+$first_stamp = sendbeam_popup_script_url( $other );
+update_option( 'sendbeam_settings', array_merge( sendbeam_settings(), array( 'style_accent' => '#123456' ) ) );
+ok( sendbeam_popup_script_url( $other ) !== $first_stamp, 'changing a colour changes the loader URL' );
 has( $tag, 'data-delay="3000"', 'delay in ms' );
 has( $tag, 'data-once="week"', 'once' );
 has( $tag, ' async', 'async' );

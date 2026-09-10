@@ -70,7 +70,17 @@ function register_rest_route( $ns, $route, $args = array() ) {
 	$GLOBALS['stub']['rest'][ $ns . $route ] = $args;
 	return true;
 }
-function add_query_arg( $args, $url = '' ) {
+function add_query_arg( ...$a ) {
+	// WordPress accepts both add_query_arg( array, url ) and
+	// add_query_arg( key, value, url ); the stub must too, or a caller using
+	// the three-argument form silently builds a nonsense URL.
+	if ( count( $a ) >= 3 ) {
+		$args = array( $a[0] => $a[1] );
+		$url  = (string) $a[2];
+	} else {
+		$args = $a[0];
+		$url  = isset( $a[1] ) ? (string) $a[1] : '';
+	}
 	$parts = explode( '?', $url, 2 );
 	$query = array();
 	if ( isset( $parts[1] ) ) { parse_str( $parts[1], $query ); }

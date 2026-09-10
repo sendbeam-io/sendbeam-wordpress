@@ -137,5 +137,13 @@ function sendbeam_appearance_args() {
  * @return string
  */
 function sendbeam_popup_script_url( $form_id ) {
-	return sendbeam_app_url() . '/f/' . rawurlencode( strtolower( $form_id ) ) . '/popup.js';
+	$url = sendbeam_app_url() . '/f/' . rawurlencode( strtolower( $form_id ) ) . '/popup.js';
+
+	// The loader is served with a four-hour public cache and no version in its
+	// path, so without this a change to the pop-up's colours would not reach a
+	// returning visitor until their browser felt like asking again. Hashing the
+	// appearance (and the plugin version) means the URL changes exactly when
+	// the result would change, and stays cacheable the rest of the time.
+	$stamp = substr( md5( SENDBEAM_VERSION . wp_json_encode( sendbeam_appearance_args() ) ), 0, 8 );
+	return add_query_arg( 'v', $stamp, $url );
 }
