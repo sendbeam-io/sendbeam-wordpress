@@ -29,6 +29,7 @@ function sendbeam_tabs() {
 		'audience' => __( 'Audience', 'sendbeam' ),
 		'popup'    => __( 'Pop-ups', 'sendbeam' ),
 		'mail'     => __( 'Site email', 'sendbeam' ),
+		'docs'     => __( 'Docs', 'sendbeam' ),
 	);
 }
 
@@ -77,7 +78,6 @@ function sendbeam_render_header() {
 		</div>
 		<div class="sb-head__right">
 			<span class="sb-state sb-state--<?php echo esc_attr( $state[0] ); ?>"><?php echo esc_html( $state[1] ); ?></span>
-			<a class="sb-btn sb-btn--ghost" href="<?php echo esc_url( sendbeam_app_url() . '/docs/wordpress' ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Documentation', 'sendbeam' ); ?></a>
 			<a class="sb-btn sb-btn--ghost" href="<?php echo esc_url( sendbeam_app_url() ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Open SendBeam', 'sendbeam' ); ?></a>
 		</div>
 	</div>
@@ -225,6 +225,16 @@ function sendbeam_admin_css() {
 		margin-top:14px;padding-top:12px;border-top:1px solid #d8d6d0}
 	.sb-inline{display:inline-flex;align-items:center;gap:6px;font-size:13px}
 	.sb-rule [hidden]{display:none!important}
+
+	.sb-doc h3{font-size:14px;margin:0 0 6px}
+	.sb-doc p{margin:0 0 10px;max-width:62ch}
+	.sb-doc ul{margin:0 0 10px 1.1em;list-style:disc}
+	.sb-doc li{margin:4px 0}
+	.sb-doc code{font-size:12px;background:var(--paper);padding:2px 5px;border:1px solid #d8d6d0}
+	.sb-doc__row{display:flex;gap:12px;align-items:center;justify-content:space-between;
+		padding:9px 0;border-bottom:1px solid #e2e0db;flex-wrap:wrap}
+	.sb-doc__row:last-child{border-bottom:0}
+	.sb-doc__row code{flex:1 1 22em}
 
 	@media (max-width:782px){ .sb-head{padding:14px} .sb-tabs{padding:0 8px} .sb-wrap{padding:14px} }
 	';

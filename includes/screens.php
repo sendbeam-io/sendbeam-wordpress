@@ -511,3 +511,110 @@ function sendbeam_screen_mail() {
 		sendbeam_card_close();
 	}
 }
+
+/* ------------------------------------------------------------------ Docs */
+
+/**
+ * A reference that works without leaving WordPress.
+ *
+ * Deliberately a summary rather than the whole manual: the shortcodes and
+ * permissions are the two things people come back for, and everything else
+ * links out to the full documentation, which is versioned with the product
+ * rather than with the plugin.
+ *
+ * @param string $slug Page under /docs/wordpress, or '' for the section.
+ * @return string
+ */
+function sendbeam_docs_url( $slug = '' ) {
+	return sendbeam_app_url() . '/docs/wordpress' . ( $slug ? '/' . $slug : '' );
+}
+
+/**
+ * A row with a copyable snippet.
+ *
+ * @param string $code What to copy.
+ * @param string $what What it does.
+ */
+function sendbeam_doc_snippet( $code, $what ) {
+	printf(
+		'<div class="sb-doc__row"><code>%1$s</code><span class="sb-note">%2$s</span>' .
+		'<button type="button" class="sb-btn sb-btn--small sb-copy" data-copy="%3$s">%4$s</button></div>',
+		esc_html( $code ),
+		esc_html( $what ),
+		esc_attr( $code ),
+		esc_html__( 'Copy', 'sendbeam' )
+	);
+}
+
+function sendbeam_screen_docs() {
+	sendbeam_card_open( __( 'Documentation', 'sendbeam' ) );
+	echo '<div class="sb-doc">';
+	echo '<p>' . esc_html__( 'The essentials are below. The full documentation is kept with SendBeam itself, so it stays current with the product rather than with whichever version of this plugin you happen to have installed.', 'sendbeam' ) . '</p>';
+	printf(
+		'<p><a class="sb-btn" href="%1$s" target="_blank" rel="noopener">%2$s</a></p>',
+		esc_url( sendbeam_docs_url() ),
+		esc_html__( 'Open the full documentation', 'sendbeam' )
+	);
+	echo '<div class="sb-grid" style="margin-bottom:0">';
+	foreach ( array(
+		'forms'      => array( __( 'Forms on a page', 'sendbeam' ), __( 'The block, the shortcodes, and giving forms your own colours.', 'sendbeam' ) ),
+		'popups'     => array( __( 'Pop-ups', 'sendbeam' ), __( 'Targeting, the five triggers, and how often someone sees one.', 'sendbeam' ) ),
+		'audience'   => array( __( 'Collecting opt-ins', 'sendbeam' ), __( 'The tick box at registration, comments and checkout.', 'sendbeam' ) ),
+		'site-email' => array( __( 'Site email', 'sendbeam' ), __( 'Sending WordPress mail from your verified domain.', 'sendbeam' ) ),
+	) as $slug => $meta ) {
+		printf(
+			'<div><span class="sb-label">%1$s</span><p class="sb-note" style="margin:.2rem 0 .4rem">%2$s</p>' .
+			'<a href="%3$s" target="_blank" rel="noopener">%4$s</a></div>',
+			esc_html( $meta[0] ),
+			esc_html( $meta[1] ),
+			esc_url( sendbeam_docs_url( $slug ) ),
+			esc_html__( 'Read', 'sendbeam' )
+		);
+	}
+	echo '</div></div>';
+	sendbeam_card_close();
+
+	sendbeam_card_open( __( 'Shortcodes', 'sendbeam' ), __( 'Anywhere shortcodes work: a block, a widget, a page builder.', 'sendbeam' ) );
+	echo '<div class="sb-doc">';
+	sendbeam_doc_snippet( '[sendbeam_form]', __( 'The default signup form', 'sendbeam' ) );
+	sendbeam_doc_snippet( '[sendbeam_form id="8f3c1a2e-…"]', __( 'Any form, as often as you like', 'sendbeam' ) );
+	sendbeam_doc_snippet( '[sendbeam_contact]', __( 'The contact form chosen on the Forms tab', 'sendbeam' ) );
+	sendbeam_doc_snippet( '[sendbeam_popup_button label="Subscribe"]', __( 'A button that opens a pop-up', 'sendbeam' ) );
+	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'A height attribute works on all of them, but you rarely want one: an embedded form measures itself and the frame follows.', 'sendbeam' ) . '</p>';
+	echo '</div>';
+	sendbeam_card_close();
+
+	sendbeam_card_open( __( 'API key permissions', 'sendbeam' ), __( 'Only what you use.', 'sendbeam' ) );
+	echo '<div class="sb-doc">';
+	echo '<p>' . esc_html__( 'Placing a form or a pop-up needs no key at all. Everything else asks for one thing:', 'sendbeam' ) . '</p>';
+	echo '<table class="sb-table"><thead><tr><th>' . esc_html__( 'Permission', 'sendbeam' ) . '</th><th>' . esc_html__( 'Needed for', 'sendbeam' ) . '</th></tr></thead><tbody>';
+	foreach ( array(
+		'forms:read'                                  => __( 'Listing your forms here and in the block', 'sendbeam' ),
+		'lists:read'                                  => __( 'The Audience tab and its counts', 'sendbeam' ),
+		'contacts:read, contacts:write, lists:write'  => __( 'The opt-in box at registration, comments or checkout', 'sendbeam' ),
+		'transactional:send'                          => __( 'Site email', 'sendbeam' ),
+	) as $perm => $why ) {
+		printf( '<tr><td><code>%s</code></td><td>%s</td></tr>', esc_html( $perm ), esc_html( $why ) );
+	}
+	echo '</tbody></table>';
+	printf(
+		'<p class="sb-note" style="margin-top:12px">%s</p>',
+		esc_html__( 'Give each site its own key so one can be revoked without disturbing the others. Defining SENDBEAM_API_KEY in wp-config.php keeps the key out of the database entirely.', 'sendbeam' )
+	);
+	echo '</div>';
+	sendbeam_card_close();
+
+	sendbeam_card_open( __( 'For developers', 'sendbeam' ) );
+	echo '<div class="sb-doc">';
+	echo '<p>' . esc_html__( 'A page can react to a submission, and a self-hosted SendBeam can be pointed at with a filter.', 'sendbeam' ) . '</p>';
+	sendbeam_doc_snippet( "document.addEventListener('sendbeam:submitted', e => console.log(e.detail.formId))", __( 'Fires when a form in the page is submitted', 'sendbeam' ) );
+	sendbeam_doc_snippet( "add_filter('sendbeam_app_url', fn() => 'https://mail.example.com')", __( 'Point at your own SendBeam', 'sendbeam' ) );
+	printf(
+		'<p style="margin-top:12px">%s <a href="%s" target="_blank" rel="noopener">%s</a></p>',
+		esc_html__( 'Source, issues and releases:', 'sendbeam' ),
+		esc_url( 'https://github.com/sendbeam-io/sendbeam-wordpress' ),
+		esc_html__( 'sendbeam-io/sendbeam-wordpress', 'sendbeam' )
+	);
+	echo '</div>';
+	sendbeam_card_close();
+}

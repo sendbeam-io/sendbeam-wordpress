@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.2
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -100,6 +100,9 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 3. The pop-up on a post.
 
 == Changelog ==
+
+= 1.6.0 =
+* A Docs tab in the settings screen: shortcodes to copy, what each API key permission is for, and links to the full documentation.
 
 = 1.5.2 =
 * Uninstalling now removes every option, transient and setting the plugin stored, on multisite too.

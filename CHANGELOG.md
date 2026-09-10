@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.0
+
+- **A Docs tab.** The shortcodes with copy buttons, what each API key permission is for, the two developer hooks, and links through to the full documentation at sendbeam.io/docs/wordpress — which now exists.
+- README rewritten against the shipped plugin. It still told people to paste form IDs, described a single sitewide pop-up, and claimed the key needs only `transactional:send`; none of those had been true for four releases.
+
 ## 1.5.2
 
 - **Uninstall now removes everything.** It deleted two options and had been left behind by five more, four transients and a user-meta key — including, on multisite, on every site in the network. The API key lives in one of those options, so this is also what revokes the site's copy of it.

@@ -380,6 +380,7 @@ function sendbeam_render_settings_page() {
 		'audience' => 'sendbeam_screen_audience',
 		'popup'    => 'sendbeam_screen_popup',
 		'mail'     => 'sendbeam_screen_mail',
+		'docs'     => 'sendbeam_screen_docs',
 	);
 	?>
 	<div class="wrap sendbeam-app">
