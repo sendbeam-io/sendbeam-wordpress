@@ -8,7 +8,7 @@ Stable tag: 1.6.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Signup forms, a pop-up, a contact form — and your site's own email sent from your verified domain — from one SendBeam settings page.
+Newsletter signup forms, pop-ups, opt-ins at registration and checkout, and your site's own email, from your SendBeam account.
 
 == Description ==
 
