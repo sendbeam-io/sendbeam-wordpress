@@ -85,6 +85,10 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 == Changelog ==
 
 = 1.2.0 =
+* Redesigned admin in SendBeam's own look, split into Overview, Forms, Audience, Pop-ups and Site email tabs.
+* Forms library: every form in your workspace with a copy-ready shortcode and preview link. Place any form as often as you like.
+* Audience tab: your lists with subscriber counts and opt-in mode.
+* The SendBeam Form block now offers a dropdown of your forms instead of asking for an ID.
 * Guided setup: a three-step checklist, connect-first layout, and a live connection status that tells apart a rejected key, a key missing the Forms (read) permission, and an unreachable API.
 * Signup, contact and pop-up forms are now chosen from a dropdown of your own forms rather than by pasting an ID, with a fallback to the ID field when the key cannot list them.
 * Pop-up and site-email fields stay hidden until those features are switched on.

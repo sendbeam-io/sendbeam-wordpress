@@ -182,4 +182,108 @@ function sendbeam_form_choices( $kind = '' ) {
 function sendbeam_flush_cache() {
 	delete_transient( SENDBEAM_CACHE_CONN );
 	delete_transient( SENDBEAM_CACHE_FORMS );
+	delete_transient( SENDBEAM_CACHE_LISTS );
+}
+
+const SENDBEAM_CACHE_LISTS = 'sendbeam_remote_lists';
+
+/**
+ * The workspace's lists, each with its subscriber count.
+ *
+ * The lists endpoint does not carry counts, so one extra call per list asks
+ * for a single contact and reads the total out of the pagination block. That
+ * is a handful of requests for a handful of lists, cached for five minutes,
+ * and it is the difference between a screen that says "you have 3 lists" and
+ * one that tells you which of them anyone is actually on.
+ *
+ * Null means we could not ask (no key, or the key lacks lists:read).
+ *
+ * @param bool $force Skip the cache.
+ * @return array<int,array{id:string,name:string,double_optin:bool,count:?int}>|null
+ */
+function sendbeam_lists( $force = false ) {
+	if ( ! $force ) {
+		$cached = get_transient( SENDBEAM_CACHE_LISTS );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+		if ( 'missing' === $cached ) {
+			return null;
+		}
+	}
+
+	$result = sendbeam_api_get( '/api/v1/lists' );
+	if ( ! $result['ok'] ) {
+		set_transient( SENDBEAM_CACHE_LISTS, 'missing', SENDBEAM_CACHE_TTL );
+		return null;
+	}
+
+	$rows = isset( $result['data']['lists'] ) && is_array( $result['data']['lists'] ) ? $result['data']['lists'] : array();
+	$out  = array();
+
+	foreach ( $rows as $row ) {
+		if ( ! isset( $row['id'] ) ) {
+			continue;
+		}
+		$count   = null;
+		$counted = sendbeam_api_get( '/api/v1/contacts?limit=1&list_id=' . rawurlencode( (string) $row['id'] ) );
+		if ( $counted['ok'] && isset( $counted['data']['pagination']['total'] ) ) {
+			$count = (int) $counted['data']['pagination']['total'];
+		}
+		$out[] = array(
+			'id'           => (string) $row['id'],
+			'name'         => isset( $row['name'] ) && '' !== $row['name'] ? (string) $row['name'] : __( '(untitled list)', 'sendbeam' ),
+			'double_optin' => ! empty( $row['double_optin'] ),
+			'count'        => $count,
+		);
+	}
+
+	set_transient( SENDBEAM_CACHE_LISTS, $out, SENDBEAM_CACHE_TTL );
+	return $out;
+}
+
+add_action( 'rest_api_init', 'sendbeam_register_rest' );
+
+/**
+ * A read-only route so the block editor can offer the same form picker the
+ * settings page has. Editors, not just admins: the people placing forms on
+ * pages are usually not the people holding the API key.
+ */
+function sendbeam_register_rest() {
+	register_rest_route(
+		'sendbeam/v1',
+		'/forms',
+		array(
+			'methods'             => 'GET',
+			'callback'            => 'sendbeam_rest_forms',
+			'permission_callback' => function () {
+				return current_user_can( 'edit_posts' );
+			},
+		)
+	);
+}
+
+/**
+ * Forms for the block picker: id, name and kind only. The API key never
+ * leaves the server, and nothing else about a form is exposed.
+ *
+ * @return WP_REST_Response
+ */
+function sendbeam_rest_forms() {
+	$forms = sendbeam_remote_forms();
+	if ( null === $forms ) {
+		return rest_ensure_response( array( 'available' => false, 'forms' => array() ) );
+	}
+	$out = array();
+	foreach ( $forms as $form ) {
+		if ( ! isset( $form['id'] ) ) {
+			continue;
+		}
+		$out[] = array(
+			'id'   => (string) $form['id'],
+			'name' => isset( $form['name'] ) && '' !== $form['name'] ? (string) $form['name'] : __( '(untitled form)', 'sendbeam' ),
+			'kind' => isset( $form['kind'] ) ? (string) $form['kind'] : 'signup',
+		);
+	}
+	return rest_ensure_response( array( 'available' => true, 'forms' => $out ) );
 }

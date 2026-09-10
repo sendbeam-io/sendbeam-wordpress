@@ -23,6 +23,8 @@ define( 'SENDBEAM_DIR', plugin_dir_path( __FILE__ ) );
 
 require SENDBEAM_DIR . 'includes/helpers.php';
 require SENDBEAM_DIR . 'includes/api.php';
+require SENDBEAM_DIR . 'includes/admin-ui.php';
+require SENDBEAM_DIR . 'includes/screens.php';
 require SENDBEAM_DIR . 'includes/settings.php';
 require SENDBEAM_DIR . 'includes/render.php';
 require SENDBEAM_DIR . 'includes/mail.php';

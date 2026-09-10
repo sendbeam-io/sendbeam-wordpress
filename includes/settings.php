@@ -56,15 +56,15 @@ function sendbeam_admin_init() {
 		)
 	);
 
-	add_settings_section( 'sendbeam_connect', __( 'Connect', 'sendbeam' ), 'sendbeam_section_connect_intro', 'sendbeam' );
-	add_settings_field( 'api_key', __( 'API key', 'sendbeam' ), 'sendbeam_field_api_key', 'sendbeam', 'sendbeam_connect' );
+	add_settings_section( 'sendbeam_connect', __( 'Connect', 'sendbeam' ), 'sendbeam_section_connect_intro', 'sendbeam_connect_page' );
+	add_settings_field( 'api_key', __( 'API key', 'sendbeam' ), 'sendbeam_field_api_key', 'sendbeam_connect_page', 'sendbeam_connect' );
 
-	add_settings_section( 'sendbeam_forms', __( 'Forms', 'sendbeam' ), 'sendbeam_section_forms_intro', 'sendbeam' );
-	add_settings_field( 'default_form', __( 'Default signup form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam', 'sendbeam_forms', array( 'key' => 'default_form', 'kind' => 'signup', 'help' => __( 'Used by the SendBeam Form block and [sendbeam_form] when no ID is given.', 'sendbeam' ) ) );
-	add_settings_field( 'contact_form', __( 'Contact form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam', 'sendbeam_forms', array( 'key' => 'contact_form', 'kind' => 'contact', 'help' => __( 'Used by [sendbeam_contact]. Messages are emailed to you by SendBeam.', 'sendbeam' ) ) );
+	add_settings_section( 'sendbeam_forms', __( 'Forms', 'sendbeam' ), 'sendbeam_section_forms_intro', 'sendbeam_forms_page' );
+	add_settings_field( 'default_form', __( 'Default signup form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_forms_page', 'sendbeam_forms', array( 'key' => 'default_form', 'kind' => 'signup', 'help' => __( 'Used by the SendBeam Form block and [sendbeam_form] when no ID is given.', 'sendbeam' ) ) );
+	add_settings_field( 'contact_form', __( 'Contact form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_forms_page', 'sendbeam_forms', array( 'key' => 'contact_form', 'kind' => 'contact', 'help' => __( 'Used by [sendbeam_contact]. Messages are emailed to you by SendBeam.', 'sendbeam' ) ) );
 
-	add_settings_section( 'sendbeam_popup', __( 'Pop-up', 'sendbeam' ), 'sendbeam_section_popup_intro', 'sendbeam' );
-	add_settings_field( 'popup_where', __( 'Show on', 'sendbeam' ), 'sendbeam_field_select', 'sendbeam', 'sendbeam_popup', array(
+	add_settings_section( 'sendbeam_popup', __( 'Pop-up', 'sendbeam' ), 'sendbeam_section_popup_intro', 'sendbeam_popup_page' );
+	add_settings_field( 'popup_where', __( 'Show on', 'sendbeam' ), 'sendbeam_field_select', 'sendbeam_popup_page', 'sendbeam_popup', array(
 		'key'     => 'popup_where',
 		'options' => array(
 			'off'        => __( 'Nowhere (off)', 'sendbeam' ),
@@ -74,8 +74,8 @@ function sendbeam_admin_init() {
 			'home'       => __( 'Home page only', 'sendbeam' ),
 		),
 	) );
-	add_settings_field( 'popup_form', __( 'Pop-up form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam', 'sendbeam_popup', array( 'key' => 'popup_form', 'kind' => 'signup', 'help' => __( 'The signup form to show in the pop-up.', 'sendbeam' ), 'class' => 'sendbeam-when-popup' ) );
-	add_settings_field( 'popup_trigger', __( 'Open', 'sendbeam' ), 'sendbeam_field_select', 'sendbeam', 'sendbeam_popup', array(
+	add_settings_field( 'popup_form', __( 'Pop-up form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_popup_page', 'sendbeam_popup', array( 'key' => 'popup_form', 'kind' => 'signup', 'help' => __( 'The signup form to show in the pop-up.', 'sendbeam' ), 'class' => 'sendbeam-when-popup' ) );
+	add_settings_field( 'popup_trigger', __( 'Open', 'sendbeam' ), 'sendbeam_field_select', 'sendbeam_popup_page', 'sendbeam_popup', array(
 		'key'     => 'popup_trigger',
 		'class'   => 'sendbeam-when-popup',
 		'options' => array(
@@ -83,8 +83,8 @@ function sendbeam_admin_init() {
 			'button' => __( 'From a floating button', 'sendbeam' ),
 		),
 	) );
-	add_settings_field( 'popup_delay', __( 'Delay (seconds)', 'sendbeam' ), 'sendbeam_field_number', 'sendbeam', 'sendbeam_popup', array( 'key' => 'popup_delay', 'min' => 0, 'max' => 120, 'class' => 'sendbeam-when-popup', 'help' => __( '0 opens it as soon as the page loads. Ignored when opening from a button.', 'sendbeam' ) ) );
-	add_settings_field( 'popup_once', __( 'After it is closed', 'sendbeam' ), 'sendbeam_field_select', 'sendbeam', 'sendbeam_popup', array(
+	add_settings_field( 'popup_delay', __( 'Delay (seconds)', 'sendbeam' ), 'sendbeam_field_number', 'sendbeam_popup_page', 'sendbeam_popup', array( 'key' => 'popup_delay', 'min' => 0, 'max' => 120, 'class' => 'sendbeam-when-popup', 'help' => __( '0 opens it as soon as the page loads. Ignored when opening from a button.', 'sendbeam' ) ) );
+	add_settings_field( 'popup_once', __( 'After it is closed', 'sendbeam' ), 'sendbeam_field_select', 'sendbeam_popup_page', 'sendbeam_popup', array(
 		'key'     => 'popup_once',
 		'class'   => 'sendbeam-when-popup',
 		'options' => array(
@@ -95,13 +95,13 @@ function sendbeam_admin_init() {
 		),
 		'help'    => __( 'Remembered in the visitor\'s browser. A submission counts as a close.', 'sendbeam' ),
 	) );
-	add_settings_field( 'popup_label', __( 'Button label', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam', 'sendbeam_popup', array( 'key' => 'popup_label', 'placeholder' => __( 'Subscribe', 'sendbeam' ), 'class' => 'sendbeam-when-popup', 'help' => __( 'Text on the floating button, when that trigger is used.', 'sendbeam' ) ) );
+	add_settings_field( 'popup_label', __( 'Button label', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam_popup_page', 'sendbeam_popup', array( 'key' => 'popup_label', 'placeholder' => __( 'Subscribe', 'sendbeam' ), 'class' => 'sendbeam-when-popup', 'help' => __( 'Text on the floating button, when that trigger is used.', 'sendbeam' ) ) );
 
-	add_settings_section( 'sendbeam_mail', __( 'Site email', 'sendbeam' ), 'sendbeam_section_mail_intro', 'sendbeam' );
-	add_settings_field( 'mail_enabled', __( 'Site email', 'sendbeam' ), 'sendbeam_field_checkbox', 'sendbeam', 'sendbeam_mail', array( 'key' => 'mail_enabled', 'label' => __( 'Send this site\'s email through SendBeam', 'sendbeam' ), 'help' => __( 'Everything WordPress sends with wp_mail(): order confirmations, password resets, comment and form notifications, plugin alerts.', 'sendbeam' ) ) );
-	add_settings_field( 'mail_from_name', __( 'From name', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam', 'sendbeam_mail', array( 'key' => 'mail_from_name', 'placeholder' => get_bloginfo( 'name' ), 'class' => 'sendbeam-when-mail', 'help' => __( 'Leave empty to use the name the sending plugin sets, or the workspace sender.', 'sendbeam' ) ) );
-	add_settings_field( 'mail_from_email', __( 'From address', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam', 'sendbeam_mail', array( 'key' => 'mail_from_email', 'placeholder' => 'orders@yourdomain.com', 'class' => 'sendbeam-when-mail', 'help' => __( 'Must be on a domain verified in the SendBeam workspace. Leave empty to use the workspace sender.', 'sendbeam' ) ) );
-	add_settings_field( 'mail_fallback', __( 'If SendBeam cannot send', 'sendbeam' ), 'sendbeam_field_checkbox', 'sendbeam', 'sendbeam_mail', array( 'key' => 'mail_fallback', 'label' => __( 'Fall back to the server\'s own mailer', 'sendbeam' ), 'class' => 'sendbeam-when-mail', 'help' => __( 'On: a refused or failed message goes out the way it did before this plugin (recommended). Off: it fails and the sending plugin is told.', 'sendbeam' ) ) );
+	add_settings_section( 'sendbeam_mail', __( 'Site email', 'sendbeam' ), 'sendbeam_section_mail_intro', 'sendbeam_mail_page' );
+	add_settings_field( 'mail_enabled', __( 'Site email', 'sendbeam' ), 'sendbeam_field_checkbox', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_enabled', 'label' => __( 'Send this site\'s email through SendBeam', 'sendbeam' ), 'help' => __( 'Everything WordPress sends with wp_mail(): order confirmations, password resets, comment and form notifications, plugin alerts.', 'sendbeam' ) ) );
+	add_settings_field( 'mail_from_name', __( 'From name', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_from_name', 'placeholder' => get_bloginfo( 'name' ), 'class' => 'sendbeam-when-mail', 'help' => __( 'Leave empty to use the name the sending plugin sets, or the workspace sender.', 'sendbeam' ) ) );
+	add_settings_field( 'mail_from_email', __( 'From address', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_from_email', 'placeholder' => 'orders@yourdomain.com', 'class' => 'sendbeam-when-mail', 'help' => __( 'Must be on a domain verified in the SendBeam workspace. Leave empty to use the workspace sender.', 'sendbeam' ) ) );
+	add_settings_field( 'mail_fallback', __( 'If SendBeam cannot send', 'sendbeam' ), 'sendbeam_field_checkbox', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_fallback', 'label' => __( 'Fall back to the server\'s own mailer', 'sendbeam' ), 'class' => 'sendbeam-when-mail', 'help' => __( 'On: a refused or failed message goes out the way it did before this plugin (recommended). Off: it fails and the sending plugin is told.', 'sendbeam' ) ) );
 }
 
 /**
@@ -112,46 +112,75 @@ function sendbeam_admin_init() {
  */
 function sendbeam_sanitize_settings( $input ) {
 	$defaults = sendbeam_default_settings();
-	$out      = $defaults;
+	$saved    = sendbeam_settings();
+	$out      = $saved;
+
 	if ( ! is_array( $input ) ) {
 		return $out;
 	}
 
+	// Each tab posts only its own fields. Starting from the saved values and
+	// touching only the keys belonging to the posted tab is what stops saving
+	// the pop-up from silently clearing the API key — an unchecked checkbox and
+	// a field that was never on screen look identical in $_POST otherwise.
+	$groups = array(
+		'connect' => array( 'api_key' ),
+		'forms'   => array( 'default_form', 'contact_form' ),
+		'popup'   => array( 'popup_form', 'popup_where', 'popup_trigger', 'popup_delay', 'popup_once', 'popup_label' ),
+		'mail'    => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback' ),
+	);
+	$tab  = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
+	$keys = isset( $groups[ $tab ] ) ? $groups[ $tab ] : array_merge( ...array_values( $groups ) );
+	$touch = array_flip( $keys );
+
 	foreach ( array( 'default_form', 'contact_form', 'popup_form' ) as $key ) {
+		if ( ! isset( $touch[ $key ] ) ) {
+			continue;
+		}
 		$value = isset( $input[ $key ] ) ? trim( sanitize_text_field( wp_unslash( $input[ $key ] ) ) ) : '';
 		if ( '' !== $value && ! sendbeam_is_form_id( $value ) ) {
 			add_settings_error(
 				'sendbeam_settings',
 				'sendbeam_bad_' . $key,
-				/* translators: %s: the setting's label */
+				/* translators: %s: the offending value */
 				sprintf( __( '"%s" is not a SendBeam form ID. It looks like 8f3c1a2e-…, and is shown under Forms in SendBeam.', 'sendbeam' ), $value )
 			);
-			$value = '';
+			$value = (string) $saved[ $key ];
 		}
 		$out[ $key ] = strtolower( $value );
 	}
 
-	$out['popup_where']   = sendbeam_pick( $input, 'popup_where', array( 'off', 'everywhere', 'posts', 'pages', 'home' ), $defaults['popup_where'] );
-	$out['popup_trigger'] = sendbeam_pick( $input, 'popup_trigger', array( 'timer', 'button' ), $defaults['popup_trigger'] );
-	$out['popup_once']    = sendbeam_pick( $input, 'popup_once', array( 'day', 'week', 'forever', 'never' ), $defaults['popup_once'] );
-	$out['popup_delay']   = isset( $input['popup_delay'] ) ? max( 0, min( 120, (int) $input['popup_delay'] ) ) : $defaults['popup_delay'];
-	$out['popup_label']   = isset( $input['popup_label'] ) ? sanitize_text_field( wp_unslash( $input['popup_label'] ) ) : '';
+	if ( isset( $touch['popup_where'] ) ) {
+		$out['popup_where']   = sendbeam_pick( $input, 'popup_where', array( 'off', 'everywhere', 'posts', 'pages', 'home' ), $defaults['popup_where'] );
+		$out['popup_trigger'] = sendbeam_pick( $input, 'popup_trigger', array( 'timer', 'button' ), $defaults['popup_trigger'] );
+		$out['popup_once']    = sendbeam_pick( $input, 'popup_once', array( 'day', 'week', 'forever', 'never' ), $defaults['popup_once'] );
+		$out['popup_delay']   = isset( $input['popup_delay'] ) ? max( 0, min( 120, (int) $input['popup_delay'] ) ) : $defaults['popup_delay'];
+		$out['popup_label']   = isset( $input['popup_label'] ) ? sanitize_text_field( wp_unslash( $input['popup_label'] ) ) : '';
+	}
 
-	// Site email. A blank key field keeps the saved key; "remove" clears it.
-	$saved              = sendbeam_settings();
-	$out['mail_enabled'] = empty( $input['mail_enabled'] ) ? 0 : 1;
-	$key                 = isset( $input['api_key'] ) ? trim( sanitize_text_field( wp_unslash( $input['api_key'] ) ) ) : '';
-	if ( ! empty( $input['api_key_remove'] ) ) {
-		$out['api_key'] = '';
-	} elseif ( '' !== $key ) {
-		if ( ! preg_match( '/^[A-Za-z0-9_\-]{16,200}$/', $key ) ) {
-			add_settings_error( 'sendbeam_settings', 'sendbeam_bad_key', __( 'That does not look like a SendBeam API key. Copy it from Settings → API keys in SendBeam.', 'sendbeam' ) );
-			$out['api_key'] = (string) $saved['api_key'];
+	if ( isset( $touch['mail_enabled'] ) ) {
+		$out['mail_enabled']    = empty( $input['mail_enabled'] ) ? 0 : 1;
+		$out['mail_from_name']  = isset( $input['mail_from_name'] ) ? sanitize_text_field( wp_unslash( $input['mail_from_name'] ) ) : '';
+		$from_email             = isset( $input['mail_from_email'] ) ? sanitize_email( wp_unslash( $input['mail_from_email'] ) ) : '';
+		$out['mail_from_email'] = $from_email && is_email( $from_email ) ? $from_email : '';
+		$out['mail_fallback']   = empty( $input['mail_fallback'] ) ? 0 : 1;
+	}
+
+	// A blank key field keeps the saved key; "remove" clears it.
+	if ( isset( $touch['api_key'] ) ) {
+		$key = isset( $input['api_key'] ) ? trim( sanitize_text_field( wp_unslash( $input['api_key'] ) ) ) : '';
+		if ( ! empty( $input['api_key_remove'] ) ) {
+			$out['api_key'] = '';
+		} elseif ( '' !== $key ) {
+			if ( ! preg_match( '/^[A-Za-z0-9_\-]{16,200}$/', $key ) ) {
+				add_settings_error( 'sendbeam_settings', 'sendbeam_bad_key', __( 'That does not look like a SendBeam API key. Copy it from Settings → API keys in SendBeam.', 'sendbeam' ) );
+				$out['api_key'] = (string) $saved['api_key'];
+			} else {
+				$out['api_key'] = $key;
+			}
 		} else {
-			$out['api_key'] = $key;
+			$out['api_key'] = (string) $saved['api_key'];
 		}
-	} else {
-		$out['api_key'] = (string) $saved['api_key'];
 	}
 
 	// A different key means a different workspace, so anything remembered about
@@ -160,11 +189,7 @@ function sendbeam_sanitize_settings( $input ) {
 		sendbeam_flush_cache();
 	}
 
-	$out['mail_from_name']  = isset( $input['mail_from_name'] ) ? sanitize_text_field( wp_unslash( $input['mail_from_name'] ) ) : '';
-	$from_email             = isset( $input['mail_from_email'] ) ? sanitize_email( wp_unslash( $input['mail_from_email'] ) ) : '';
-	$out['mail_from_email'] = $from_email && is_email( $from_email ) ? $from_email : '';
-	$out['mail_fallback']   = empty( $input['mail_fallback'] ) ? 0 : 1;
-
+	unset( $out['_tab'] );
 	return $out;
 }
 
@@ -381,52 +406,35 @@ function sendbeam_render_settings_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
+	$tab     = sendbeam_current_tab();
+	$screens = array(
+		'overview' => 'sendbeam_screen_overview',
+		'forms'    => 'sendbeam_screen_forms',
+		'audience' => 'sendbeam_screen_audience',
+		'popup'    => 'sendbeam_screen_popup',
+		'mail'     => 'sendbeam_screen_mail',
+	);
 	?>
-	<div class="wrap">
-		<h1><?php esc_html_e( 'SendBeam', 'sendbeam' ); ?></h1>
-		<?php sendbeam_render_checklist(); ?>
-		<form action="options.php" method="post">
+	<div class="wrap sendbeam-app">
+		<h1 class="screen-reader-text"><?php esc_html_e( 'SendBeam', 'sendbeam' ); ?></h1>
+		<?php sendbeam_render_header(); ?>
+		<div class="sb-wrap">
 			<?php
-			settings_fields( 'sendbeam' );
-			do_settings_sections( 'sendbeam' );
-			submit_button();
+			settings_errors( 'sendbeam_settings' );
+			call_user_func( $screens[ $tab ] );
+
+			if ( 'forms' === $tab || 'popup' === $tab ) {
+				sendbeam_card_open( __( 'Placing forms', 'sendbeam' ) );
+				echo '<ul style="list-style:disc;padding-left:1.3em;margin:0">';
+				echo '<li>' . wp_kses( __( 'Add the <strong>SendBeam Form</strong> block to any post or page and pick the form from its dropdown — search "SendBeam" in the block inserter.', 'sendbeam' ), array( 'strong' => array() ) ) . '</li>';
+				echo '<li>' . wp_kses( __( '<code>[sendbeam_form id="…"]</code> places any form, as often as you like. <code>height="600"</code> sets a different height.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
+				echo '<li>' . wp_kses( __( '<code>[sendbeam_contact]</code> shows the contact form chosen above.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
+				echo '<li>' . wp_kses( __( '<code>[sendbeam_popup_button label="Subscribe"]</code> opens the pop-up on click, on pages where it is not shown by itself.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
+				echo '</ul>';
+				sendbeam_card_close();
+			}
 			?>
-		</form>
-		<?php if ( isset( $_GET['sendbeam_test'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice text only, set by our own redirect. ?>
-			<div class="notice <?php echo 'ok' === $_GET['sendbeam_test'] ? 'notice-success' : 'notice-error'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?> is-dismissible"><p><?php echo esc_html( isset( $_GET['sendbeam_note'] ) ? rawurldecode( sanitize_text_field( wp_unslash( $_GET['sendbeam_note'] ) ) ) : '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?></p></div>
-		<?php endif; ?>
-		<h2><?php esc_html_e( 'Test site email', 'sendbeam' ); ?></h2>
-		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
-			<input type="hidden" name="action" value="sendbeam_test_mail" />
-			<?php wp_nonce_field( 'sendbeam_test_mail' ); ?>
-			<p><?php echo esc_html( sprintf( /* translators: %s: the current user's email */ __( 'Sends a short email to %s through SendBeam, using the saved settings.', 'sendbeam' ), wp_get_current_user()->user_email ) ); ?></p>
-			<?php submit_button( __( 'Send a test email', 'sendbeam' ), 'secondary', 'submit', false ); ?>
-		</form>
-		<?php
-		$sendbeam_log = get_option( 'sendbeam_mail_log', array() );
-		if ( is_array( $sendbeam_log ) && $sendbeam_log ) :
-			?>
-			<h2><?php esc_html_e( 'Recent site email', 'sendbeam' ); ?></h2>
-			<table class="widefat striped" style="max-width:60em">
-				<thead><tr><th><?php esc_html_e( 'When', 'sendbeam' ); ?></th><th><?php esc_html_e( 'To', 'sendbeam' ); ?></th><th><?php esc_html_e( 'Subject', 'sendbeam' ); ?></th><th><?php esc_html_e( 'Result', 'sendbeam' ); ?></th></tr></thead>
-				<tbody>
-				<?php foreach ( $sendbeam_log as $sendbeam_row ) : ?>
-					<tr>
-						<td><?php echo esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $sendbeam_row['at'] ) ); ?></td>
-						<td><?php echo esc_html( $sendbeam_row['to'] ); ?></td>
-						<td><?php echo esc_html( $sendbeam_row['subject'] ); ?></td>
-						<td><?php echo esc_html( 'sent' === $sendbeam_row['result'] ? __( 'Sent via SendBeam', 'sendbeam' ) : ( 'fallback' === $sendbeam_row['result'] ? __( 'Server mailer', 'sendbeam' ) : __( 'Failed', 'sendbeam' ) ) ); ?><?php echo $sendbeam_row['note'] ? ' — ' . esc_html( $sendbeam_row['note'] ) : ''; ?></td>
-					</tr>
-				<?php endforeach; ?>
-				</tbody>
-			</table>
-		<?php endif; ?>
-		<h2><?php esc_html_e( 'How to use', 'sendbeam' ); ?></h2>
-		<ul style="list-style:disc;padding-left:1.4em">
-			<li><?php echo wp_kses( __( 'Add the <strong>SendBeam Form</strong> block to any post or page (search for "SendBeam" in the block inserter), or use <code>[sendbeam_form id="…"]</code> in a Shortcode block, a widget or a classic editor.', 'sendbeam' ), array( 'strong' => array(), 'code' => array() ) ); ?></li>
-			<li><?php echo wp_kses( __( '<code>[sendbeam_contact]</code> shows the contact form chosen above; <code>[sendbeam_form id="…" height="600"]</code> sets a different height.', 'sendbeam' ), array( 'code' => array() ) ); ?></li>
-			<li><?php echo wp_kses( __( '<code>[sendbeam_popup_button label="Subscribe"]</code> makes a button that opens the pop-up form on click, on pages where the pop-up is not shown on its own.', 'sendbeam' ), array( 'code' => array() ) ); ?></li>
-		</ul>
+		</div>
 	</div>
 	<?php
 }
@@ -439,42 +447,6 @@ function sendbeam_render_settings_page() {
  * someone who does not gets an order of operations. That is the whole of the
  * onboarding, deliberately.
  */
-function sendbeam_render_checklist() {
-	$steps = sendbeam_setup_steps();
-	$done  = 0;
-	foreach ( $steps as $step ) {
-		$done += $step['done'] ? 1 : 0;
-	}
-	$targets = array( '#sendbeam_api_key', '#sendbeam_default_form', '#sendbeam_mail_enabled' );
-	?>
-	<div class="sendbeam-checklist">
-		<p class="sendbeam-checklist__head">
-			<?php
-			echo esc_html(
-				2 === $done && ! $steps[2]['done']
-					? __( 'Set up. Site email is optional.', 'sendbeam' )
-					: sprintf(
-						/* translators: 1: steps done, 2: steps total */
-						__( 'Step %1$d of %2$d', 'sendbeam' ),
-						min( $done + 1, count( $steps ) ),
-						count( $steps )
-					)
-			);
-			?>
-		</p>
-		<ol class="sendbeam-checklist__list">
-			<?php foreach ( $steps as $i => $step ) : ?>
-				<li class="<?php echo $step['done'] ? 'is-done' : ''; ?>">
-					<span class="sendbeam-checklist__mark" aria-hidden="true"><?php echo $step['done'] ? '&#10003;' : (int) ( $i + 1 ); ?></span>
-					<span class="screen-reader-text"><?php echo $step['done'] ? esc_html__( 'Done:', 'sendbeam' ) : esc_html__( 'To do:', 'sendbeam' ); ?></span>
-					<a href="<?php echo esc_attr( $targets[ $i ] ); ?>"><?php echo esc_html( $step['label'] ); ?></a>
-					<span class="sendbeam-checklist__detail"><?php echo esc_html( $step['detail'] ); ?></span>
-				</li>
-			<?php endforeach; ?>
-		</ol>
-	</div>
-	<?php
-}
 
 /** Intro for the Connect section: the live state of the key. */
 function sendbeam_section_connect_intro() {
@@ -539,31 +511,16 @@ function sendbeam_admin_assets( $hook ) {
 		return;
 	}
 
-	$css = '
-	.sendbeam-checklist{background:#fff;border:1px solid #c3c4c7;border-left:4px solid #2271b1;padding:.75em 1.25em;margin:1em 0;max-width:60em}
-	.sendbeam-checklist__head{margin:.25em 0 .5em;font-weight:600}
-	.sendbeam-checklist__list{margin:0;padding:0;list-style:none;counter-reset:none}
-	.sendbeam-checklist__list li{margin:.4em 0;display:flex;align-items:baseline;gap:.5em;flex-wrap:wrap}
-	.sendbeam-checklist__mark{display:inline-flex;align-items:center;justify-content:center;width:1.4em;height:1.4em;border-radius:50%;background:#dcdcde;color:#1d2327;font-size:.8em;flex:0 0 auto}
-	.sendbeam-checklist__list li.is-done .sendbeam-checklist__mark{background:#00a32a;color:#fff}
-	.sendbeam-checklist__list li.is-done a{color:#50575e}
-	.sendbeam-checklist__detail{color:#646970;font-size:.9em;flex:1 1 18em}
-	.sendbeam-status{display:flex;align-items:baseline;gap:.75em;flex-wrap:wrap;padding:.5em .75em;border-radius:3px;max-width:60em}
-	.sendbeam-status.is-ok{background:#edfaef;border-left:4px solid #00a32a}
-	.sendbeam-status.is-warn{background:#fcf9e8;border-left:4px solid #dba617}
-	.sendbeam-status.is-bad{background:#fcf0f1;border-left:4px solid #d63638}
-	';
 	wp_register_style( 'sendbeam-admin', false, array(), SENDBEAM_VERSION );
 	wp_enqueue_style( 'sendbeam-admin' );
-	wp_add_inline_style( 'sendbeam-admin', $css );
+	wp_add_inline_style( 'sendbeam-admin', sendbeam_admin_css() );
 
-	// Hide the detail rows of a feature that is switched off. Everything still
-	// saves; this only decides what is worth looking at right now.
+	// Two small behaviours: hide the detail fields of a feature that is off,
+	// and copy a shortcode without selecting it by hand.
 	$js = '
 	( function () {
-		function rows( cls ) { return document.querySelectorAll( "tr." + cls ); }
 		function toggle( cls, on ) {
-			rows( cls ).forEach( function ( tr ) { tr.hidden = ! on; } );
+			document.querySelectorAll( "tr." + cls ).forEach( function ( tr ) { tr.hidden = ! on; } );
 		}
 		var where = document.getElementById( "sendbeam_popup_where" );
 		var mail  = document.getElementById( "sendbeam_mail_enabled" );
@@ -574,6 +531,26 @@ function sendbeam_admin_assets( $hook ) {
 		if ( where ) { where.addEventListener( "change", sync ); }
 		if ( mail )  { mail.addEventListener( "change", sync ); }
 		sync();
+
+		document.addEventListener( "click", function ( e ) {
+			var btn = e.target.closest( ".sb-copy" );
+			if ( ! btn ) { return; }
+			var text = btn.getAttribute( "data-copy" ), done = btn.getAttribute( "data-done" ) || "Copied";
+			function flash() {
+				var was = btn.textContent;
+				btn.textContent = done;
+				setTimeout( function () { btn.textContent = was; }, 1400 );
+			}
+			if ( navigator.clipboard && window.isSecureContext ) {
+				navigator.clipboard.writeText( text ).then( flash );
+			} else {
+				var ta = document.createElement( "textarea" );
+				ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+				document.body.appendChild( ta ); ta.select();
+				try { document.execCommand( "copy" ); flash(); } catch ( err ) {}
+				document.body.removeChild( ta );
+			}
+		} );
 	}() );
 	';
 	wp_register_script( 'sendbeam-admin', '', array(), SENDBEAM_VERSION, true );
