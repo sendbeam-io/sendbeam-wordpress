@@ -150,7 +150,11 @@ function sendbeam_admin_css() {
 	.sb-tab:focus{box-shadow:none;outline:2px solid var(--v);outline-offset:-2px}
 
 	.sb-wrap{padding:22px}
-	.sb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start}
+	/* Cards in a row share a height so their bottom rules line up; without this
+	   each one ends wherever its own content does and the row looks ragged. */
+	.sb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:stretch}
+	.sb-grid>.sb-card{margin-bottom:0;display:flex;flex-direction:column}
+	.sb-grid>.sb-card>.sb-card__body{flex:1 1 auto}
 
 	.sb-card{background:#fff;border:1px solid var(--ink);margin:0 0 18px}
 	.sb-card__head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;
