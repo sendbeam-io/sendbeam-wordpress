@@ -61,6 +61,9 @@ has( $html, 'width=0', 'the embed fills the column the theme gives it' );
 has( $html, 'height:200px', 'height clamped up to 200' );
 has( $html, 'title="A &quot;quoted&quot; title"', 'title escaped' );
 ok( ! empty( $GLOBALS['stub']['inline']['sendbeam-relay'] ), 'relay script added once' );
+$relay = $GLOBALS['stub']['inline']['sendbeam-relay'][0];
+has( $relay, 'e.origin!==SB_ORIGIN', 'the relay ignores messages from any other origin' );
+has( $relay, 'sendbeam.io', 'the expected origin is pinned to the app URL' );
 sendbeam_form_html( $form );
 ok( count( $GLOBALS['stub']['inline']['sendbeam-relay'] ) === 1, 'relay not duplicated' );
 

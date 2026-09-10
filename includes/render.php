@@ -83,9 +83,15 @@ function sendbeam_enqueue_relay() {
 	$done = true;
 	wp_register_script( 'sendbeam-relay', false, array(), SENDBEAM_VERSION, true );
 	wp_enqueue_script( 'sendbeam-relay' );
+	// Messages are only honoured from the origin serving the forms. Without
+	// that check any other frame on the page could resize an embed, or fire a
+	// sendbeam:submitted event that a site has wired to an analytics goal —
+	// forged conversions, from markup an attacker only needs to get onto the
+	// page once.
 	wp_add_inline_script(
 		'sendbeam-relay',
-		'window.addEventListener("message",function(e){var d=e.data;if(!d||d.sendbeam!=="form")return;if(d.event==="submitted"){document.dispatchEvent(new CustomEvent("sendbeam:submitted",{detail:{formId:d.id}}));return}if(d.event==="height"){var h=parseInt(d.height,10);if(!isFinite(h)||h<120||h>2000)return;var fr=document.querySelectorAll("iframe.sendbeam-form");for(var i=0;i<fr.length;i++){if(fr[i].src.indexOf(d.id)!==-1){fr[i].style.height=h+"px"}}}});'
+		'var SB_ORIGIN=' . wp_json_encode( sendbeam_app_url() ) . ';' .
+		'window.addEventListener("message",function(e){if(e.origin!==SB_ORIGIN)return;var d=e.data;if(!d||d.sendbeam!=="form")return;if(d.event==="submitted"){document.dispatchEvent(new CustomEvent("sendbeam:submitted",{detail:{formId:d.id}}));return}if(d.event==="height"){var h=parseInt(d.height,10);if(!isFinite(h)||h<120||h>2000)return;var fr=document.querySelectorAll("iframe.sendbeam-form");for(var i=0;i<fr.length;i++){if(fr[i].src.indexOf(d.id)!==-1){fr[i].style.height=h+"px"}}}});'
 	);
 }
 

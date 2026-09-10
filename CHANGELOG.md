@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1
+
+- **Hardening:** the script that listens for messages from an embedded form now ignores anything not sent by the origin serving that form. It previously matched on the message contents alone, and a form ID is public — so another frame on the page could have resized an embed, or fired the `sendbeam:submitted` event that sites wire to analytics goals, producing conversions that never happened.
+
 ## 1.6.0
 
 - **A Docs tab.** The shortcodes with copy buttons, what each API key permission is for, the two developer hooks, and links through to the full documentation at sendbeam.io/docs/wordpress — which now exists.
