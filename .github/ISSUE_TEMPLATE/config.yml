@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question about SendBeam itself
+    url: https://sendbeam.io/contact
+    about: Your account, plans, billing, deliverability or the API — anything that is not this plugin.
+  - name: Plugin documentation
+    url: https://sendbeam.io/docs/wordpress
+    about: Setup, forms, pop-ups, opt-ins, site email, and which API key permissions each feature needs.
+  - name: Report a security problem
+    url: https://github.com/sendbeam-io/sendbeam-wordpress/blob/main/SECURITY.md
+    about: Please do not open a public issue for anything exploitable.

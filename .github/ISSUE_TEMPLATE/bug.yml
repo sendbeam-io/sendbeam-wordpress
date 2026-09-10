@@ -1,0 +1,84 @@
+name: Bug report
+description: Something in the plugin does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Most reports here turn out to depend on a version or on another plugin, so
+        the fields below are what let us reproduce it rather than guess at it.
+
+        If it is exploitable, please do not open an issue — see [SECURITY.md](../blob/main/SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      description: The shortest path from a fresh install to the problem.
+      placeholder: |
+        1. Settings → SendBeam → …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part?
+      options:
+        - Forms (block or shortcode)
+        - Pop-ups
+        - Audience (the opt-in box)
+        - Site email
+        - The settings screen itself
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      placeholder: "1.6.1 — shown next to SendBeam in the settings header"
+    validations:
+      required: true
+  - type: input
+    id: wp-version
+    attributes:
+      label: WordPress version
+      placeholder: "6.7"
+    validations:
+      required: true
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version
+      placeholder: "8.2 — Tools → Site Health → Info → Server"
+    validations:
+      required: true
+  - type: input
+    id: theme
+    attributes:
+      label: Theme
+      placeholder: "Twenty Twenty-Five, or the name of yours"
+  - type: textarea
+    id: other-plugins
+    attributes:
+      label: Other plugins that might be involved
+      description: >
+        Especially anything that also filters wp_mail(), an SMTP plugin, a caching or optimisation plugin, or a
+        security plugin. If the problem goes away with all other plugins disabled, say so — that is a useful
+        answer, not a failure to diagnose it.
+  - type: textarea
+    id: errors
+    attributes:
+      label: Anything in the logs
+      description: >
+        From wp-content/debug.log with WP_DEBUG_LOG on, or the browser console for anything visual. Paste the
+        text rather than a screenshot where you can.
+      render: text

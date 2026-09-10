@@ -1,0 +1,11 @@
+# The plugin ships no runtime dependencies, so the only thing here that can go
+# stale is the actions the workflow pins.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    labels: ["ci"]
