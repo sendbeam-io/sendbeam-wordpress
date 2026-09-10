@@ -56,7 +56,8 @@ ok( sendbeam_clean_popup( array( 'form' => 'not-an-id' ) )['form'] === '', 'rule
 // Form HTML.
 ok( sendbeam_form_html( 'nope' ) === '', 'invalid id renders nothing' );
 $html = sendbeam_form_html( $form, 50, 'A "quoted" title' );
-has( $html, 'src="https://sendbeam.io/f/' . $form . '?embed=1"', 'iframe src' );
+has( $html, 'src="https://sendbeam.io/f/' . $form . '?embed=1', 'iframe src' );
+has( $html, 'width=0', 'the embed fills the column the theme gives it' );
 has( $html, 'height:200px', 'height clamped up to 200' );
 has( $html, 'title="A &quot;quoted&quot; title"', 'title escaped' );
 ok( ! empty( $GLOBALS['stub']['inline']['sendbeam-relay'] ), 'relay script added once' );
@@ -166,6 +167,21 @@ has( $block, 'height:400px', 'block height' );
 // The app URL filter.
 add_filter( 'sendbeam_app_url', function () { return 'https://mail.example.com/'; } );
 has( sendbeam_form_html( $form ), 'src="https://mail.example.com/f/', 'app url filter' );
+
+// Appearance: only chosen values are sent, and a bad colour never leaves here.
+update_option( 'sendbeam_settings', array( 'style_accent' => '#B45309', 'style_radius' => '2', 'style_font' => 'serif', 'style_text' => 'rgb(1,2,3)' ) );
+$args = sendbeam_appearance_args();
+ok( $args['accent'] === '%23b45309', 'accent is hex-escaped — a bare # would start the URL fragment' );
+has( sendbeam_form_url( $form ), 'accent=%23b45309', 'the escaped colour survives into the iframe URL' );
+lacks( sendbeam_form_url( $form ), 'accent=#', 'no bare hash in the URL' );
+ok( $args['radius'] === '2', 'radius passed' );
+ok( $args['font'] === 'serif', 'font passed' );
+ok( ! isset( $args['text'] ), 'a non-hex colour is not sent at all' );
+$clean_style = sendbeam_sanitize_settings( array( '_tab' => 'forms', 'style_accent' => 'red', 'style_radius' => '999', 'style_font' => 'Comic Sans' ) );
+ok( $clean_style['style_accent'] === '#B45309', 'a bad colour leaves the saved one untouched' );
+ok( $clean_style['style_radius'] === '28', 'radius clamped on save' );
+ok( $clean_style['style_font'] === 'inherit', 'an unknown font falls back' );
+update_option( 'sendbeam_settings', array() );
 
 // ── Site email ──────────────────────────────────────────────────────────
 $stub = &$GLOBALS['stub'];

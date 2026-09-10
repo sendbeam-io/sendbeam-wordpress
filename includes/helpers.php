@@ -35,6 +35,14 @@ function sendbeam_default_settings() {
 		'popup_delay'   => 5,
 		'popup_once'    => 'day',
 		'popup_label'   => '',
+		'style_accent' => '',
+		'style_text'   => '',
+		'style_field'  => '',
+		'style_border' => '',
+		'style_radius' => '',
+		'style_font'   => 'inherit',
+		'style_size'   => '',
+		'style_bare'   => 1,
 		'mail_enabled'    => 0,
 		'api_key'         => '',
 		'mail_from_name'  => '',
@@ -75,7 +83,51 @@ function sendbeam_is_form_id( $id ) {
  */
 function sendbeam_form_url( $form_id, $embed = true ) {
 	$url = sendbeam_app_url() . '/f/' . rawurlencode( strtolower( $form_id ) );
-	return $embed ? $url . '?embed=1' : $url;
+	if ( ! $embed ) {
+		return $url;
+	}
+	return add_query_arg( array_merge( array( 'embed' => '1' ), sendbeam_appearance_args() ), $url );
+}
+
+/**
+ * The appearance parameters the hosted form understands.
+ *
+ * Only settings the site owner actually chose are sent; anything left blank is
+ * omitted so the form keeps SendBeam's own default rather than being handed an
+ * empty value. The hosted page validates all of this again on arrival — this
+ * end just avoids sending nonsense in the first place.
+ *
+ * @return array<string,string>
+ */
+function sendbeam_appearance_args() {
+	$s    = sendbeam_settings();
+	$args = array();
+
+	foreach ( array( 'accent' => 'style_accent', 'text' => 'style_text', 'field' => 'style_field', 'border' => 'style_border' ) as $param => $key ) {
+		$value = trim( (string) $s[ $key ] );
+		if ( '' !== $value && preg_match( '/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $value ) ) {
+			// add_query_arg() does not encode, and a bare '#' would start the
+			// URL fragment — every parameter after it would silently never
+			// reach the server.
+			$args[ $param ] = rawurlencode( strtolower( $value ) );
+		}
+	}
+	foreach ( array( 'radius' => 'style_radius', 'size' => 'style_size' ) as $param => $key ) {
+		$value = trim( (string) $s[ $key ] );
+		if ( '' !== $value && is_numeric( $value ) ) {
+			$args[ $param ] = (string) (int) $value;
+		}
+	}
+	$font = trim( (string) $s['style_font'] );
+	if ( '' !== $font && in_array( $font, array( 'inherit', 'system', 'sans', 'serif', 'mono' ), true ) ) {
+		$args['font'] = $font;
+	}
+	// The form fills whatever column it is placed in; the theme decides the width.
+	$args['width'] = '0';
+	if ( ! empty( $s['style_bare'] ) ) {
+		$args['bare'] = '1';
+	}
+	return $args;
 }
 
 /**

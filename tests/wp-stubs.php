@@ -70,6 +70,17 @@ function register_rest_route( $ns, $route, $args = array() ) {
 	$GLOBALS['stub']['rest'][ $ns . $route ] = $args;
 	return true;
 }
+function add_query_arg( $args, $url = '' ) {
+	$parts = explode( '?', $url, 2 );
+	$query = array();
+	if ( isset( $parts[1] ) ) { parse_str( $parts[1], $query ); }
+	$query = array_merge( $query, (array) $args );
+	// WordPress's build_query() does NOT urlencode values; the stub must not either,
+	// or the '#' escaping bug this guards against would be invisible here.
+	$pairs = array();
+	foreach ( $query as $k => $v ) { $pairs[] = $k . '=' . $v; }
+	return $parts[0] . ( $pairs ? '?' . implode( '&', $pairs ) : '' );
+}
 function get_user_meta( $user_id, $key = '', $single = false ) { return $single ? '' : array(); }
 
 /**

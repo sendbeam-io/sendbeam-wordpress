@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0
+
+- **Forms take your site's colours.** New Appearance panel on the Forms tab: button, text, field and border colours, corner radius, text size and typeface. The values are sent to the hosted form, which validates every one of them before use — a colour must be hex, numbers are clamped, and the typeface is *named* from a list rather than supplied as a stack.
+- The same appearance is carried into **pop-ups**, which build their own iframe and so previously opened in SendBeam's default blue whatever the site looked like.
+- **Embedded forms now size themselves.** The form reports its measured height and the plugin matches the iframe to it, instead of leaving a scrollbar or a band of empty space under the button.
+- "Hide the form name and subtitle inside the embed" is on by default, since the page around a form almost always has its own heading. The SendBeam byline stays.
+
 ## 1.3.0
 
 - **Pop-ups became a list, not a setting.** Add as many as you like; each has its own form, targeting (every page / home / single posts / pages / address contains…) and frequency. The first enabled rule that matches a page wins and nothing else is printed, so two modals can never fight over the same visitor.

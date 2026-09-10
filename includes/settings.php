@@ -91,7 +91,7 @@ function sendbeam_sanitize_settings( $input ) {
 	// a field that was never on screen look identical in $_POST otherwise.
 	$groups = array(
 		'connect' => array( 'api_key' ),
-		'forms'   => array( 'default_form', 'contact_form' ),
+		'forms'   => array( 'default_form', 'contact_form', 'style_accent', 'style_text', 'style_field', 'style_border', 'style_radius', 'style_font', 'style_size', 'style_bare' ),
 		'mail'    => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback' ),
 	);
 	$tab  = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
@@ -113,6 +113,20 @@ function sendbeam_sanitize_settings( $input ) {
 			$value = (string) $saved[ $key ];
 		}
 		$out[ $key ] = strtolower( $value );
+	}
+
+	if ( isset( $touch['style_accent'] ) ) {
+		foreach ( array( 'style_accent', 'style_text', 'style_field', 'style_border' ) as $key ) {
+			$value = isset( $input[ $key ] ) ? trim( sanitize_text_field( wp_unslash( $input[ $key ] ) ) ) : '';
+			$out[ $key ] = ( '' === $value || preg_match( '/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $value ) ) ? strtolower( $value ) : (string) $saved[ $key ];
+		}
+		foreach ( array( 'style_radius' => 28, 'style_size' => 20 ) as $key => $max ) {
+			$value = isset( $input[ $key ] ) ? trim( sanitize_text_field( wp_unslash( $input[ $key ] ) ) ) : '';
+			$out[ $key ] = ( '' === $value ) ? '' : (string) max( 0, min( $max, (int) $value ) );
+		}
+		$font = isset( $input['style_font'] ) ? sanitize_key( $input['style_font'] ) : 'inherit';
+		$out['style_font'] = in_array( $font, array( 'inherit', 'system', 'sans', 'serif', 'mono' ), true ) ? $font : 'inherit';
+		$out['style_bare'] = empty( $input['style_bare'] ) ? 0 : 1;
 	}
 
 	if ( isset( $touch['mail_enabled'] ) ) {

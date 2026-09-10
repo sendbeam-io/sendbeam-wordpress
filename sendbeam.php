@@ -3,7 +3,7 @@
  * Plugin Name:       SendBeam
  * Plugin URI:        https://sendbeam.io/integrations/wordpress
  * Description:       Newsletter signup forms, a pop-up and contact forms from your SendBeam account: a block, a shortcode and one settings page.
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 6.1
  * Requires PHP:      7.4
  * Author:            SendBeam
@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SENDBEAM_VERSION', '1.3.0' );
+define( 'SENDBEAM_VERSION', '1.4.0' );
 define( 'SENDBEAM_FILE', __FILE__ );
 define( 'SENDBEAM_DIR', plugin_dir_path( __FILE__ ) );
 

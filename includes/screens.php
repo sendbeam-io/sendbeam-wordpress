@@ -101,6 +101,56 @@ function sendbeam_screen_forms() {
 	sendbeam_form_close();
 	sendbeam_card_close();
 
+	sendbeam_card_open( __( 'Appearance', 'sendbeam' ), __( 'How the form looks on your pages.', 'sendbeam' ) );
+	sendbeam_form_open( 'forms' );
+	$s = sendbeam_settings();
+	echo '<p style="margin-top:0">' . esc_html__( 'Forms are served by SendBeam, so give them your site\'s colours and they will stop looking like something pasted in from elsewhere. Leave a field blank to keep the SendBeam default.', 'sendbeam' ) . '</p>';
+	echo '<div class="sb-rule__grid">';
+	$colours = array(
+		'style_accent' => __( 'Button colour', 'sendbeam' ),
+		'style_text'   => __( 'Text colour', 'sendbeam' ),
+		'style_field'  => __( 'Field background', 'sendbeam' ),
+		'style_border' => __( 'Field border', 'sendbeam' ),
+	);
+	foreach ( $colours as $key => $label ) {
+		printf(
+			'<label><span class="sb-label">%1$s</span><input type="text" name="sendbeam_settings[%2$s]" value="%3$s" placeholder="#000000" spellcheck="false" class="regular-text code" /></label>',
+			esc_html( $label ),
+			esc_attr( $key ),
+			esc_attr( $s[ $key ] )
+		);
+	}
+	printf(
+		'<label><span class="sb-label">%1$s</span><input type="number" min="0" max="28" name="sendbeam_settings[style_radius]" value="%2$s" placeholder="6" class="small-text" /></label>',
+		esc_html__( 'Corner radius (px)', 'sendbeam' ),
+		esc_attr( $s['style_radius'] )
+	);
+	printf(
+		'<label><span class="sb-label">%1$s</span><input type="number" min="12" max="20" name="sendbeam_settings[style_size]" value="%2$s" placeholder="14" class="small-text" /></label>',
+		esc_html__( 'Text size (px)', 'sendbeam' ),
+		esc_attr( $s['style_size'] )
+	);
+	$fonts = array(
+		'inherit' => __( 'Match my theme', 'sendbeam' ),
+		'system'  => __( 'System UI', 'sendbeam' ),
+		'sans'    => __( 'Sans serif', 'sendbeam' ),
+		'serif'   => __( 'Serif', 'sendbeam' ),
+		'mono'    => __( 'Monospace', 'sendbeam' ),
+	);
+	echo '<label><span class="sb-label">' . esc_html__( 'Typeface', 'sendbeam' ) . '</span><select name="sendbeam_settings[style_font]">';
+	foreach ( $fonts as $k => $v ) {
+		printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $s['style_font'], $k, false ), esc_html( $v ) );
+	}
+	echo '</select></label>';
+	echo '</div>';
+	printf(
+		'<p style="margin-top:14px"><label class="sb-inline"><input type="checkbox" name="sendbeam_settings[style_bare]" value="1" %s /> %s</label></p>',
+		checked( ! empty( $s['style_bare'] ), true, false ),
+		esc_html__( 'Hide the form name and subtitle inside the embed (your page already has a heading)', 'sendbeam' )
+	);
+	sendbeam_form_close();
+	sendbeam_card_close();
+
 	$forms = sendbeam_remote_forms();
 
 	sendbeam_card_open( __( 'Your forms', 'sendbeam' ), is_array( $forms ) ? sprintf( /* translators: %d: count */ _n( '%d form', '%d forms', count( $forms ), 'sendbeam' ), count( $forms ) ) : '' );
