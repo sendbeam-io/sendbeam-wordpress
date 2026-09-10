@@ -35,6 +35,8 @@ function sendbeam_popup_defaults() {
 		'delay'   => 5,
 		'scroll'  => 50,
 		'label'   => '',
+		'heading' => '',
+		'blurb'   => '',
 		'once'    => 'day',
 		'where'   => 'everywhere',
 		'url'     => '',
@@ -139,6 +141,10 @@ function sendbeam_clean_popup( $raw ) {
 	$out['delay']  = isset( $raw['delay'] ) ? max( 0, min( 120, (int) $raw['delay'] ) ) : $d['delay'];
 	$out['scroll'] = isset( $raw['scroll'] ) ? max( 5, min( 100, (int) $raw['scroll'] ) ) : $d['scroll'];
 	$out['label']  = isset( $raw['label'] ) ? sanitize_text_field( wp_unslash( $raw['label'] ) ) : '';
+	// A pop-up has no page around it to say what it is for, so it carries its
+	// own words. Capped to what will actually fit above the fields.
+	$out['heading'] = isset( $raw['heading'] ) ? mb_substr( sanitize_text_field( wp_unslash( $raw['heading'] ) ), 0, 80 ) : '';
+	$out['blurb']   = isset( $raw['blurb'] ) ? mb_substr( sanitize_text_field( wp_unslash( $raw['blurb'] ) ), 0, 200 ) : '';
 	$out['url']    = isset( $raw['url'] ) ? sanitize_text_field( wp_unslash( $raw['url'] ) ) : '';
 
 	return $out;

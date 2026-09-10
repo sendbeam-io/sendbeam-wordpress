@@ -429,6 +429,18 @@ function sendbeam_popup_row( $i, $rule ) {
 				<input type="number" min="5" max="100" name="<?php echo esc_attr( $name ); ?>[scroll]" value="<?php echo esc_attr( $rule['scroll'] ); ?>" class="small-text" />
 			</label>
 
+			<label style="grid-column:1/-1">
+				<span class="sb-label"><?php esc_html_e( 'Headline shown in the pop-up', 'sendbeam' ); ?></span>
+				<input type="text" maxlength="80" name="<?php echo esc_attr( $name ); ?>[heading]" value="<?php echo esc_attr( $rule['heading'] ); ?>"
+					placeholder="<?php esc_attr_e( 'Get the monthly roast notes', 'sendbeam' ); ?>" class="regular-text" style="width:100%" />
+			</label>
+
+			<label style="grid-column:1/-1">
+				<span class="sb-label"><?php esc_html_e( 'A line underneath it', 'sendbeam' ); ?></span>
+				<input type="text" maxlength="200" name="<?php echo esc_attr( $name ); ?>[blurb]" value="<?php echo esc_attr( $rule['blurb'] ); ?>"
+					placeholder="<?php esc_attr_e( 'One email a month. Unsubscribe any time.', 'sendbeam' ); ?>" class="regular-text" style="width:100%" />
+			</label>
+
 			<label class="sb-when-button" <?php echo 'button' === $rule['trigger'] ? '' : 'hidden'; ?>>
 				<span class="sb-label"><?php esc_html_e( 'Button label', 'sendbeam' ); ?></span>
 				<input type="text" name="<?php echo esc_attr( $name ); ?>[label]" value="<?php echo esc_attr( $rule['label'] ); ?>" placeholder="<?php esc_attr_e( 'Subscribe', 'sendbeam' ); ?>" class="regular-text" />

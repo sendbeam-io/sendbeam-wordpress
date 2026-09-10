@@ -228,6 +228,12 @@ function sendbeam_print_popup_loader() {
 			}
 			$attributes[ 'data-' . str_replace( '_', '-', $param ) ] = rawurldecode( $value );
 		}
+		if ( ! empty( $popup['heading'] ) ) {
+			$attributes['data-heading'] = (string) $popup['heading'];
+		}
+		if ( ! empty( $popup['blurb'] ) ) {
+			$attributes['data-sub'] = (string) $popup['blurb'];
+		}
 
 		if ( 'timer' === $trigger ) {
 			$attributes['data-delay'] = (string) ( (int) $popup['delay'] * 1000 );
