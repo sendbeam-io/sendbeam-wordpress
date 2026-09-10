@@ -56,14 +56,14 @@ function sendbeam_admin_init() {
 		)
 	);
 
-	add_settings_section( 'sendbeam_connect', __( 'Connect', 'sendbeam' ), 'sendbeam_section_connect_intro', 'sendbeam_connect_page' );
+	add_settings_section( 'sendbeam_connect', '', 'sendbeam_section_connect_intro', 'sendbeam_connect_page' ); // the card supplies the heading
 	add_settings_field( 'api_key', __( 'API key', 'sendbeam' ), 'sendbeam_field_api_key', 'sendbeam_connect_page', 'sendbeam_connect' );
 
-	add_settings_section( 'sendbeam_forms', __( 'Forms', 'sendbeam' ), 'sendbeam_section_forms_intro', 'sendbeam_forms_page' );
+	add_settings_section( 'sendbeam_forms', '', 'sendbeam_section_forms_intro', 'sendbeam_forms_page' ); // the card supplies the heading
 	add_settings_field( 'default_form', __( 'Default signup form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_forms_page', 'sendbeam_forms', array( 'key' => 'default_form', 'kind' => 'signup', 'help' => __( 'Used by the SendBeam Form block and [sendbeam_form] when no ID is given.', 'sendbeam' ) ) );
 	add_settings_field( 'contact_form', __( 'Contact form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_forms_page', 'sendbeam_forms', array( 'key' => 'contact_form', 'kind' => 'contact', 'help' => __( 'Used by [sendbeam_contact]. Messages are emailed to you by SendBeam.', 'sendbeam' ) ) );
 
-	add_settings_section( 'sendbeam_mail', __( 'Site email', 'sendbeam' ), 'sendbeam_section_mail_intro', 'sendbeam_mail_page' );
+	add_settings_section( 'sendbeam_mail', '', 'sendbeam_section_mail_intro', 'sendbeam_mail_page' ); // the card supplies the heading
 	add_settings_field( 'mail_enabled', __( 'Site email', 'sendbeam' ), 'sendbeam_field_checkbox', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_enabled', 'label' => __( 'Send this site\'s email through SendBeam', 'sendbeam' ), 'help' => __( 'Everything WordPress sends with wp_mail(): order confirmations, password resets, comment and form notifications, plugin alerts.', 'sendbeam' ) ) );
 	add_settings_field( 'mail_from_name', __( 'From name', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_from_name', 'placeholder' => get_bloginfo( 'name' ), 'class' => 'sendbeam-when-mail', 'help' => __( 'Leave empty to use the name the sending plugin sets, or the workspace sender.', 'sendbeam' ) ) );
 	add_settings_field( 'mail_from_email', __( 'From address', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_from_email', 'placeholder' => 'orders@yourdomain.com', 'class' => 'sendbeam-when-mail', 'help' => __( 'Must be on a domain verified in the SendBeam workspace. Leave empty to use the workspace sender.', 'sendbeam' ) ) );

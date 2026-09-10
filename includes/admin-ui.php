@@ -152,7 +152,7 @@ function sendbeam_admin_css() {
 	.sb-wrap{padding:22px}
 	/* Cards in a row share a height so their bottom rules line up; without this
 	   each one ends wherever its own content does and the row looks ragged. */
-	.sb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:stretch}
+	.sb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:stretch;margin-bottom:18px}
 	.sb-grid>.sb-card{margin-bottom:0;display:flex;flex-direction:column}
 	.sb-grid>.sb-card>.sb-card__body{flex:1 1 auto}
 
