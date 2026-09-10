@@ -112,7 +112,7 @@ function sendbeam_shortcode_form( $atts ) {
 		$atts,
 		'sendbeam_form'
 	);
-	$html = sendbeam_form_html( strtolower( trim( (string) $atts['id'] ) ), (int) $atts['height'], (string) $atts['title'] );
+	$html     = sendbeam_form_html( strtolower( trim( (string) $atts['id'] ) ), (int) $atts['height'], (string) $atts['title'] );
 	if ( '' === $html ) {
 		return sendbeam_editor_notice( __( 'SendBeam: no form ID. Add id="…" to the shortcode or set a default form under Settings → SendBeam.', 'sendbeam' ) );
 	}
@@ -208,7 +208,13 @@ function sendbeam_print_popup_loader() {
 		: array();
 	foreach ( $buttons as $form_id ) {
 		if ( ! isset( $load[ $form_id ] ) ) {
-			$load[ $form_id ] = array_merge( sendbeam_popup_defaults(), array( 'form' => $form_id, 'trigger' => 'manual' ) );
+			$load[ $form_id ] = array_merge(
+				sendbeam_popup_defaults(),
+				array(
+					'form'    => $form_id,
+					'trigger' => 'manual',
+				)
+			);
 		}
 	}
 
@@ -230,7 +236,7 @@ function sendbeam_print_popup_loader() {
 		// site that is not blue.
 		foreach ( sendbeam_appearance_args() as $param => $value ) {
 			if ( 'width' === $param ) {
-				continue; // the modal sets its own width
+				continue; // The modal sets its own width.
 			}
 			$attributes[ 'data-' . str_replace( '_', '-', $param ) ] = rawurldecode( $value );
 		}

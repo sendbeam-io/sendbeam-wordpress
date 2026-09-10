@@ -31,6 +31,9 @@ function sendbeam_form_close() {
 
 /* -------------------------------------------------------------- Overview */
 
+/**
+ * Overview tab: how far through set-up the site is, what the workspace holds, and the API key.
+ */
 function sendbeam_screen_overview() {
 	$settings = sendbeam_settings();
 	$forms    = sendbeam_remote_forms();
@@ -90,6 +93,9 @@ function sendbeam_stat( $label, $value ) {
 
 /* ----------------------------------------------------------------- Forms */
 
+/**
+ * Forms tab: the default forms, how embedded forms look, and every form in the workspace.
+ */
 function sendbeam_screen_forms() {
 	sendbeam_card_open( __( 'Defaults', 'sendbeam' ), __( 'Used when a block or shortcode does not name a form.', 'sendbeam' ) );
 	sendbeam_form_open( 'forms' );
@@ -160,7 +166,13 @@ function sendbeam_screen_forms() {
 				__( 'No forms in this workspace yet. %s.', 'sendbeam' ),
 				'<a href="' . esc_url( sendbeam_app_url() . '/forms' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Create your first form', 'sendbeam' ) . '</a>'
 			),
-			array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ) )
+			array(
+				'a' => array(
+					'href'   => array(),
+					'target' => array(),
+					'rel'    => array(),
+				),
+			)
 		) . '</p>';
 	} else {
 		echo '<table class="sb-table"><thead><tr>';
@@ -193,6 +205,9 @@ function sendbeam_screen_forms() {
 
 /* -------------------------------------------------------------- Audience */
 
+/**
+ * Audience tab: the workspace's lists, and where to ask people to subscribe.
+ */
 function sendbeam_screen_audience() {
 	$lists = sendbeam_lists();
 
@@ -322,6 +337,9 @@ function sendbeam_screen_sync( $lists ) {
 
 /* --------------------------------------------------------------- Pop-ups */
 
+/**
+ * Pop-ups tab: the ordered rules, each with its own form, targeting and trigger.
+ */
 function sendbeam_screen_popup() {
 	$rules = sendbeam_popups();
 
@@ -465,6 +483,9 @@ function sendbeam_popup_row( $i, $rule ) {
 
 /* ------------------------------------------------------------ Site email */
 
+/**
+ * Site email tab: the wp_mail() relay, a test send, and what recently went out.
+ */
 function sendbeam_screen_mail() {
 	sendbeam_card_open( __( 'Site email', 'sendbeam' ) );
 	sendbeam_form_open( 'mail' );
@@ -546,6 +567,9 @@ function sendbeam_doc_snippet( $code, $what ) {
 	);
 }
 
+/**
+ * Docs tab: the shortcodes, the API key permissions, and links to the full documentation.
+ */
 function sendbeam_screen_docs() {
 	sendbeam_card_open( __( 'Documentation', 'sendbeam' ) );
 	echo '<div class="sb-doc">';
@@ -589,10 +613,10 @@ function sendbeam_screen_docs() {
 	echo '<p>' . esc_html__( 'Placing a form or a pop-up needs no key at all. Everything else asks for one thing:', 'sendbeam' ) . '</p>';
 	echo '<table class="sb-table"><thead><tr><th>' . esc_html__( 'Permission', 'sendbeam' ) . '</th><th>' . esc_html__( 'Needed for', 'sendbeam' ) . '</th></tr></thead><tbody>';
 	foreach ( array(
-		'forms:read'                                  => __( 'Listing your forms here and in the block', 'sendbeam' ),
-		'lists:read'                                  => __( 'The Audience tab and its counts', 'sendbeam' ),
-		'contacts:read, contacts:write, lists:write'  => __( 'The opt-in box at registration, comments or checkout', 'sendbeam' ),
-		'transactional:send'                          => __( 'Site email', 'sendbeam' ),
+		'forms:read'                                 => __( 'Listing your forms here and in the block', 'sendbeam' ),
+		'lists:read'                                 => __( 'The Audience tab and its counts', 'sendbeam' ),
+		'contacts:read, contacts:write, lists:write' => __( 'The opt-in box at registration, comments or checkout', 'sendbeam' ),
+		'transactional:send'                         => __( 'Site email', 'sendbeam' ),
 	) as $perm => $why ) {
 		printf( '<tr><td><code>%s</code></td><td>%s</td></tr>', esc_html( $perm ), esc_html( $why ) );
 	}

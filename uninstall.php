@@ -42,7 +42,12 @@ delete_metadata( 'user', 0, 'sendbeam_setup_dismissed', '', true );
 
 // Multisite: the same clean-up on every site in the network.
 if ( is_multisite() ) {
-	$sendbeam_sites = get_sites( array( 'fields' => 'ids', 'number' => 0 ) );
+	$sendbeam_sites = get_sites(
+		array(
+			'fields' => 'ids',
+			'number' => 0,
+		)
+	);
 	foreach ( $sendbeam_sites as $sendbeam_site_id ) {
 		switch_to_blog( $sendbeam_site_id );
 		foreach ( $sendbeam_options as $sendbeam_option ) {

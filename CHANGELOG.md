@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.2
+
+- Housekeeping before submission to the WordPress Plugin Directory. The plugin now passes the full WordPress Coding Standards and the Plugin Check tool with nothing reported: every function is documented, the four `wp_mail_*` filters it re-fires are annotated as core's own rather than unprefixed hooks of ours, and one parameter named after a reserved word was renamed. `phpcs.xml.dist` records the one deliberate exception — `blocks/form/index.asset.php` keeps the filename WordPress itself looks for.
+- The distributed zip no longer carries the repository's development files: the composer and npm manifests, the coding-standards ruleset and the code of conduct.
+- Verified on a clean WordPress 7.1 install: activation, all six tabs, the block, the three shortcodes and uninstall, with `WP_DEBUG` on and nothing written to the log. Uninstall removed all fourteen options and the user meta it had created.
+
 ## 1.6.1
 
 - **Hardening:** the script that listens for messages from an embedded form now ignores anything not sent by the origin serving that form. It previously matched on the message contents alone, and a form ID is public — so another frame on the page could have resized an embed, or fired the `sendbeam:submitted` event that sites wire to analytics goals, producing conversions that never happened.

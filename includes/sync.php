@@ -68,7 +68,7 @@ function sendbeam_sync_settings() {
 	if ( ! is_array( $saved ) ) {
 		$saved = array();
 	}
-	$out = array_merge( sendbeam_sync_defaults(), $saved );
+	$out          = array_merge( sendbeam_sync_defaults(), $saved );
 	$out['lists'] = is_array( $out['lists'] ) ? array_values( array_filter( array_map( 'strval', $out['lists'] ) ) ) : array();
 	return $out;
 }
@@ -143,9 +143,11 @@ function sendbeam_sync_checkout_field() {
  * @return bool
  */
 function sendbeam_sync_consented() {
-	// phpcs:ignore WordPress.Security.NonceVerification.Missing -- we are a
-	// passenger on a form WordPress or WooCommerce has already validated; we
-	// only read one checkbox and never act on it alone.
+	// A passenger on a form WordPress or WooCommerce has already validated and
+	// nonce-checked. We read one checkbox and never act on it alone: the caller
+	// has established which user or order the submission belongs to, and the
+	// address subscribed is one the submitter already controls.
+	// phpcs:ignore WordPress.Security.NonceVerification.Missing
 	return ! empty( $_POST['sendbeam_optin'] );
 }
 

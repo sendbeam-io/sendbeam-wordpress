@@ -125,8 +125,8 @@ function sendbeam_clean_popup( $raw ) {
 	$d   = sendbeam_popup_defaults();
 	$out = $d;
 
-	$form         = isset( $raw['form'] ) ? strtolower( trim( sanitize_text_field( wp_unslash( $raw['form'] ) ) ) ) : '';
-	$out['form']  = sendbeam_is_form_id( $form ) ? $form : '';
+	$form           = isset( $raw['form'] ) ? strtolower( trim( sanitize_text_field( wp_unslash( $raw['form'] ) ) ) ) : '';
+	$out['form']    = sendbeam_is_form_id( $form ) ? $form : '';
 	$out['enabled'] = empty( $raw['enabled'] ) ? 0 : 1;
 
 	$trigger        = isset( $raw['trigger'] ) ? sanitize_key( $raw['trigger'] ) : '';
@@ -145,7 +145,7 @@ function sendbeam_clean_popup( $raw ) {
 	// own words. Capped to what will actually fit above the fields.
 	$out['heading'] = isset( $raw['heading'] ) ? mb_substr( sanitize_text_field( wp_unslash( $raw['heading'] ) ), 0, 80 ) : '';
 	$out['blurb']   = isset( $raw['blurb'] ) ? mb_substr( sanitize_text_field( wp_unslash( $raw['blurb'] ) ), 0, 200 ) : '';
-	$out['url']    = isset( $raw['url'] ) ? sanitize_text_field( wp_unslash( $raw['url'] ) ) : '';
+	$out['url']     = isset( $raw['url'] ) ? sanitize_text_field( wp_unslash( $raw['url'] ) ) : '';
 
 	return $out;
 }
@@ -158,7 +158,9 @@ function sendbeam_handle_save_popups() {
 	check_admin_referer( 'sendbeam_save_popups' );
 
 	$rules = array();
-	// phpcs:ignore WordPress.Security.NonceVerification.Missing -- checked above.
+	// The nonce is checked at the top of this handler. Each field of each rule
+	// is sanitised in sendbeam_clean_popup(), which the sniff cannot see past.
+	// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	$posted = isset( $_POST['sendbeam_popup'] ) && is_array( $_POST['sendbeam_popup'] ) ? wp_unslash( $_POST['sendbeam_popup'] ) : array();
 	foreach ( $posted as $raw ) {
 		if ( ! is_array( $raw ) ) {

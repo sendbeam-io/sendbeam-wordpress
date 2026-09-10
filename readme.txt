@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.1
+Stable tag: 1.6.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -95,11 +95,18 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 
 == Screenshots ==
 
-1. The SendBeam Form block in the editor.
-2. Settings → SendBeam.
-3. The pop-up on a post.
+1. The SendBeam Form block, showing the real form as it will appear on the page.
+2. Settings → SendBeam: what is set up, and what the workspace holds.
+3. The Forms tab, where the default forms and their colours are set.
+4. The Audience tab: the workspace's lists, and where to ask people to subscribe.
+5. The Pop-ups tab. Rules are matched top to bottom and the first one wins.
+6. A pop-up on the site, using the site's own colours.
+7. The Site email tab, which routes wp_mail() through SendBeam.
 
 == Changelog ==
+
+= 1.6.2 =
+* Housekeeping before submission to the WordPress Plugin Directory: the whole plugin now passes the WordPress Coding Standards and Plugin Check with nothing reported, and development files are kept out of the distributed zip.
 
 = 1.6.1 =
 * Hardening: messages from an embedded form are only accepted from the origin serving it, so another frame on the page cannot resize an embed or fire a false signup event.

@@ -68,7 +68,7 @@ function sendbeam_render_header() {
 		'unreachable' => array( 'vermilion', __( 'Unreachable', 'sendbeam' ) ),
 		'none'        => array( 'ink', __( 'Not connected', 'sendbeam' ) ),
 	);
-	$state = isset( $states[ $connection['state'] ] ) ? $states[ $connection['state'] ] : $states['none'];
+	$state      = isset( $states[ $connection['state'] ] ) ? $states[ $connection['state'] ] : $states['none'];
 	?>
 	<div class="sb-head">
 		<div class="sb-head__brand">
@@ -84,8 +84,8 @@ function sendbeam_render_header() {
 	<nav class="sb-tabs" aria-label="<?php esc_attr_e( 'SendBeam sections', 'sendbeam' ); ?>">
 		<?php foreach ( sendbeam_tabs() as $key => $label ) : ?>
 			<a class="sb-tab<?php echo esc_attr( $key === $current ? ' is-active' : '' ); ?>"
-			   href="<?php echo esc_url( sendbeam_tab_url( $key ) ); ?>"
-			   <?php echo $key === $current ? 'aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a>
+				href="<?php echo esc_url( sendbeam_tab_url( $key ) ); ?>"
+				<?php echo $key === $current ? 'aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a>
 		<?php endforeach; ?>
 	</nav>
 	<?php

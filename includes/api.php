@@ -29,7 +29,12 @@ const SENDBEAM_CACHE_TTL   = 300; // 5 minutes.
 function sendbeam_api_get( $path ) {
 	$key = sendbeam_api_key();
 	if ( '' === $key ) {
-		return array( 'ok' => false, 'status' => 0, 'data' => array(), 'error' => __( 'No API key saved.', 'sendbeam' ) );
+		return array(
+			'ok'     => false,
+			'status' => 0,
+			'data'   => array(),
+			'error'  => __( 'No API key saved.', 'sendbeam' ),
+		);
 	}
 
 	$response = wp_remote_get(
@@ -44,7 +49,12 @@ function sendbeam_api_get( $path ) {
 	);
 
 	if ( is_wp_error( $response ) ) {
-		return array( 'ok' => false, 'status' => 0, 'data' => array(), 'error' => $response->get_error_message() );
+		return array(
+			'ok'     => false,
+			'status' => 0,
+			'data'   => array(),
+			'error'  => $response->get_error_message(),
+		);
 	}
 
 	$status = (int) wp_remote_retrieve_response_code( $response );
@@ -72,7 +82,11 @@ function sendbeam_api_get( $path ) {
  */
 function sendbeam_connection( $force = false ) {
 	if ( '' === sendbeam_api_key() ) {
-		return array( 'state' => 'none', 'message' => '', 'count' => 0 );
+		return array(
+			'state'   => 'none',
+			'message' => '',
+			'count'   => 0,
+		);
 	}
 
 	if ( ! $force ) {
@@ -170,7 +184,7 @@ function sendbeam_form_choices( $kind = '' ) {
 		if ( '' !== $kind && $form_kind !== $kind ) {
 			continue;
 		}
-		$name             = isset( $form['name'] ) && '' !== $form['name'] ? (string) $form['name'] : __( '(untitled form)', 'sendbeam' );
+		$name               = isset( $form['name'] ) && '' !== $form['name'] ? (string) $form['name'] : __( '(untitled form)', 'sendbeam' );
 		$out[ $form['id'] ] = $name;
 	}
 	return $out;
@@ -277,7 +291,12 @@ function sendbeam_register_rest() {
 function sendbeam_rest_forms() {
 	$forms = sendbeam_remote_forms();
 	if ( null === $forms ) {
-		return rest_ensure_response( array( 'available' => false, 'forms' => array() ) );
+		return rest_ensure_response(
+			array(
+				'available' => false,
+				'forms'     => array(),
+			)
+		);
 	}
 	$out = array();
 	foreach ( $forms as $form ) {
@@ -290,7 +309,12 @@ function sendbeam_rest_forms() {
 			'kind' => isset( $form['kind'] ) ? (string) $form['kind'] : 'signup',
 		);
 	}
-	return rest_ensure_response( array( 'available' => true, 'forms' => $out ) );
+	return rest_ensure_response(
+		array(
+			'available' => true,
+			'forms'     => $out,
+		)
+	);
 }
 
 /**
@@ -303,7 +327,12 @@ function sendbeam_rest_forms() {
 function sendbeam_api_post( $path, $body ) {
 	$key = sendbeam_api_key();
 	if ( '' === $key ) {
-		return array( 'ok' => false, 'status' => 0, 'data' => array(), 'error' => __( 'No API key saved.', 'sendbeam' ) );
+		return array(
+			'ok'     => false,
+			'status' => 0,
+			'data'   => array(),
+			'error'  => __( 'No API key saved.', 'sendbeam' ),
+		);
 	}
 
 	$response = wp_remote_post(
@@ -320,7 +349,12 @@ function sendbeam_api_post( $path, $body ) {
 	);
 
 	if ( is_wp_error( $response ) ) {
-		return array( 'ok' => false, 'status' => 0, 'data' => array(), 'error' => $response->get_error_message() );
+		return array(
+			'ok'     => false,
+			'status' => 0,
+			'data'   => array(),
+			'error'  => $response->get_error_message(),
+		);
 	}
 
 	$status = (int) wp_remote_retrieve_response_code( $response );

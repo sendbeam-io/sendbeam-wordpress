@@ -56,18 +56,87 @@ function sendbeam_admin_init() {
 		)
 	);
 
-	add_settings_section( 'sendbeam_connect', '', 'sendbeam_section_connect_intro', 'sendbeam_connect_page' ); // the card supplies the heading
+	add_settings_section( 'sendbeam_connect', '', 'sendbeam_section_connect_intro', 'sendbeam_connect_page' ); // The card supplies the heading.
 	add_settings_field( 'api_key', __( 'API key', 'sendbeam' ), 'sendbeam_field_api_key', 'sendbeam_connect_page', 'sendbeam_connect' );
 
-	add_settings_section( 'sendbeam_forms', '', 'sendbeam_section_forms_intro', 'sendbeam_forms_page' ); // the card supplies the heading
-	add_settings_field( 'default_form', __( 'Default signup form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_forms_page', 'sendbeam_forms', array( 'key' => 'default_form', 'kind' => 'signup', 'help' => __( 'Used by the SendBeam Form block and [sendbeam_form] when no ID is given.', 'sendbeam' ) ) );
-	add_settings_field( 'contact_form', __( 'Contact form', 'sendbeam' ), 'sendbeam_field_form_id', 'sendbeam_forms_page', 'sendbeam_forms', array( 'key' => 'contact_form', 'kind' => 'contact', 'help' => __( 'Used by [sendbeam_contact]. Messages are emailed to you by SendBeam.', 'sendbeam' ) ) );
+	add_settings_section( 'sendbeam_forms', '', 'sendbeam_section_forms_intro', 'sendbeam_forms_page' ); // The card supplies the heading.
+	add_settings_field(
+		'default_form',
+		__( 'Default signup form', 'sendbeam' ),
+		'sendbeam_field_form_id',
+		'sendbeam_forms_page',
+		'sendbeam_forms',
+		array(
+			'key'  => 'default_form',
+			'kind' => 'signup',
+			'help' => __( 'Used by the SendBeam Form block and [sendbeam_form] when no ID is given.', 'sendbeam' ),
+		)
+	);
+	add_settings_field(
+		'contact_form',
+		__( 'Contact form', 'sendbeam' ),
+		'sendbeam_field_form_id',
+		'sendbeam_forms_page',
+		'sendbeam_forms',
+		array(
+			'key'  => 'contact_form',
+			'kind' => 'contact',
+			'help' => __( 'Used by [sendbeam_contact]. Messages are emailed to you by SendBeam.', 'sendbeam' ),
+		)
+	);
 
-	add_settings_section( 'sendbeam_mail', '', 'sendbeam_section_mail_intro', 'sendbeam_mail_page' ); // the card supplies the heading
-	add_settings_field( 'mail_enabled', __( 'Site email', 'sendbeam' ), 'sendbeam_field_checkbox', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_enabled', 'label' => __( 'Send this site\'s email through SendBeam', 'sendbeam' ), 'help' => __( 'Everything WordPress sends with wp_mail(): order confirmations, password resets, comment and form notifications, plugin alerts.', 'sendbeam' ) ) );
-	add_settings_field( 'mail_from_name', __( 'From name', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_from_name', 'placeholder' => get_bloginfo( 'name' ), 'class' => 'sendbeam-when-mail', 'help' => __( 'Leave empty to use the name the sending plugin sets, or the workspace sender.', 'sendbeam' ) ) );
-	add_settings_field( 'mail_from_email', __( 'From address', 'sendbeam' ), 'sendbeam_field_text', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_from_email', 'placeholder' => 'orders@yourdomain.com', 'class' => 'sendbeam-when-mail', 'help' => __( 'Must be on a domain verified in the SendBeam workspace. Leave empty to use the workspace sender.', 'sendbeam' ) ) );
-	add_settings_field( 'mail_fallback', __( 'If SendBeam cannot send', 'sendbeam' ), 'sendbeam_field_checkbox', 'sendbeam_mail_page', 'sendbeam_mail', array( 'key' => 'mail_fallback', 'label' => __( 'Fall back to the server\'s own mailer', 'sendbeam' ), 'class' => 'sendbeam-when-mail', 'help' => __( 'On: a refused or failed message goes out the way it did before this plugin (recommended). Off: it fails and the sending plugin is told.', 'sendbeam' ) ) );
+	add_settings_section( 'sendbeam_mail', '', 'sendbeam_section_mail_intro', 'sendbeam_mail_page' ); // The card supplies the heading.
+	add_settings_field(
+		'mail_enabled',
+		__( 'Site email', 'sendbeam' ),
+		'sendbeam_field_checkbox',
+		'sendbeam_mail_page',
+		'sendbeam_mail',
+		array(
+			'key'   => 'mail_enabled',
+			'label' => __( 'Send this site\'s email through SendBeam', 'sendbeam' ),
+			'help'  => __( 'Everything WordPress sends with wp_mail(): order confirmations, password resets, comment and form notifications, plugin alerts.', 'sendbeam' ),
+		)
+	);
+	add_settings_field(
+		'mail_from_name',
+		__( 'From name', 'sendbeam' ),
+		'sendbeam_field_text',
+		'sendbeam_mail_page',
+		'sendbeam_mail',
+		array(
+			'key'         => 'mail_from_name',
+			'placeholder' => get_bloginfo( 'name' ),
+			'class'       => 'sendbeam-when-mail',
+			'help'        => __( 'Leave empty to use the name the sending plugin sets, or the workspace sender.', 'sendbeam' ),
+		)
+	);
+	add_settings_field(
+		'mail_from_email',
+		__( 'From address', 'sendbeam' ),
+		'sendbeam_field_text',
+		'sendbeam_mail_page',
+		'sendbeam_mail',
+		array(
+			'key'         => 'mail_from_email',
+			'placeholder' => 'orders@yourdomain.com',
+			'class'       => 'sendbeam-when-mail',
+			'help'        => __( 'Must be on a domain verified in the SendBeam workspace. Leave empty to use the workspace sender.', 'sendbeam' ),
+		)
+	);
+	add_settings_field(
+		'mail_fallback',
+		__( 'If SendBeam cannot send', 'sendbeam' ),
+		'sendbeam_field_checkbox',
+		'sendbeam_mail_page',
+		'sendbeam_mail',
+		array(
+			'key'   => 'mail_fallback',
+			'label' => __( 'Fall back to the server\'s own mailer', 'sendbeam' ),
+			'class' => 'sendbeam-when-mail',
+			'help'  => __( 'On: a refused or failed message goes out the way it did before this plugin (recommended). Off: it fails and the sending plugin is told.', 'sendbeam' ),
+		)
+	);
 }
 
 /**
@@ -94,9 +163,9 @@ function sendbeam_sanitize_settings( $input ) {
 		'forms'   => array( 'default_form', 'contact_form', 'style_accent', 'style_text', 'style_field', 'style_border', 'style_radius', 'style_font', 'style_size', 'style_bare' ),
 		'mail'    => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback' ),
 	);
-	$tab  = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
-	$keys = isset( $groups[ $tab ] ) ? $groups[ $tab ] : array_merge( ...array_values( $groups ) );
-	$touch = array_flip( $keys );
+	$tab    = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
+	$keys   = isset( $groups[ $tab ] ) ? $groups[ $tab ] : array_merge( ...array_values( $groups ) );
+	$touch  = array_flip( $keys );
 
 	foreach ( array( 'default_form', 'contact_form' ) as $key ) {
 		if ( ! isset( $touch[ $key ] ) ) {
@@ -117,14 +186,17 @@ function sendbeam_sanitize_settings( $input ) {
 
 	if ( isset( $touch['style_accent'] ) ) {
 		foreach ( array( 'style_accent', 'style_text', 'style_field', 'style_border' ) as $key ) {
-			$value = isset( $input[ $key ] ) ? trim( sanitize_text_field( wp_unslash( $input[ $key ] ) ) ) : '';
+			$value       = isset( $input[ $key ] ) ? trim( sanitize_text_field( wp_unslash( $input[ $key ] ) ) ) : '';
 			$out[ $key ] = ( '' === $value || preg_match( '/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $value ) ) ? strtolower( $value ) : (string) $saved[ $key ];
 		}
-		foreach ( array( 'style_radius' => 28, 'style_size' => 20 ) as $key => $max ) {
-			$value = isset( $input[ $key ] ) ? trim( sanitize_text_field( wp_unslash( $input[ $key ] ) ) ) : '';
+		foreach ( array(
+			'style_radius' => 28,
+			'style_size'   => 20,
+		) as $key => $max ) {
+			$value       = isset( $input[ $key ] ) ? trim( sanitize_text_field( wp_unslash( $input[ $key ] ) ) ) : '';
 			$out[ $key ] = ( '' === $value ) ? '' : (string) max( 0, min( $max, (int) $value ) );
 		}
-		$font = isset( $input['style_font'] ) ? sanitize_key( $input['style_font'] ) : 'inherit';
+		$font              = isset( $input['style_font'] ) ? sanitize_key( $input['style_font'] ) : 'inherit';
 		$out['style_font'] = in_array( $font, array( 'inherit', 'system', 'sans', 'serif', 'mono' ), true ) ? $font : 'inherit';
 		$out['style_bare'] = empty( $input['style_bare'] ) ? 0 : 1;
 	}
@@ -170,12 +242,12 @@ function sendbeam_sanitize_settings( $input ) {
  * @param array    $input   Posted values.
  * @param string   $key     Key.
  * @param string[] $allowed Allowed values.
- * @param string   $default Fallback.
+ * @param string   $fallback Value to use when the posted one is not allowed.
  * @return string
  */
-function sendbeam_pick( $input, $key, $allowed, $default ) {
+function sendbeam_pick( $input, $key, $allowed, $fallback ) {
 	$value = isset( $input[ $key ] ) ? sanitize_key( $input[ $key ] ) : '';
-	return in_array( $value, $allowed, true ) ? $value : $default;
+	return in_array( $value, $allowed, true ) ? $value : $fallback;
 }
 
 /** Intro for the Forms section. */
@@ -186,7 +258,13 @@ function sendbeam_section_forms_intro() {
 			__( 'Form IDs are under %s in SendBeam: open a form and copy the ID from its Embed panel. Forms load from sendbeam.io, so any change you make there shows on your site straight away.', 'sendbeam' ),
 			'<a href="' . esc_url( sendbeam_app_url() . '/forms' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Forms', 'sendbeam' ) . '</a>'
 		),
-		array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ) )
+		array(
+			'a' => array(
+				'href'   => array(),
+				'target' => array(),
+				'rel'    => array(),
+			),
+		)
 	) . '</p>';
 }
 
@@ -273,7 +351,13 @@ function sendbeam_field_form_id( $args ) {
 				__( 'This workspace has no forms yet. %s, then come back and refresh.', 'sendbeam' ),
 				'<a href="' . esc_url( sendbeam_app_url() . '/forms' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Create one in SendBeam', 'sendbeam' ) . '</a>'
 			),
-			array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ) )
+			array(
+				'a' => array(
+					'href'   => array(),
+					'target' => array(),
+					'rel'    => array(),
+				),
+			)
 		) . '</p>';
 		printf( '<input type="hidden" name="sendbeam_settings[%1$s]" value="%2$s" />', esc_attr( $key ), esc_attr( $current ) );
 		return;
@@ -426,7 +510,14 @@ function sendbeam_section_connect_intro() {
 			__( 'One key connects this site to a SendBeam workspace. Make one under %s. Give it <strong>Forms (read)</strong> so this page can list your forms, and <strong>Send site email</strong> if you want WordPress email to go through SendBeam.', 'sendbeam' ),
 			'<a href="' . esc_url( sendbeam_app_url() . '/settings/api-keys' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Settings → API keys', 'sendbeam' ) . '</a>'
 		),
-		array( 'a' => array( 'href' => array(), 'target' => array(), 'rel' => array() ), 'strong' => array() )
+		array(
+			'a'      => array(
+				'href'   => array(),
+				'target' => array(),
+				'rel'    => array(),
+			),
+			'strong' => array(),
+		)
 	) . '</p>';
 
 	if ( 'none' === $connection['state'] ) {

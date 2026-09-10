@@ -27,22 +27,22 @@ function sendbeam_app_url() {
  */
 function sendbeam_default_settings() {
 	return array(
-		'default_form'  => '',
-		'contact_form'  => '',
-		'popup_form'    => '',
-		'popup_where'   => 'off',
-		'popup_trigger' => 'timer',
-		'popup_delay'   => 5,
-		'popup_once'    => 'day',
-		'popup_label'   => '',
-		'style_accent' => '',
-		'style_text'   => '',
-		'style_field'  => '',
-		'style_border' => '',
-		'style_radius' => '',
-		'style_font'   => 'inherit',
-		'style_size'   => '',
-		'style_bare'   => 1,
+		'default_form'    => '',
+		'contact_form'    => '',
+		'popup_form'      => '',
+		'popup_where'     => 'off',
+		'popup_trigger'   => 'timer',
+		'popup_delay'     => 5,
+		'popup_once'      => 'day',
+		'popup_label'     => '',
+		'style_accent'    => '',
+		'style_text'      => '',
+		'style_field'     => '',
+		'style_border'    => '',
+		'style_radius'    => '',
+		'style_font'      => 'inherit',
+		'style_size'      => '',
+		'style_bare'      => 1,
 		'mail_enabled'    => 0,
 		'api_key'         => '',
 		'mail_from_name'  => '',
@@ -103,7 +103,12 @@ function sendbeam_appearance_args() {
 	$s    = sendbeam_settings();
 	$args = array();
 
-	foreach ( array( 'accent' => 'style_accent', 'text' => 'style_text', 'field' => 'style_field', 'border' => 'style_border' ) as $param => $key ) {
+	foreach ( array(
+		'accent' => 'style_accent',
+		'text'   => 'style_text',
+		'field'  => 'style_field',
+		'border' => 'style_border',
+	) as $param => $key ) {
 		$value = trim( (string) $s[ $key ] );
 		if ( '' !== $value && preg_match( '/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $value ) ) {
 			// add_query_arg() does not encode, and a bare '#' would start the
@@ -112,7 +117,10 @@ function sendbeam_appearance_args() {
 			$args[ $param ] = rawurlencode( strtolower( $value ) );
 		}
 	}
-	foreach ( array( 'radius' => 'style_radius', 'size' => 'style_size' ) as $param => $key ) {
+	foreach ( array(
+		'radius' => 'style_radius',
+		'size'   => 'style_size',
+	) as $param => $key ) {
 		$value = trim( (string) $s[ $key ] );
 		if ( '' !== $value && is_numeric( $value ) ) {
 			$args[ $param ] = (string) (int) $value;

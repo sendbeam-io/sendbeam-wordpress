@@ -52,7 +52,14 @@ function sendbeam_mail_enabled() {
  * @return array{content_type:string, from:string, reply_to:string, cc:string[], bcc:string[], extra:array<string,string>}
  */
 function sendbeam_parse_mail_headers( $headers ) {
-	$out = array( 'content_type' => '', 'from' => '', 'reply_to' => '', 'cc' => array(), 'bcc' => array(), 'extra' => array() );
+	$out = array(
+		'content_type' => '',
+		'from'         => '',
+		'reply_to'     => '',
+		'cc'           => array(),
+		'bcc'          => array(),
+		'extra'        => array(),
+	);
 	if ( empty( $headers ) ) {
 		return $out;
 	}
@@ -63,8 +70,8 @@ function sendbeam_parse_mail_headers( $headers ) {
 			continue;
 		}
 		list( $name, $value ) = explode( ':', $line, 2 );
-		$name  = strtolower( trim( $name ) );
-		$value = trim( $value );
+		$name                 = strtolower( trim( $name ) );
+		$value                = trim( $value );
 		switch ( $name ) {
 			case 'content-type':
 				$out['content_type'] = strtolower( trim( explode( ';', $value )[0] ) );
@@ -99,9 +106,15 @@ function sendbeam_parse_mail_headers( $headers ) {
 function sendbeam_split_address( $value ) {
 	$value = trim( (string) $value );
 	if ( preg_match( '/^(?:"?([^"<]*)"?\s*)?<([^>]+)>$/', $value, $m ) ) {
-		return array( 'email' => trim( $m[2] ), 'name' => trim( $m[1] ) );
+		return array(
+			'email' => trim( $m[2] ),
+			'name'  => trim( $m[1] ),
+		);
 	}
-	return array( 'email' => $value, 'name' => '' );
+	return array(
+		'email' => $value,
+		'name'  => '',
+	);
 }
 
 /**
@@ -130,7 +143,7 @@ function sendbeam_build_mail_body( $atts ) {
 
 	$content_type = $headers['content_type'] ? $headers['content_type'] : 'text/plain';
 	/** This filter is documented in wp-includes/pluggable.php */
-	$content_type = apply_filters( 'wp_mail_content_type', $content_type );
+	$content_type = apply_filters( 'wp_mail_content_type', $content_type ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own hook; a wp_mail() replacement must fire it so other plugins keep working.
 
 	$body = array(
 		'subject' => (string) $atts['subject'],
@@ -157,13 +170,16 @@ function sendbeam_build_mail_body( $atts ) {
 	// From: the plugin's own setting, else a From: header the caller set, else
 	// whatever the wp_mail_from filters say — but never WordPress's made-up
 	// wordpress@ address, which SendBeam would refuse; the workspace sender is used then.
-	$from       = $headers['from'] ? sendbeam_split_address( $headers['from'] ) : array( 'email' => '', 'name' => '' );
+	$from       = $headers['from'] ? sendbeam_split_address( $headers['from'] ) : array(
+		'email' => '',
+		'name'  => '',
+	);
 	$from_email = $settings['mail_from_email'] ? $settings['mail_from_email'] : $from['email'];
 	$from_name  = $settings['mail_from_name'] ? $settings['mail_from_name'] : $from['name'];
 	/** This filter is documented in wp-includes/pluggable.php */
-	$from_email = apply_filters( 'wp_mail_from', $from_email );
+	$from_email = apply_filters( 'wp_mail_from', $from_email ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own hook; a wp_mail() replacement must fire it so other plugins keep working.
 	/** This filter is documented in wp-includes/pluggable.php */
-	$from_name = apply_filters( 'wp_mail_from_name', $from_name );
+	$from_name = apply_filters( 'wp_mail_from_name', $from_name ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own hook; a wp_mail() replacement must fire it so other plugins keep working.
 	if ( $from_email && strtolower( $from_email ) !== sendbeam_wp_default_from() && is_email( $from_email ) ) {
 		$body['from_email'] = $from_email;
 	}
@@ -193,15 +209,27 @@ function sendbeam_api_send( $body ) {
 		)
 	);
 	if ( is_wp_error( $response ) ) {
-		return array( 'ok' => false, 'error' => $response->get_error_message(), 'status' => 0 );
+		return array(
+			'ok'     => false,
+			'error'  => $response->get_error_message(),
+			'status' => 0,
+		);
 	}
 	$status = (int) wp_remote_retrieve_response_code( $response );
 	$data   = json_decode( (string) wp_remote_retrieve_body( $response ), true );
 	if ( 200 === $status && ! empty( $data['ok'] ) ) {
-		return array( 'ok' => true, 'error' => '', 'status' => 200 );
+		return array(
+			'ok'     => true,
+			'error'  => '',
+			'status' => 200,
+		);
 	}
 	$error = is_array( $data ) && ! empty( $data['error'] ) ? (string) $data['error'] : 'HTTP ' . $status;
-	return array( 'ok' => false, 'error' => $error, 'status' => $status );
+	return array(
+		'ok'     => false,
+		'error'  => $error,
+		'status' => $status,
+	);
 }
 
 /**
@@ -217,7 +245,16 @@ function sendbeam_mail_log( $to, $subject, $result, $note = '' ) {
 	if ( ! is_array( $log ) ) {
 		$log = array();
 	}
-	array_unshift( $log, array( 'at' => time(), 'to' => is_array( $to ) ? implode( ', ', $to ) : (string) $to, 'subject' => (string) $subject, 'result' => $result, 'note' => (string) $note ) );
+	array_unshift(
+		$log,
+		array(
+			'at'      => time(),
+			'to'      => is_array( $to ) ? implode( ', ', $to ) : (string) $to,
+			'subject' => (string) $subject,
+			'result'  => $result,
+			'note'    => (string) $note,
+		)
+	);
 	update_option( 'sendbeam_mail_log', array_slice( $log, 0, SENDBEAM_MAIL_LOG_SIZE ), false );
 }
 
@@ -255,7 +292,7 @@ function sendbeam_pre_wp_mail( $short_circuit, $atts ) {
 	}
 	sendbeam_mail_log( $to, $subject, 'failed', $result['error'] );
 	/** This action is documented in wp-includes/pluggable.php */
-	do_action( 'wp_mail_failed', new WP_Error( 'sendbeam_mail_failed', $result['error'], $atts ) );
+	do_action( 'wp_mail_failed', new WP_Error( 'sendbeam_mail_failed', $result['error'], $atts ) ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own hook; a wp_mail() replacement must fire it so other plugins keep working.
 	return false;
 }
 
@@ -279,10 +316,19 @@ function sendbeam_handle_test_mail() {
 				'text'    => __( "This is a test email from your WordPress site, sent through SendBeam.\n\nIf you can read this, order confirmations, password resets and every other email this site sends will go out the same way.", 'sendbeam' ),
 			)
 		);
-		$ok   = $result['ok'];
-		$note = $ok ? sprintf( /* translators: %s: email address */ __( 'Sent to %s.', 'sendbeam' ), $user->user_email ) : $result['error'];
+		$ok     = $result['ok'];
+		$note   = $ok ? sprintf( /* translators: %s: email address */ __( 'Sent to %s.', 'sendbeam' ), $user->user_email ) : $result['error'];
 		sendbeam_mail_log( $user->user_email, 'Test email', $ok ? 'sent' : 'failed', $ok ? '' : $result['error'] );
 	}
-	wp_safe_redirect( add_query_arg( array( 'page' => 'sendbeam', 'sendbeam_test' => $ok ? 'ok' : 'error', 'sendbeam_note' => rawurlencode( $note ) ), admin_url( 'options-general.php' ) ) );
+	wp_safe_redirect(
+		add_query_arg(
+			array(
+				'page'          => 'sendbeam',
+				'sendbeam_test' => $ok ? 'ok' : 'error',
+				'sendbeam_note' => rawurlencode( $note ),
+			),
+			admin_url( 'options-general.php' )
+		)
+	);
 	exit;
 }
