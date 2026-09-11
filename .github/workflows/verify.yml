@@ -21,7 +21,7 @@ jobs:
       matrix:
         php: ['7.4', '8.3']
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
@@ -35,7 +35,7 @@ jobs:
     name: WordPress Plugin Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # Check what is actually distributed, not the repository. .distignore is
       # the single list of what stays behind — the workflows, the composer and
       # npm manifests, the coding-standards ruleset, the listing assets — and
