@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.2
+Stable tag: 1.6.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -104,6 +104,10 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 7. The Site email tab, which routes wp_mail() through SendBeam.
 
 == Changelog ==
+
+= 1.6.3 =
+* "Visit plugin site" on the Plugins screen now opens the WordPress documentation rather than the marketing page.
+* The block's asset version had been left behind at 1.6.1, so the editor could serve a stale copy of the block script after an update.
 
 = 1.6.2 =
 * Housekeeping before submission to the WordPress Plugin Directory: the whole plugin now passes the WordPress Coding Standards and Plugin Check with nothing reported, and development files are kept out of the distributed zip.

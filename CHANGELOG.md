@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.3
+
+- **"Visit plugin site" goes to the documentation.** The `Plugin URI` header pointed at the marketing integrations page, whose three setup steps are written for someone wiring a static site — create the forms, put the IDs in your environment, paste the snippets and deploy. Two of those three mean nothing on WordPress. Anyone clicking that link from the Plugins screen has already installed the plugin, so it now opens sendbeam.io/docs/wordpress.
+- **The block's asset version was stuck at 1.6.1.** `block.json` and `index.asset.php` carry the version WordPress uses to bust the editor's script cache, and the 1.6.2 bump missed both, so an updated site could keep serving the old block script. `tests/smoke.php` now fails if the five places a version lives ever disagree again.
+
 ## 1.6.2
 
 - Housekeeping before submission to the WordPress Plugin Directory. The plugin now passes the full WordPress Coding Standards and the Plugin Check tool with nothing reported: every function is documented, the four `wp_mail_*` filters it re-fires are annotated as core's own rather than unprefixed hooks of ours, and one parameter named after a reserved word was renamed. `phpcs.xml.dist` records the one deliberate exception — `blocks/form/index.asset.php` keeps the filename WordPress itself looks for.

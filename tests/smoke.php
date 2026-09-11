@@ -261,4 +261,27 @@ ok( sendbeam_sanitize_settings( array( 'api_key' => 'sb_new_0123456789abcdef' ) 
 define( 'SENDBEAM_API_KEY', 'sb_const_0123456789abcdef' );
 ok( sendbeam_api_key() === 'sb_const_0123456789abcdef', 'constant wins' );
 
+// One version number, five files. 1.6.2 shipped with the block's asset
+// version still on 1.6.1, which is how WordPress decides whether the editor
+// may reuse a cached copy of the block script.
+$sendbeam_root = dirname( __DIR__ );
+preg_match( "/^ \\* Version:\\s+(\\S+)/m", file_get_contents( $sendbeam_root . '/sendbeam.php' ), $m );
+$declared = $m[1];
+$sendbeam_versions = array(
+	'sendbeam.php SENDBEAM_VERSION' => SENDBEAM_VERSION,
+	'readme.txt Stable tag'         => ( preg_match( '/^Stable tag: (\\S+)/m', file_get_contents( $sendbeam_root . '/readme.txt' ), $m2 ) ? $m2[1] : '' ),
+	'block.json version'            => ( json_decode( file_get_contents( $sendbeam_root . '/blocks/form/block.json' ), true )['version'] ?? '' ),
+	'index.asset.php version'       => ( ( require $sendbeam_root . '/blocks/form/index.asset.php' )['version'] ?? '' ),
+);
+foreach ( $sendbeam_versions as $where => $found ) {
+	ok( $found === $declared, "version $declared matches $where" . ( $found === $declared ? '' : " (found $found)" ) );
+}
+
+// The newest changelog entry is the version being shipped. Search from the
+// Changelog heading down: readme.txt uses "= … =" for its FAQ headings too.
+$sendbeam_readme = file_get_contents( $sendbeam_root . '/readme.txt' );
+$sendbeam_log    = substr( $sendbeam_readme, (int) strpos( $sendbeam_readme, '== Changelog ==' ) );
+preg_match( '/^= (\\S+) =$/m', $sendbeam_log, $m3 );
+ok( ( $m3[1] ?? '' ) === $declared, "readme.txt changelog opens with $declared" );
+
 echo "smoke: $pass checks passed\n";
