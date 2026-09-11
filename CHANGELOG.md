@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0
+
+- **Form plugins.** Submissions from Contact Form 7, Elementor Pro, WPForms, Gravity Forms and Fluent Forms can now create or update a SendBeam contact, join a list and carry a tag. Each uses that plugin's own extension point: a SendBeam tab in the Contact Form 7 editor, a SendBeam action after submit in Elementor Pro's Form widget, a SendBeam panel in the WPForms builder's settings, a Gravity Forms feed add-on with field mapping and conditional logic, and — because Fluent Forms has nowhere for another plugin to add settings — a per-form section on the Audience tab.
+- **Consent is explicit.** A form sends someone only when they ticked the consent field the site owner named, or when the owner marked the form as a signup form. Nothing is ever pre-ticked, and every form is off until it is switched on.
+- **The form is never slowed down.** The subscription is queued as a single cron event and runs after the visitor's form has finished, so a slow or failed request cannot delay the form's own email or entry. Every attempt is logged under Recent subscriptions, with the form plugin as its source.
+- **Tags by name.** A connected form can add a tag; the tag is created the first time it is used.
+- Each bridge loads only when its form plugin is active. Uninstall now also removes the Contact Form 7 tab settings and any subscription still queued.
+
 ## 1.6.3
 
 - **"Visit plugin site" goes to the documentation.** The `Plugin URI` header pointed at the marketing integrations page, whose three setup steps are written for someone wiring a static site — create the forms, put the IDs in your environment, paste the snippets and deploy. Two of those three mean nothing on WordPress. Anyone clicking that link from the Plugins screen has already installed the plugin, so it now opens sendbeam.io/docs/wordpress.

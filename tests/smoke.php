@@ -261,6 +261,183 @@ ok( sendbeam_sanitize_settings( array( 'api_key' => 'sb_new_0123456789abcdef' ) 
 define( 'SENDBEAM_API_KEY', 'sb_const_0123456789abcdef' );
 ok( sendbeam_api_key() === 'sb_const_0123456789abcdef', 'constant wins' );
 
+
+// ── Form plugin bridges ─────────────────────────────────────────────────
+$stub['remote'] = array();
+$stub['cron']   = array();
+$stub['caps']   = array();
+
+// None of the form plugins is active: nothing is loaded.
+call_user_func( $stub['hooks']['plugins_loaded'] );
+ok( ! function_exists( 'sendbeam_cf7_submit' ) && ! function_exists( 'sendbeam_wpforms_submit' ) && ! function_exists( 'sendbeam_fluentforms_submit' ), 'no bridge loads without its form plugin' );
+sendbeam_bridge_register_elementor( new stdClass() );
+ok( ! class_exists( 'Sendbeam_Elementor_Action', false ), 'the Elementor action is not loaded without Elementor Pro' );
+sendbeam_bridge_load_gravityforms();
+ok( ! class_exists( 'Sendbeam_GF_Addon', false ), 'the Gravity Forms add-on is not loaded without Gravity Forms' );
+
+require __DIR__ . '/host-stubs.php';
+call_user_func( $stub['hooks']['plugins_loaded'] );
+ok( function_exists( 'sendbeam_cf7_submit' ) && function_exists( 'sendbeam_wpforms_submit' ) && function_exists( 'sendbeam_fluentforms_submit' ), 'bridges load once their form plugins are active' );
+
+// Contact Form 7.
+$sendbeam_cf7_form = new class() { public function id() { return 7; } };
+WPCF7_Submission::$posted = array( 'your-email' => 'ada@example.test', 'your-name' => 'Ada Lovelace', 'subscribe' => array( 'Yes' ) );
+sendbeam_cf7_submit( $sendbeam_cf7_form );
+ok( empty( $stub['cron'] ), 'CF7: a form not switched on for SendBeam sends nothing' );
+
+$_POST = array( 'sendbeam_cf7_nonce' => 'nonce:sendbeam_cf7_save', 'sendbeam_cf7' => array( 'enabled' => '1', 'email_field' => 'your-email', 'first_field' => 'your-name', 'consent' => 'field', 'consent_field' => 'subscribe', 'lists' => array( 'list-1' ), 'tag' => 'contact <b>form</b>' ) );
+sendbeam_cf7_save( $sendbeam_cf7_form );
+ok( '' === get_post_meta( 7, '_sendbeam_cf7', true ), 'CF7: only administrators can change where a form sends people' );
+$stub['caps']['manage_options'] = true;
+$_POST['sendbeam_cf7_nonce'] = 'forged';
+sendbeam_cf7_save( $sendbeam_cf7_form );
+ok( '' === get_post_meta( 7, '_sendbeam_cf7', true ), 'CF7: a bad nonce saves nothing' );
+$_POST['sendbeam_cf7_nonce'] = 'nonce:sendbeam_cf7_save';
+sendbeam_cf7_save( $sendbeam_cf7_form );
+$sendbeam_saved = get_post_meta( 7, '_sendbeam_cf7', true );
+ok( 1 === $sendbeam_saved['enabled'] && array( 'list-1' ) === $sendbeam_saved['lists'] && 'contact form' === $sendbeam_saved['tag'], 'CF7: the tab saves cleaned settings' );
+$_POST = array();
+
+ob_start();
+sendbeam_cf7_panel( $sendbeam_cf7_form );
+$sendbeam_panel = ob_get_clean();
+has( $sendbeam_panel, 'name="sendbeam_cf7_nonce" value="nonce:sendbeam_cf7_save"', 'CF7: the tab carries its nonce' );
+has( $sendbeam_panel, 'name="sendbeam_cf7[enabled]" value="1" checked="checked"', 'CF7: the tab shows the form is switched on' );
+
+// The editor tab may ask SendBeam for the lists; a visitor's submission must not call it at all.
+$stub['remote'] = array();
+WPCF7_Submission::$posted = array( 'your-email' => 'ada@example.test', 'your-name' => 'Ada Lovelace', 'subscribe' => array() );
+sendbeam_cf7_submit( $sendbeam_cf7_form );
+ok( empty( $stub['cron'] ), 'CF7: nothing ticked in the consent field, nothing sent' );
+WPCF7_Submission::$posted['subscribe'] = array( 'Yes' );
+sendbeam_cf7_submit( $sendbeam_cf7_form );
+ok( 1 === count( $stub['cron'] ) && 'sendbeam_bridge_subscribe' === $stub['cron'][0]['hook'], 'CF7: a ticked consent field queues one subscription' );
+$sendbeam_job = $stub['cron'][0]['args'][0];
+ok( 'ada@example.test' === $sendbeam_job['email'] && 'Ada' === $sendbeam_job['first_name'] && 'Lovelace' === $sendbeam_job['last_name'], 'CF7: one name field is split into first and last' );
+ok( 'contact-form-7' === $sendbeam_job['source'] && array( 'list-1' ) === $sendbeam_job['lists'] && 'contact form' === $sendbeam_job['tag'], 'CF7: source, list and tag travel with it' );
+ok( empty( $stub['remote'] ), 'CF7: nothing is sent to SendBeam while the visitor waits' );
+
+update_post_meta( 7, '_sendbeam_cf7', array_merge( $sendbeam_saved, array( 'consent' => 'signup' ) ) );
+$stub['cron'] = array();
+WPCF7_Submission::$posted = array( 'your-email' => 'grace@example.test', 'your-name' => 'Grace' );
+sendbeam_cf7_submit( $sendbeam_cf7_form );
+ok( 1 === count( $stub['cron'] ), 'CF7: a form marked as a signup form sends without a consent field' );
+$stub['cron'] = array();
+WPCF7_Submission::$posted = array( 'your-email' => 'not an address', 'your-name' => 'Nobody' );
+sendbeam_cf7_submit( $sendbeam_cf7_form );
+ok( empty( $stub['cron'] ), 'CF7: an invalid address is never queued' );
+
+// The queued job: contact, list, tag (created on first use).
+$stub['remote']       = array();
+$stub['remote_reply'] = function ( $url, $args ) {
+	$path   = parse_url( $url, PHP_URL_PATH );
+	$method = isset( $args['body'] ) ? 'POST' : 'GET';
+	if ( 'POST' === $method && '/api/v1/contacts' === $path ) { return array( 'response' => array( 'code' => 201 ), 'body' => '{"contact":{"id":"c-1"}}' ); }
+	if ( 'GET' === $method && '/api/v1/tags' === $path ) { return array( 'response' => array( 'code' => 200 ), 'body' => '{"tags":[{"id":"t-9","name":"Other"}]}' ); }
+	if ( 'POST' === $method && '/api/v1/tags' === $path ) { return array( 'response' => array( 'code' => 201 ), 'body' => '{"tag":{"id":"t-1","name":"contact form"}}' ); }
+	return array( 'response' => array( 'code' => 201 ), 'body' => '{}' );
+};
+sendbeam_bridge_run( $sendbeam_job );
+$sendbeam_calls = array_map( function ( $r ) { return $r['method'] . ' ' . parse_url( $r['url'], PHP_URL_PATH ); }, $stub['remote'] );
+ok( array( 'POST /api/v1/contacts', 'POST /api/v1/lists/list-1/contacts', 'GET /api/v1/tags', 'POST /api/v1/tags', 'POST /api/v1/contacts/c-1/tags' ) === $sendbeam_calls, 'the queued job creates the contact, joins the list, creates the tag and tags the contact — got ' . implode( ', ', $sendbeam_calls ) );
+$sendbeam_body = json_decode( $stub['remote'][0]['args']['body'], true );
+ok( 'contact-form-7' === $sendbeam_body['source'] && 'Ada' === $sendbeam_body['first_name'] && 'Lovelace' === $sendbeam_body['last_name'], 'the contact carries its name and source' );
+ok( array( 'tag_id' => 't-1' ) === json_decode( $stub['remote'][4]['args']['body'], true ), 'the contact gets the new tag' );
+ok( 1 === get_option( 'sendbeam_sync_log' )[0]['ok'] && 'contact-form-7' === get_option( 'sendbeam_sync_log' )[0]['source'], 'the attempt is logged under Recent subscriptions' );
+
+// An existing tag is reused, not created again.
+$stub['remote'] = array();
+sendbeam_bridge_run( array_merge( $sendbeam_job, array( 'tag' => 'OTHER', 'lists' => array() ) ) );
+$sendbeam_calls = array_map( function ( $r ) { return $r['method'] . ' ' . parse_url( $r['url'], PHP_URL_PATH ); }, $stub['remote'] );
+ok( array( 'POST /api/v1/contacts', 'GET /api/v1/tags', 'POST /api/v1/contacts/c-1/tags' ) === $sendbeam_calls, 'an existing tag is matched by name, whatever its case' );
+
+// The registration, comment and checkout opt-ins still use the Audience tab's lists.
+update_option( 'sendbeam_sync', array( 'lists' => array( 'list-a' ) ) );
+$stub['remote'] = array();
+sendbeam_subscribe( 'reg@example.test', 'Reg', '', 'wordpress-registration' );
+ok( 'POST /api/v1/lists/list-a/contacts' === $stub['remote'][1]['method'] . ' ' . parse_url( $stub['remote'][1]['url'], PHP_URL_PATH ), 'opt-ins without lists of their own join the Audience tab lists' );
+update_option( 'sendbeam_sync', array() );
+
+// WPForms.
+$stub['cron'] = array();
+$sendbeam_wpform   = array( 'settings' => array( 'sendbeam_enabled' => '1', 'sendbeam_email_field' => '2', 'sendbeam_name_field' => '1', 'sendbeam_consent' => 'field', 'sendbeam_consent_field' => '3', 'sendbeam_list' => 'list-2', 'sendbeam_tag' => 'wpforms' ) );
+$sendbeam_wpfields = array(
+	1 => array( 'value' => 'Ada Lovelace', 'first' => 'Ada', 'last' => 'Lovelace' ),
+	2 => array( 'value' => 'ada@example.test' ),
+	3 => array( 'value' => '' ),
+);
+sendbeam_wpforms_submit( $sendbeam_wpfields, array(), $sendbeam_wpform, 11 );
+ok( empty( $stub['cron'] ), 'WPForms: an unticked consent field sends nothing' );
+$sendbeam_wpfields[3]['value'] = 'I agree to receive emails';
+sendbeam_wpforms_submit( $sendbeam_wpfields, array(), $sendbeam_wpform, 11 );
+$sendbeam_job = $stub['cron'][0]['args'][0];
+ok( 'wpforms' === $sendbeam_job['source'] && 'Ada' === $sendbeam_job['first_name'] && 'Lovelace' === $sendbeam_job['last_name'] && array( 'list-2' ) === $sendbeam_job['lists'] && 'wpforms' === $sendbeam_job['tag'], 'WPForms: name parts, list and tag mapped' );
+$stub['cron'] = array();
+sendbeam_wpforms_submit( $sendbeam_wpfields, array(), array( 'settings' => array() ), 12 );
+ok( empty( $stub['cron'] ), 'WPForms: a form without SendBeam switched on sends nothing' );
+ob_start();
+sendbeam_wpforms_panel( (object) array( 'form_data' => $sendbeam_wpform ) );
+ob_end_clean();
+ok( array( 'email' ) === $stub['wpforms_fields']['sendbeam_email_field']['args']['field_map'], 'WPForms: the builder offers only email fields for the address' );
+ok( 'field' === $stub['wpforms_fields']['sendbeam_consent']['args']['default'], 'WPForms: consent defaults to requiring a ticked field' );
+
+// Fluent Forms.
+$stub['cron'] = array();
+update_option( 'sendbeam_bridges', array( 'fluentforms' => array( '5' => array( 'enabled' => 1, 'email_field' => 'email', 'first_field' => 'names.first_name', 'last_field' => 'names.last_name', 'consent_field' => 'gdpr-agreement' ) ) ) );
+$sendbeam_ff = array( 'email' => 'lin@example.test', 'names' => array( 'first_name' => 'Lin', 'last_name' => 'Wu' ) );
+sendbeam_fluentforms_submit( 90, $sendbeam_ff, (object) array( 'id' => 5 ) );
+ok( empty( $stub['cron'] ), 'Fluent Forms: no GDPR agreement, nothing sent' );
+$sendbeam_ff['gdpr-agreement'] = 'on';
+sendbeam_fluentforms_submit( 91, $sendbeam_ff, (object) array( 'id' => 5 ) );
+sendbeam_fluentforms_submit( 91, $sendbeam_ff, (object) array( 'id' => 5 ) );
+ok( 1 === count( $stub['cron'] ), 'Fluent Forms: one entry is sent once, even when both hook names fire' );
+$sendbeam_job = $stub['cron'][0]['args'][0];
+ok( 'Lin' === $sendbeam_job['first_name'] && 'Wu' === $sendbeam_job['last_name'] && 'fluent-forms' === $sendbeam_job['source'], 'Fluent Forms: nested name fields mapped' );
+$stub['cron'] = array();
+sendbeam_fluentforms_submit( 92, $sendbeam_ff, (object) array( 'id' => 6 ) );
+ok( empty( $stub['cron'] ), 'Fluent Forms: a form not chosen on the Audience tab sends nothing' );
+ok( 'names.first_name' === sendbeam_fluentforms_config( 6 )['first_field'], 'Fluent Forms: an unconfigured form starts from its default field names' );
+
+// Elementor Pro.
+$sendbeam_registrar = new Sendbeam_Test_Registrar();
+sendbeam_bridge_register_elementor( $sendbeam_registrar );
+ok( 1 === count( $sendbeam_registrar->actions ) && 'sendbeam' === $sendbeam_registrar->actions[0]->get_name(), 'Elementor: a SendBeam action after submit is registered' );
+$sendbeam_widget = new Sendbeam_Test_Widget();
+$sendbeam_registrar->actions[0]->register_settings_section( $sendbeam_widget );
+ok( array( 'submit_actions' => 'sendbeam' ) === $sendbeam_widget->controls['section_sendbeam']['condition'], 'Elementor: the settings appear only when the action is chosen' );
+ok( 'field' === $sendbeam_widget->controls['sendbeam_consent']['default'], 'Elementor: consent defaults to requiring a ticked field' );
+$stub['cron']   = array();
+$sendbeam_fields = array( 'email' => array( 'value' => 'kay@example.test' ), 'name' => array( 'value' => 'Kay' ), 'acceptance' => array( 'value' => '' ) );
+$sendbeam_form_settings = array( 'sendbeam_email_field' => 'email', 'sendbeam_first_field' => 'name', 'sendbeam_consent' => 'field', 'sendbeam_consent_field' => 'acceptance', 'sendbeam_list' => 'list-3' );
+$sendbeam_registrar->actions[0]->run( new Sendbeam_Test_Record( array( 'form_settings' => $sendbeam_form_settings, 'fields' => $sendbeam_fields ) ), null );
+ok( empty( $stub['cron'] ), 'Elementor: an unticked Acceptance field sends nothing' );
+$sendbeam_fields['acceptance']['value'] = 'on';
+$sendbeam_registrar->actions[0]->run( new Sendbeam_Test_Record( array( 'form_settings' => $sendbeam_form_settings, 'fields' => $sendbeam_fields ) ), null );
+ok( 1 === count( $stub['cron'] ) && 'elementor-form' === $stub['cron'][0]['args'][0]['source'] && array( 'list-3' ) === $stub['cron'][0]['args'][0]['lists'], 'Elementor: a ticked Acceptance field queues the subscription' );
+$sendbeam_export = $sendbeam_registrar->actions[0]->on_export( array( 'settings' => array( 'sendbeam_list' => 'list-3', 'sendbeam_tag' => 'x', 'sendbeam_email_field' => 'email' ) ) );
+ok( ! isset( $sendbeam_export['settings']['sendbeam_list'] ) && isset( $sendbeam_export['settings']['sendbeam_email_field'] ), 'Elementor: exported templates leave the workspace\'s list out' );
+
+// Gravity Forms.
+sendbeam_bridge_load_gravityforms();
+sendbeam_bridge_load_gravityforms();
+ok( array( 'Sendbeam_GF_Addon' ) === $stub['gf_registered'] && ! empty( $stub['gf_framework'] ), 'Gravity Forms: the feed add-on registers once, after its framework is loaded' );
+$sendbeam_gf   = Sendbeam_GF_Addon::get_instance();
+$sendbeam_feed = array( 'meta' => array( 'feedName' => 'SendBeam', 'sendbeamFields_email' => '2', 'sendbeamFields_first_name' => '1.3', 'sendbeamFields_last_name' => '1.6', 'sendbeamFields_consent' => '4.1', 'sendbeamList' => 'list-4', 'sendbeamTag' => '' ) );
+$stub['cron']  = array();
+$sendbeam_gf->process_feed( $sendbeam_feed, array( '2' => 'mo@example.test', '1.3' => 'Mo', '1.6' => 'Salah', '4.1' => '' ), array() );
+ok( empty( $stub['cron'] ), 'Gravity Forms: an unticked consent field sends nothing' );
+$sendbeam_entry    = array( '2' => 'mo@example.test', '1.3' => 'Mo', '1.6' => 'Salah', '4.1' => '1' );
+$sendbeam_returned = $sendbeam_gf->process_feed( $sendbeam_feed, $sendbeam_entry, array() );
+ok( 1 === count( $stub['cron'] ) && 'gravity-forms' === $stub['cron'][0]['args'][0]['source'] && 'Salah' === $stub['cron'][0]['args'][0]['last_name'] && array( 'list-4' ) === $stub['cron'][0]['args'][0]['lists'], 'Gravity Forms: a consenting entry is queued with its mapped fields' );
+ok( $sendbeam_entry === $sendbeam_returned, 'Gravity Forms: the entry is handed back unchanged' );
+$sendbeam_feed['meta']['sendbeamSignup']         = '1';
+$sendbeam_feed['meta']['sendbeamFields_consent'] = '';
+$stub['cron'] = array();
+$sendbeam_gf->process_feed( $sendbeam_feed, array( '2' => 'mo@example.test' ), array() );
+ok( 1 === count( $stub['cron'] ), 'Gravity Forms: a feed marked as a signup form needs no consent field' );
+$fields_setting = $sendbeam_gf->feed_settings_fields()[0]['fields'];
+ok( 'feed_condition' === end( $fields_setting )['type'], 'Gravity Forms: feeds offer conditional logic' );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

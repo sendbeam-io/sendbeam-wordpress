@@ -220,14 +220,17 @@ function sendbeam_sync_on_checkout( $order_id ) {
  * on it, which is why it carries where the person came from instead of this
  * plugin reaching for tags and a third API permission.
  *
- * @param string $email      Address.
- * @param string $first_name First name.
- * @param string $last_name  Last name.
- * @param string $source     Where they came from.
+ * @param string        $email      Address.
+ * @param string        $first_name First name.
+ * @param string        $last_name  Last name.
+ * @param string        $source     Where they came from.
+ * @param string[]|null $lists      Lists to join; null means the lists chosen on the Audience tab.
+ * @param string        $tag        A tag to add, by name; empty for none.
  * @return bool
  */
-function sendbeam_subscribe( $email, $first_name, $last_name, $source ) {
+function sendbeam_subscribe( $email, $first_name, $last_name, $source, $lists = null, $tag = '' ) {
 	$settings = sendbeam_sync_settings();
+	$lists    = is_array( $lists ) ? $lists : $settings['lists'];
 
 	$created = sendbeam_api_post(
 		'/api/v1/contacts',
@@ -265,10 +268,17 @@ function sendbeam_subscribe( $email, $first_name, $last_name, $source ) {
 	}
 
 	$problems = array();
-	foreach ( $settings['lists'] as $list_id ) {
+	foreach ( $lists as $list_id ) {
 		$added = sendbeam_api_post( '/api/v1/lists/' . rawurlencode( $list_id ) . '/contacts', array( 'contact_id' => $contact_id ) );
 		if ( ! $added['ok'] && 409 !== $added['status'] ) {
 			$problems[] = $added['error'] ? $added['error'] : sprintf( 'HTTP %d', $added['status'] );
+		}
+	}
+
+	if ( '' !== trim( (string) $tag ) ) {
+		$tagged = sendbeam_tag_contact( $contact_id, $tag );
+		if ( '' !== $tagged ) {
+			$problems[] = $tagged;
 		}
 	}
 
@@ -299,6 +309,71 @@ function sendbeam_find_contact_id( $email ) {
 	foreach ( $found['data']['contacts'] as $contact ) {
 		if ( isset( $contact['email'], $contact['id'] ) && 0 === strcasecmp( (string) $contact['email'], $email ) ) {
 			return (string) $contact['id'];
+		}
+	}
+	return '';
+}
+
+/**
+ * Add a tag to a contact by name, creating the tag the first time it is used.
+ *
+ * @param string $contact_id Contact ID.
+ * @param string $name       Tag name.
+ * @return string A problem to log, or '' when the contact carries the tag.
+ */
+function sendbeam_tag_contact( $contact_id, $name ) {
+	$tag_id = sendbeam_tag_id( $name );
+	if ( '' === $tag_id ) {
+		return __( 'The tag could not be found or created. The key needs the Tags (read and write) permission.', 'sendbeam' );
+	}
+	$added = sendbeam_api_post( '/api/v1/contacts/' . rawurlencode( $contact_id ) . '/tags', array( 'tag_id' => $tag_id ) );
+	if ( $added['ok'] || 409 === $added['status'] ) {
+		return '';
+	}
+	return $added['error'] ? $added['error'] : sprintf( 'HTTP %d', $added['status'] );
+}
+
+/**
+ * A tag's ID, matched by name without regard to case, creating the tag when
+ * the workspace has none by that name.
+ *
+ * @param string $name Tag name.
+ * @return string Tag ID, or '' when it can be neither read nor created.
+ */
+function sendbeam_tag_id( $name ) {
+	$name = trim( (string) $name );
+	if ( '' === $name ) {
+		return '';
+	}
+
+	$found = sendbeam_find_tag_id( $name );
+	if ( '' !== $found ) {
+		return $found;
+	}
+
+	$created = sendbeam_api_post( '/api/v1/tags', array( 'name' => $name ) );
+	if ( isset( $created['data']['tag']['id'] ) ) {
+		return (string) $created['data']['tag']['id'];
+	}
+
+	// Created by another submission a moment ago: it exists now.
+	return 409 === $created['status'] ? sendbeam_find_tag_id( $name ) : '';
+}
+
+/**
+ * Look a tag up by name.
+ *
+ * @param string $name Tag name.
+ * @return string Tag ID, or '' when not found.
+ */
+function sendbeam_find_tag_id( $name ) {
+	$tags = sendbeam_api_get( '/api/v1/tags' );
+	if ( ! $tags['ok'] || empty( $tags['data']['tags'] ) || ! is_array( $tags['data']['tags'] ) ) {
+		return '';
+	}
+	foreach ( $tags['data']['tags'] as $tag ) {
+		if ( isset( $tag['name'], $tag['id'] ) && 0 === strcasecmp( (string) $tag['name'], $name ) ) {
+			return (string) $tag['id'];
 		}
 	}
 	return '';

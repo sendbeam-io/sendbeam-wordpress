@@ -25,7 +25,7 @@ function __( $s, $d = null ) { return $s; }
 function wp_kses( $s, $allowed ) { return $s; }
 function sanitize_text_field( $s ) { return trim( strip_tags( (string) $s ) ); }
 function sanitize_key( $s ) { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $s ) ); }
-function wp_unslash( $s ) { return stripslashes( (string) $s ); }
+function wp_unslash( $s ) { return is_array( $s ) ? array_map( 'wp_unslash', $s ) : stripslashes( (string) $s ); }
 function get_option( $k, $default = false ) { return isset( $GLOBALS['stub']['options'][ $k ] ) ? $GLOBALS['stub']['options'][ $k ] : $default; }
 function update_option( $k, $v ) { $GLOBALS['stub']['options'][ $k ] = $v; }
 function delete_option( $k ) { unset( $GLOBALS['stub']['options'][ $k ] ); }
@@ -106,9 +106,8 @@ function delete_transient( $key ) { unset( $GLOBALS['stub']['transients'][ $key 
 /** GET counterpart of the wp_remote_post stub, sharing the same recorder. */
 function wp_remote_get( $url, $args = array() ) {
 	$GLOBALS['stub']['remote'][] = array( 'url' => $url, 'args' => $args, 'method' => 'GET' );
-	return isset( $GLOBALS['stub']['remote_reply'] )
-		? $GLOBALS['stub']['remote_reply']
-		: array( 'response' => array( 'code' => 200 ), 'body' => '{}' );
+	$r = isset( $GLOBALS['stub']['remote_reply'] ) ? $GLOBALS['stub']['remote_reply'] : array( 'response' => array( 'code' => 200 ), 'body' => '{}' );
+	return ( $r instanceof Closure ) ? $r( $url, $args ) : $r;
 }
 function update_user_meta( $user_id, $key, $value ) { return true; }
 
@@ -119,7 +118,7 @@ class WP_Error {
 	public function get_error_message() { return $this->message; }
 }
 function is_wp_error( $t ) { return $t instanceof WP_Error; }
-function wp_remote_post( $url, $args ) { $GLOBALS['stub']['remote'][] = array( 'url' => $url, 'args' => $args ); $r = $GLOBALS['stub']['remote_reply']; return is_callable( $r ) ? $r( $url, $args ) : $r; }
+function wp_remote_post( $url, $args ) { $GLOBALS['stub']['remote'][] = array( 'url' => $url, 'args' => $args, 'method' => 'POST' ); $r = $GLOBALS['stub']['remote_reply']; return ( $r instanceof Closure ) ? $r( $url, $args ) : $r; }
 function wp_remote_retrieve_response_code( $r ) { return $r['response']['code']; }
 function wp_remote_retrieve_body( $r ) { return $r['body']; }
 function do_action( $tag, ...$args ) { $GLOBALS['stub']['actions'][] = array( $tag, $args ); }
@@ -131,3 +130,13 @@ function sanitize_email( $e ) { return trim( (string) $e ); }
 function checked( $a, $b = true, $echo = true ) { return $a == $b ? ' checked="checked"' : ''; }
 function get_bloginfo( $k ) { return 'Example Site'; }
 function selected( $a, $b, $echo = true ) { return $a == $b ? ' selected="selected"' : ''; }
+
+// ── Form plugin bridges ────────────────────────────────────────────────
+function wp_schedule_single_event( $timestamp, $hook, $args = array() ) { $GLOBALS['stub']['cron'][] = array( 'hook' => $hook, 'args' => $args ); return true; }
+function did_action( $tag ) { return empty( $GLOBALS['stub']['did'][ $tag ] ) ? 0 : 1; }
+function wp_doing_ajax() { return ! empty( $GLOBALS['stub']['ajax'] ); }
+function wp_verify_nonce( $nonce, $action = -1 ) { return 'nonce:' . $action === $nonce ? 1 : false; }
+function wp_nonce_field( $action = -1, $name = '_wpnonce' ) { echo '<input type="hidden" name="' . esc_attr( $name ) . '" value="nonce:' . esc_attr( $action ) . '" />'; }
+function get_post_meta( $id, $key = '', $single = false ) { return isset( $GLOBALS['stub']['postmeta'][ $id ][ $key ] ) ? $GLOBALS['stub']['postmeta'][ $id ][ $key ] : ( $single ? '' : array() ); }
+function update_post_meta( $id, $key, $value ) { $GLOBALS['stub']['postmeta'][ $id ][ $key ] = $value; return true; }
+function absint( $v ) { return abs( (int) $v ); }

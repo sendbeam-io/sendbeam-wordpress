@@ -244,6 +244,129 @@ function sendbeam_screen_audience() {
 	sendbeam_card_close();
 
 	sendbeam_screen_sync( $lists );
+	sendbeam_screen_form_plugins( $lists );
+}
+
+/**
+ * Where each form plugin on the site is connected to SendBeam.
+ *
+ * @param array<int,array<string,mixed>>|null $lists Lists, or null when unreadable.
+ */
+function sendbeam_screen_form_plugins( $lists ) {
+	$hosts = sendbeam_bridge_hosts();
+	$rows  = array(
+		'cf7'          => array( 'Contact Form 7', __( 'Open a form and use its SendBeam tab.', 'sendbeam' ) ),
+		'elementor'    => array( 'Elementor Pro', __( 'In the Form widget, add SendBeam under Actions After Submit.', 'sendbeam' ) ),
+		'wpforms'      => array( 'WPForms', __( 'In the form builder, open Settings, then SendBeam.', 'sendbeam' ) ),
+		'gravityforms' => array( 'Gravity Forms', __( 'Open a form, then Settings, then SendBeam, and add a feed.', 'sendbeam' ) ),
+		'fluentforms'  => array( 'Fluent Forms', __( 'Choose the forms below.', 'sendbeam' ) ),
+	);
+
+	echo '<div id="sendbeam-form-plugins">';
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice only.
+	if ( isset( $_GET['sendbeam_bridges_saved'] ) ) {
+		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Saved.', 'sendbeam' ) . '</p>';
+	}
+
+	sendbeam_card_open( __( 'Form plugins', 'sendbeam' ) );
+	echo '<p style="margin-top:0">' . esc_html__( 'Send the people who fill in forms built with another plugin to SendBeam. Each form is switched on where that plugin keeps its settings, and sends someone only when they ticked the consent field you name — or every submission, when you mark the form as a signup form.', 'sendbeam' ) . '</p>';
+
+	echo '<table class="sb-table"><thead><tr>';
+	echo '<th>' . esc_html__( 'Form plugin', 'sendbeam' ) . '</th><th>' . esc_html__( 'On this site', 'sendbeam' ) . '</th><th>' . esc_html__( 'Where to set it up', 'sendbeam' ) . '</th>';
+	echo '</tr></thead><tbody>';
+	foreach ( $rows as $key => $row ) {
+		printf(
+			'<tr><td><strong>%1$s</strong></td><td>%2$s</td><td>%3$s</td></tr>',
+			esc_html( $row[0] ),
+			$hosts[ $key ] ? '<span class="sb-chip">' . esc_html__( 'Active', 'sendbeam' ) . '</span>' : '<span class="sb-note">' . esc_html__( 'Not installed', 'sendbeam' ) . '</span>',
+			esc_html( $row[1] )
+		);
+	}
+	echo '</tbody></table>';
+	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'The key needs Contacts (read and write), Lists (write) to add people to a list, and Tags (read and write) when a form adds a tag. Each person\'s source in SendBeam names the form plugin they came from.', 'sendbeam' ) . '</p>';
+
+	if ( $hosts['fluentforms'] && function_exists( 'sendbeam_fluentforms_forms' ) ) {
+		sendbeam_screen_fluentforms( $lists );
+	}
+
+	sendbeam_card_close();
+	echo '</div>';
+}
+
+/**
+ * Which Fluent forms send to SendBeam, and how.
+ *
+ * @param array<int,array<string,mixed>>|null $lists Lists, or null when unreadable.
+ */
+function sendbeam_screen_fluentforms( $lists ) {
+	$forms = sendbeam_fluentforms_forms();
+
+	echo '<p class="sb-label" style="margin-top:18px">' . esc_html__( 'Fluent Forms', 'sendbeam' ) . '</p>';
+	if ( null === $forms ) {
+		echo '<p class="sb-note">' . esc_html__( 'Fluent Forms is active, but this version does not let its forms be listed here.', 'sendbeam' ) . '</p>';
+		return;
+	}
+	if ( ! $forms ) {
+		echo '<p class="sb-note">' . esc_html__( 'There are no Fluent forms on this site yet.', 'sendbeam' ) . '</p>';
+		return;
+	}
+
+	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	echo '<input type="hidden" name="action" value="sendbeam_save_bridges" />';
+	wp_nonce_field( 'sendbeam_save_bridges' );
+
+	foreach ( $forms as $form_id => $title ) {
+		$config = sendbeam_fluentforms_config( $form_id );
+		$name   = 'sendbeam_fluentforms[' . (int) $form_id . ']';
+
+		echo '<fieldset style="border-top:1px solid #ddd;padding:12px 0">';
+		printf(
+			'<p><label class="sb-inline"><input type="checkbox" name="%1$s[enabled]" value="1"%2$s /> <strong>%3$s</strong></label></p>',
+			esc_attr( $name ),
+			checked( $config['enabled'], 1, false ),
+			esc_html( '' !== $title ? $title : sprintf( /* translators: %d: form ID */ __( 'Form %d', 'sendbeam' ), $form_id ) )
+		);
+		foreach ( array(
+			'email_field'   => __( 'Email field name', 'sendbeam' ),
+			'first_field'   => __( 'First name field name', 'sendbeam' ),
+			'last_field'    => __( 'Last name field name', 'sendbeam' ),
+			'consent_field' => __( 'Consent field name', 'sendbeam' ),
+			'tag'           => __( 'Tag (optional)', 'sendbeam' ),
+		) as $key => $label ) {
+			printf(
+				'<p><label><span class="sb-label">%1$s</span><input type="text" class="regular-text code" name="%2$s[%3$s]" value="%4$s" /></label></p>',
+				esc_html( $label ),
+				esc_attr( $name ),
+				esc_attr( $key ),
+				esc_attr( $config[ $key ] )
+			);
+		}
+		printf(
+			'<p><label class="sb-inline"><input type="checkbox" name="%1$s[consent]" value="signup"%2$s /> %3$s</label></p>',
+			esc_attr( $name ),
+			checked( $config['consent'], 'signup', false ),
+			esc_html__( 'Everyone who submits this form is asking to subscribe, so no consent field is needed', 'sendbeam' )
+		);
+		if ( is_array( $lists ) && $lists ) {
+			printf( '<p><label><span class="sb-label">%1$s</span><select name="%2$s[list]">', esc_html__( 'Add them to', 'sendbeam' ), esc_attr( $name ) );
+			printf( '<option value="">%s</option>', esc_html__( '— No list —', 'sendbeam' ) );
+			foreach ( $lists as $list ) {
+				printf(
+					'<option value="%1$s"%2$s>%3$s</option>',
+					esc_attr( $list['id'] ),
+					selected( in_array( $list['id'], $config['lists'], true ), true, false ),
+					esc_html( $list['name'] )
+				);
+			}
+			echo '</select></label></p>';
+		}
+		echo '</fieldset>';
+	}
+
+	echo '<p class="sb-note">' . esc_html__( 'Field names are the names shown in each field\'s settings in Fluent Forms. A name field is written as names.first_name and names.last_name.', 'sendbeam' ) . '</p>';
+	echo '<p><button type="submit" class="sb-btn">' . esc_html__( 'Save', 'sendbeam' ) . '</button></p>';
+	echo '</form>';
 }
 
 /**
@@ -615,7 +738,8 @@ function sendbeam_screen_docs() {
 	foreach ( array(
 		'forms:read'                                 => __( 'Listing your forms here and in the block', 'sendbeam' ),
 		'lists:read'                                 => __( 'The Audience tab and its counts', 'sendbeam' ),
-		'contacts:read, contacts:write, lists:write' => __( 'The opt-in box at registration, comments or checkout', 'sendbeam' ),
+		'contacts:read, contacts:write, lists:write' => __( 'The opt-in box at registration, comments or checkout, and forms from Contact Form 7, Elementor Pro, WPForms, Gravity Forms and Fluent Forms', 'sendbeam' ),
+		'tags:read, tags:write'                      => __( 'A form plugin form that adds a tag', 'sendbeam' ),
 		'transactional:send'                         => __( 'Site email', 'sendbeam' ),
 	) as $perm => $why ) {
 		printf( '<tr><td><code>%s</code></td><td>%s</td></tr>', esc_html( $perm ), esc_html( $why ) );

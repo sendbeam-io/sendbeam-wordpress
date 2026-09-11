@@ -19,6 +19,7 @@ $sendbeam_options = array(
 	'sendbeam_popups',
 	'sendbeam_sync',
 	'sendbeam_sync_log',
+	'sendbeam_bridges',
 	'sendbeam_mail_log',
 	'sendbeam_activated_at',
 );
@@ -40,6 +41,11 @@ foreach ( $sendbeam_transients as $sendbeam_transient ) {
 // set-up notice.
 delete_metadata( 'user', 0, 'sendbeam_setup_dismissed', '', true );
 
+// Contact Form 7 keeps each form's SendBeam tab as post meta, and a
+// subscription queued a moment before deletion must not run afterwards.
+delete_post_meta_by_key( '_sendbeam_cf7' );
+wp_unschedule_hook( 'sendbeam_bridge_subscribe' );
+
 // Multisite: the same clean-up on every site in the network.
 if ( is_multisite() ) {
 	$sendbeam_sites = get_sites(
@@ -56,6 +62,8 @@ if ( is_multisite() ) {
 		foreach ( $sendbeam_transients as $sendbeam_transient ) {
 			delete_transient( $sendbeam_transient );
 		}
+		delete_post_meta_by_key( '_sendbeam_cf7' );
+		wp_unschedule_hook( 'sendbeam_bridge_subscribe' );
 		restore_current_blog();
 	}
 }
