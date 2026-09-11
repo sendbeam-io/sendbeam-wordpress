@@ -36,8 +36,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # Check what is actually distributed, not the repository. .distignore is
+      # the single list of what stays behind — the workflows, the composer and
+      # npm manifests, the coding-standards ruleset, the listing assets — and
+      # Plugin Check rejects several of those on sight. Building first means CI
+      # sees exactly the tree wordpress.org will.
+      - name: Build the distributed plugin
+        run: bash bin/build-zip.sh
       - uses: WordPress/plugin-check-action@v1
         with:
-          # The checkout folder is the repo name; the plugin's slug (and text domain) is "sendbeam".
+          build-dir: './build/sendbeam'
+          # The folder name is the slug (and the text domain): "sendbeam".
           slug: sendbeam
-          exclude-directories: 'tests,bin,build'
