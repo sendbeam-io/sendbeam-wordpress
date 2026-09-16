@@ -60,6 +60,9 @@ function wp_print_inline_script_tag( $js, $attrs = array() ) {
 function register_activation_hook( $file, $callback ) {
 	$GLOBALS['stub']['activation'][] = $callback;
 }
+function register_deactivation_hook( $file, $callback ) {
+	$GLOBALS['stub']['deactivation'][] = $callback;
+}
 function add_option( $name, $value = '', $deprecated = '', $autoload = 'yes' ) {
 	if ( ! isset( $GLOBALS['stub']['options'][ $name ] ) ) {
 		return update_option( $name, $value );
@@ -133,6 +136,28 @@ function selected( $a, $b, $echo = true ) { return $a == $b ? ' selected="select
 
 // ── Form plugin bridges ────────────────────────────────────────────────
 function wp_schedule_single_event( $timestamp, $hook, $args = array() ) { $GLOBALS['stub']['cron'][] = array( 'hook' => $hook, 'args' => $args ); return true; }
+/** Whether the same hook+args is already queued — cart-abandonment tracking dedupes on this. */
+function wp_next_scheduled( $hook, $args = array() ) {
+	foreach ( $GLOBALS['stub']['cron'] as $c ) {
+		if ( $c['hook'] === $hook && $c['args'] === $args ) {
+			return time() + 60;
+		}
+	}
+	return false;
+}
+function wp_unschedule_hook( $hook ) {
+	$GLOBALS['stub']['cron'] = array_values( array_filter( $GLOBALS['stub']['cron'], function ( $c ) use ( $hook ) { return $c['hook'] !== $hook; } ) );
+}
+if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+	define( 'MINUTE_IN_SECONDS', 60 );
+}
+function is_user_logged_in() { return ! empty( $GLOBALS['stub']['current_user'] ); }
+function get_the_ID() { return isset( $GLOBALS['stub']['post_id'] ) ? $GLOBALS['stub']['post_id'] : 0; }
+function wp_get_current_user() {
+	$u              = new stdClass();
+	$u->user_email  = isset( $GLOBALS['stub']['current_user']['email'] ) ? $GLOBALS['stub']['current_user']['email'] : '';
+	return $u;
+}
 function did_action( $tag ) { return empty( $GLOBALS['stub']['did'][ $tag ] ) ? 0 : 1; }
 function wp_doing_ajax() { return ! empty( $GLOBALS['stub']['ajax'] ); }
 function wp_verify_nonce( $nonce, $action = -1 ) { return 'nonce:' . $action === $nonce ? 1 : false; }

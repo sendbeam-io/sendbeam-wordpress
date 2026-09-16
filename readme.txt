@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -22,6 +22,7 @@ This plugin puts your SendBeam forms on a WordPress site without copying embed c
 * **A default form** — set it once under Settings → SendBeam and every block and shortcode without an ID uses it.
 * **Form plugins** — send the people who fill in forms built with Contact Form 7, Elementor Pro, WPForms, Gravity Forms or Fluent Forms to SendBeam, onto the list and with the tag you choose. Switched on form by form, and only for people who ticked your consent field or filled in a form you marked as a signup form.
 * **Site email** — send everything WordPress sends with `wp_mail()` (WooCommerce order confirmations, password resets, form and comment notifications, plugin alerts) through your verified SendBeam domain. No SMTP host, port or password: one API key, one switch, a test button and a log of recent results.
+* **E-commerce events** (WooCommerce) — feed SendBeam's native Cart Abandoned, Product Viewed and Order Placed automation triggers. Order placed also keeps a running lifetime-value total on the contact. Each event has its own switch, off by default.
 
 Forms are shown exactly as configured in SendBeam (fields, double opt-in, the thank-you message, the list they join), so changing a form there changes it on your site straight away. Displaying a form makes no request from your server — the visitor's browser fetches it. Site email, when you switch it on, is one HTTPS call per message to SendBeam's API.
 
@@ -42,6 +43,8 @@ This plugin talks to SendBeam (sendbeam.io) in five distinct ways. Nothing is se
 **5. Forms built with another form plugin** (off by default, and off for every form until you switch it on for that form). When someone submits a Contact Form 7, Elementor Pro, WPForms, Gravity Forms or Fluent Forms form you have connected, and either ticked the consent field you named or filled in a form you marked as a signup form, their email address, first and last name and the name of the form plugin are sent from your server to `/api/v1/contacts`, added to the list you chose (`/api/v1/lists/<id>/contacts`) and, if you set one, given a tag (`/api/v1/tags` and `/api/v1/contacts/<id>/tags`). Nothing else from the form is sent.
 
 **Site email** (off by default) posts each email your site sends from your server to `https://sendbeam.io/api/v1/transactional` with your API key: the recipient addresses, subject, body and reply-to, so SendBeam can deliver it from your verified domain. Messages with attachments are left to the server's own mailer.
+
+**E-commerce events** (off by default, each of the three switched on separately, WooCommerce only) posts to `https://sendbeam.io/api/v1/ecommerce/events` with your API key: an email address, and depending on the event a name, an order total and its currency. Order placed sends when an order is completed. Product viewed sends only when the visitor is a known contact (logged in, or an email already given this visit) — never for an anonymous visitor. Cart abandoned is a best-effort heuristic: adding an item to the cart is timestamped locally on your server, and if no order has followed within a window you set (60 minutes by default) and an email became known at some point, one event is sent; nothing is sent for a cart nobody's email was ever known for.
 
 Full setup documentation: [sendbeam.io/docs/wordpress](https://sendbeam.io/docs/wordpress). See also the [SendBeam privacy policy](https://sendbeam.io/privacy) and [terms](https://sendbeam.io/terms).
 
@@ -120,6 +123,11 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 7. The Site email tab, which routes wp_mail() through SendBeam.
 
 == Changelog ==
+
+= 1.8.0 =
+* E-commerce events tab (WooCommerce): Order placed, Product viewed and Cart abandoned, each its own switch, feeding SendBeam's native automation triggers of the same names.
+* Order placed also keeps a running lifetime-value total on the SendBeam contact.
+* Cart abandoned is a documented best-effort heuristic built on wp-cron: WooCommerce has no native "abandoned cart" event, so this times out a window (60 minutes by default, configurable) after an item is added and checks whether an order followed, and only ever fires for a cart an email became known for.
 
 = 1.7.0 =
 * Form plugins: send the people who fill in Contact Form 7, Elementor Pro, WPForms, Gravity Forms and Fluent Forms forms to SendBeam, with the list and tag you choose. Set up form by form, where each plugin keeps its settings, and only with the person's consent.

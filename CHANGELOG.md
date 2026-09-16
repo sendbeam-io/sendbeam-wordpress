@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.0
+
+- **E-commerce events (WooCommerce).** A new tab feeds SendBeam's three native e-commerce automation triggers: Order placed (from WooCommerce's own order-processed hook — reliable, and keeps a running `lifetime_value` total on the contact), Product viewed (only for a known contact: logged in, or an email already given this visit — never anonymous tracking) and Cart abandoned. Each is its own switch, off by default.
+- **Cart abandoned is a real, working best-effort heuristic**, built on wp-cron the same way `includes/bridges.php` already queues form-plugin subscriptions: adding to cart timestamps the shopper's session, a one-off cron event checks after a configurable window (default 60 minutes) whether an order followed, and fires once if not — and only for a cart where an email became known at some point. WooCommerce has no native "abandoned cart" event, which is why dedicated cart-recovery plugins exist as a category; this is documented plainly as a heuristic, not a guarantee, on the settings screen and in the README.
+- Deliberately a new function for Order placed rather than a change to the existing checkout opt-in hook in `includes/sync.php` — one is a marketing-consent tick box, the other a store event that needs no consent, and tangling them would make both harder to reason about.
+- `uninstall.php` removes the new options, un-schedules the new cron hooks, and sweeps the per-session cart-tracking transients.
+
 ## 1.7.0
 
 - **Form plugins.** Submissions from Contact Form 7, Elementor Pro, WPForms, Gravity Forms and Fluent Forms can now create or update a SendBeam contact, join a list and carry a tag. Each uses that plugin's own extension point: a SendBeam tab in the Contact Form 7 editor, a SendBeam action after submit in Elementor Pro's Form widget, a SendBeam panel in the WPForms builder's settings, a Gravity Forms feed add-on with field mapping and conditional logic, and — because Fluent Forms has nowhere for another plugin to add settings — a per-form section on the Audience tab.

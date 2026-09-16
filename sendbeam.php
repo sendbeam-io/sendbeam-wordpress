@@ -3,7 +3,7 @@
  * Plugin Name:       SendBeam
  * Plugin URI:        https://sendbeam.io/docs/wordpress
  * Description:       Newsletter signup forms, pop-ups, opt-ins at registration and checkout, and your site's own email, from your SendBeam account.
- * Version:           1.7.0
+ * Version:           1.8.0
  * Requires at least: 6.1
  * Requires PHP:      7.4
  * Author:            SendBeam
@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SENDBEAM_VERSION', '1.7.0' );
+define( 'SENDBEAM_VERSION', '1.8.0' );
 define( 'SENDBEAM_FILE', __FILE__ );
 define( 'SENDBEAM_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -25,6 +25,7 @@ require SENDBEAM_DIR . 'includes/helpers.php';
 require SENDBEAM_DIR . 'includes/api.php';
 require SENDBEAM_DIR . 'includes/popups.php';
 require SENDBEAM_DIR . 'includes/sync.php';
+require SENDBEAM_DIR . 'includes/ecommerce.php';
 require SENDBEAM_DIR . 'includes/bridges.php';
 require SENDBEAM_DIR . 'includes/admin-ui.php';
 require SENDBEAM_DIR . 'includes/screens.php';

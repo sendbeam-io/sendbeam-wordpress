@@ -438,6 +438,111 @@ ok( 1 === count( $stub['cron'] ), 'Gravity Forms: a feed marked as a signup form
 $fields_setting = $sendbeam_gf->feed_settings_fields()[0]['fields'];
 ok( 'feed_condition' === end( $fields_setting )['type'], 'Gravity Forms: feeds offer conditional logic' );
 
+// ── E-commerce events (issue #10) ────────────────────────────────────────
+
+// Settings: defaults, clamping, and the sanitised save.
+$sendbeam_defaults = sendbeam_ecommerce_settings();
+ok( array( 'order_placed' => 0, 'product_viewed' => 0, 'cart_abandoned' => 0, 'cart_abandoned_window' => 60 ) === $sendbeam_defaults, 'e-commerce: defaults are everything off, 60-minute window' );
+update_option( SENDBEAM_ECOMMERCE_OPTION, array( 'cart_abandoned_window' => 999999 ) );
+ok( 10080 === sendbeam_ecommerce_settings()['cart_abandoned_window'], 'e-commerce: an absurd window is clamped to the 7-day maximum' );
+update_option( SENDBEAM_ECOMMERCE_OPTION, array() );
+
+ok( ! sendbeam_ecommerce_active( 'order_placed' ), 'e-commerce: nothing is active with no API key' );
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_ecommercetest0123456789' ) );
+ok( ! sendbeam_ecommerce_active( 'order_placed' ), 'e-commerce: nothing is active without WooCommerce' );
+
+// Every hook is a genuine no-op while WooCommerce is absent — same guarantee
+// tests/host-stubs.php proves for the form-plugin bridges before they load.
+$stub['cron'] = array();
+sendbeam_ecommerce_on_order_placed( 1 );
+sendbeam_ecommerce_on_product_viewed();
+sendbeam_ecommerce_on_add_to_cart( 'key', 1, 1, 0, array(), array() );
+ok( empty( $stub['cron'] ), 'e-commerce: nothing is queued without WooCommerce active' );
+
+require __DIR__ . '/woocommerce-stubs.php';
+update_option( SENDBEAM_ECOMMERCE_OPTION, array( 'order_placed' => 1, 'product_viewed' => 1, 'cart_abandoned' => 1, 'cart_abandoned_window' => 60 ) );
+ok( sendbeam_ecommerce_active( 'order_placed' ), 'e-commerce: active once a key is saved, the toggle is on, and WooCommerce is active' );
+
+// Order placed.
+$stub['cron']            = array();
+$stub['wc_orders'][501]  = array( 'email' => 'buyer@example.test', 'first_name' => 'Ada', 'last_name' => 'Lovelace', 'total' => 84.5, 'currency' => 'GBP' );
+sendbeam_ecommerce_on_order_placed( 501 );
+ok( 1 === count( $stub['cron'] ) && SENDBEAM_ECOMMERCE_HOOK === $stub['cron'][0]['hook'], 'order placed: queued as a single cron event, like every other subscription' );
+$sendbeam_order_job = $stub['cron'][0]['args'][0];
+ok( 'order_placed' === $sendbeam_order_job['type'] && 'buyer@example.test' === $sendbeam_order_job['email'] && 'Ada Lovelace' === $sendbeam_order_job['name'] && 84.5 === $sendbeam_order_job['value'] && 'GBP' === $sendbeam_order_job['currency'], 'order placed: name, total and currency are read from the order' );
+
+$stub['remote']       = array();
+$stub['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{"ok":true}' );
+sendbeam_ecommerce_run_event( $sendbeam_order_job );
+ok( 1 === count( $stub['remote'] ) && false !== strpos( $stub['remote'][0]['url'], '/api/v1/ecommerce/events' ), 'order placed: the queued job posts to the ecommerce events endpoint' );
+$sendbeam_posted = json_decode( $stub['remote'][0]['args']['body'], true );
+ok( 'order_placed' === $sendbeam_posted['type'] && 84.5 === $sendbeam_posted['value'], 'order placed: the posted body carries the type and value' );
+$sendbeam_log = get_option( SENDBEAM_ECOMMERCE_LOG );
+ok( 1 === $sendbeam_log[0]['ok'] && 'order_placed' === $sendbeam_log[0]['type'], 'order placed: a successful attempt is logged' );
+
+$stub['cron'] = array();
+sendbeam_ecommerce_on_order_placed( 999 ); // no such order
+ok( empty( $stub['cron'] ), 'order placed: an order that cannot be loaded queues nothing' );
+
+// Product viewed: nobody known, then a logged-in customer.
+$stub['cron']    = array();
+$GLOBALS['product'] = new WC_Product( 'Mechanical Keyboard' );
+sendbeam_ecommerce_on_product_viewed();
+ok( empty( $stub['cron'] ), 'product viewed: an unknown visitor triggers nothing — no anonymous tracking' );
+$stub['current_user'] = array( 'email' => 'known@example.test' );
+sendbeam_ecommerce_on_product_viewed();
+ok( 1 === count( $stub['cron'] ) && 'product_viewed' === $stub['cron'][0]['args'][0]['type'] && 'known@example.test' === $stub['cron'][0]['args'][0]['email'] && 'Mechanical Keyboard' === $stub['cron'][0]['args'][0]['name'], 'product viewed: a logged-in customer is sent with the product name' );
+unset( $stub['current_user'] );
+
+// Cart abandoned: add to cart starts tracking; the scheduled check fires
+// only when no order has followed and an email is known.
+$stub['cron']                    = array();
+$stub['transients']              = array();
+WC()->session->customer_id       = 'session-abc';
+WC()->customer->billing_email    = '';
+sendbeam_ecommerce_on_add_to_cart( 'key', 1, 1, 0, array(), array() );
+$sendbeam_tracking_key = sendbeam_cart_tracking_key( 'session-abc' );
+ok( is_array( get_transient( $sendbeam_tracking_key ) ) && '' === get_transient( $sendbeam_tracking_key )['email'], 'cart abandoned: adding to cart starts tracking, email unknown yet' );
+ok( 1 === count( $stub['cron'] ) && SENDBEAM_CART_CHECK_HOOK === $stub['cron'][0]['hook'] && array( $sendbeam_tracking_key ) === $stub['cron'][0]['args'], 'cart abandoned: a single check is scheduled, keyed by this cart' );
+
+sendbeam_ecommerce_on_add_to_cart( 'key2', 2, 1, 0, array(), array() );
+ok( 1 === count( $stub['cron'] ), 'cart abandoned: a second item in the same session does not schedule a second check' );
+
+// Reached checkout and the email is now known: refresh fills it in.
+WC()->customer->billing_email = 'shopper@example.test';
+sendbeam_ecommerce_refresh_cart_email();
+ok( 'shopper@example.test' === get_transient( $sendbeam_tracking_key )['email'], 'cart abandoned: an email entered at checkout is captured before the cart is checked' );
+
+// No order followed: the check fires cart_abandoned.
+$stub['cron']                = array();
+$stub['wc_completed_orders'] = array();
+sendbeam_ecommerce_check_cart_abandonment( $sendbeam_tracking_key );
+ok( false === get_transient( $sendbeam_tracking_key ), 'cart abandoned: tracking is cleared once checked' );
+ok( 1 === count( $stub['cron'] ) && 'cart_abandoned' === $stub['cron'][0]['args'][0]['type'] && 'shopper@example.test' === $stub['cron'][0]['args'][0]['email'], 'cart abandoned: fires once, for the known email, when no order followed' );
+
+// An order DID follow: no event.
+WC()->session->customer_id = 'session-xyz';
+sendbeam_ecommerce_on_add_to_cart( 'key3', 3, 1, 0, array(), array() );
+$sendbeam_tracking_key2      = sendbeam_cart_tracking_key( 'session-xyz' );
+$sendbeam_tracked            = get_transient( $sendbeam_tracking_key2 );
+$sendbeam_tracked['email']   = 'finished@example.test';
+set_transient( $sendbeam_tracking_key2, $sendbeam_tracked, 3600 );
+$stub['wc_completed_orders'] = array( array( 'email' => 'finished@example.test', 'created_at' => $sendbeam_tracked['started_at'] + 60, 'id' => 1 ) );
+$stub['cron']                = array();
+sendbeam_ecommerce_check_cart_abandonment( $sendbeam_tracking_key2 );
+ok( empty( $stub['cron'] ), 'cart abandoned: an order placed after the cart started means no abandonment event' );
+
+// Never a known email: nothing to send, ever.
+$stub['cron'] = array();
+set_transient( 'sendbeam_cart_noone', array( 'email' => '', 'started_at' => time() - 3600 ), 3600 );
+sendbeam_ecommerce_check_cart_abandonment( 'sendbeam_cart_noone' );
+ok( empty( $stub['cron'] ), 'cart abandoned: a cart nobody\'s email was ever known for sends nothing' );
+
+// Deactivation clears the scheduled hooks (uninstall.php sweeps the rest).
+$stub['cron'] = array( array( 'hook' => SENDBEAM_CART_CHECK_HOOK, 'args' => array( 'x' ) ), array( 'hook' => 'something_else', 'args' => array() ) );
+sendbeam_ecommerce_clear_scheduled();
+ok( 1 === count( $stub['cron'] ) && 'something_else' === $stub['cron'][0]['hook'], 'deactivation: only this plugin\'s own scheduled checks are cleared' );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

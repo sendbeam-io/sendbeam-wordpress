@@ -459,12 +459,13 @@ function sendbeam_render_settings_page() {
 	}
 	$tab     = sendbeam_current_tab();
 	$screens = array(
-		'overview' => 'sendbeam_screen_overview',
-		'forms'    => 'sendbeam_screen_forms',
-		'audience' => 'sendbeam_screen_audience',
-		'popup'    => 'sendbeam_screen_popup',
-		'mail'     => 'sendbeam_screen_mail',
-		'docs'     => 'sendbeam_screen_docs',
+		'overview'  => 'sendbeam_screen_overview',
+		'forms'     => 'sendbeam_screen_forms',
+		'audience'  => 'sendbeam_screen_audience',
+		'popup'     => 'sendbeam_screen_popup',
+		'mail'      => 'sendbeam_screen_mail',
+		'ecommerce' => 'sendbeam_screen_ecommerce',
+		'docs'      => 'sendbeam_screen_docs',
 	);
 	?>
 	<div class="wrap sendbeam-app">

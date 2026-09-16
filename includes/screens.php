@@ -656,6 +656,87 @@ function sendbeam_screen_mail() {
 	}
 }
 
+/* ------------------------------------------------------------ E-commerce */
+
+/**
+ * E-commerce events tab: the three toggles, the abandoned-cart window, and
+ * a log of recent attempts — the same shape as the Audience tab's sync log.
+ */
+function sendbeam_screen_ecommerce() {
+	$settings = sendbeam_ecommerce_settings();
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice only.
+	if ( isset( $_GET['sendbeam_ecommerce_saved'] ) ) {
+		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Saved.', 'sendbeam' ) . '</p>';
+	}
+
+	sendbeam_card_open(
+		__( 'Cart Abandoned, Product Viewed, Order Placed', 'sendbeam' ),
+		__( 'Feeds the three native SendBeam automation triggers of the same names.', 'sendbeam' )
+	);
+
+	if ( ! class_exists( 'WooCommerce' ) ) {
+		echo '<p class="sb-msg sb-msg--warn">' . esc_html__( 'WooCommerce is not active on this site. Every event here is a WooCommerce event, so none of them can fire without it.', 'sendbeam' ) . '</p>';
+		sendbeam_card_close();
+		return;
+	}
+
+	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	echo '<input type="hidden" name="action" value="sendbeam_save_ecommerce" />';
+	wp_nonce_field( 'sendbeam_save_ecommerce' );
+
+	printf(
+		'<p class="sb-inline" style="display:flex"><label class="sb-inline"><input type="checkbox" name="sendbeam_ecommerce[order_placed]" value="1" %1$s /> %2$s</label></p>',
+		checked( ! empty( $settings['order_placed'] ), true, false ),
+		esc_html__( 'Order placed — reliable, fires from WooCommerce\'s own order-processed hook. Also adds the order total to the contact\'s lifetime_value.', 'sendbeam' )
+	);
+	printf(
+		'<p class="sb-inline" style="display:flex"><label class="sb-inline"><input type="checkbox" name="sendbeam_ecommerce[product_viewed]" value="1" %1$s /> %2$s</label></p>',
+		checked( ! empty( $settings['product_viewed'] ), true, false ),
+		esc_html__( 'Product viewed — only for a known contact (logged in, or an email already entered this visit). No anonymous visitor tracking.', 'sendbeam' )
+	);
+	printf(
+		'<p class="sb-inline" style="display:flex"><label class="sb-inline"><input type="checkbox" name="sendbeam_ecommerce[cart_abandoned]" value="1" %1$s /> %2$s</label></p>',
+		checked( ! empty( $settings['cart_abandoned'] ), true, false ),
+		esc_html__( 'Cart abandoned — best effort. WooCommerce has no native "abandoned cart" event, so this is a heuristic: no order within the window below, and only when an email became known at some point.', 'sendbeam' )
+	);
+
+	printf(
+		'<p style="margin-top:14px"><label><span class="sb-label">%1$s</span>' .
+		'<input type="number" min="%2$d" max="%3$d" name="sendbeam_ecommerce[cart_abandoned_window]" value="%4$d" class="small-text" /> %5$s</label></p>',
+		esc_html__( 'Cart abandoned window (minutes)', 'sendbeam' ),
+		(int) SENDBEAM_CART_WINDOW_MIN,
+		(int) SENDBEAM_CART_WINDOW_MAX,
+		(int) $settings['cart_abandoned_window'],
+		esc_html__( 'How long to wait after an item is added before deciding, if no order has followed, that the cart was abandoned.', 'sendbeam' )
+	);
+
+	echo '<p class="sb-note" style="margin-top:10px">' . esc_html__( 'None of this is a guarantee. "Abandoned" here means "no order followed within the window" — a shopper who orders later, on another device, still counts as abandoned by this measure. Treat the trigger as a nudge, not a fact.', 'sendbeam' ) . '</p>';
+
+	echo '<p style="margin-top:10px"><button type="submit" class="sb-btn">' . esc_html__( 'Save', 'sendbeam' ) . '</button></p>';
+	echo '</form>';
+	sendbeam_card_close();
+
+	$log = get_option( SENDBEAM_ECOMMERCE_LOG, array() );
+	if ( is_array( $log ) && $log ) {
+		sendbeam_card_open( __( 'Recent e-commerce events', 'sendbeam' ) );
+		echo '<table class="sb-table"><thead><tr>';
+		echo '<th>' . esc_html__( 'When', 'sendbeam' ) . '</th><th>' . esc_html__( 'Event', 'sendbeam' ) . '</th>';
+		echo '<th>' . esc_html__( 'Who', 'sendbeam' ) . '</th><th>' . esc_html__( 'Result', 'sendbeam' ) . '</th>';
+		echo '</tr></thead><tbody>';
+		foreach ( $log as $row ) {
+			echo '<tr>';
+			echo '<td class="sb-mono">' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $row['at'] ) ) . '</td>';
+			echo '<td><span class="sb-chip">' . esc_html( $row['type'] ) . '</span></td>';
+			echo '<td>' . esc_html( $row['email'] ) . '</td>';
+			echo '<td>' . ( $row['ok'] ? esc_html__( 'Sent', 'sendbeam' ) : esc_html( __( 'Failed', 'sendbeam' ) . ' — ' . $row['note'] ) ) . '</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table>';
+		sendbeam_card_close();
+	}
+}
+
 /* ------------------------------------------------------------------ Docs */
 
 /**
@@ -719,6 +800,12 @@ function sendbeam_screen_docs() {
 		);
 	}
 	echo '</div></div>';
+	printf(
+		'<p class="sb-note" style="margin-top:12px"><a href="%1$s" target="_blank" rel="noopener">%2$s</a> — %3$s</p>',
+		esc_url( sendbeam_app_url() . '/docs/ecommerce' ),
+		esc_html__( 'E-commerce events', 'sendbeam' ),
+		esc_html__( 'Cart Abandoned, Product Viewed and Order Placed, plus the Shopify webhook.', 'sendbeam' )
+	);
 	sendbeam_card_close();
 
 	sendbeam_card_open( __( 'Shortcodes', 'sendbeam' ), __( 'Anywhere shortcodes work: a block, a widget, a page builder.', 'sendbeam' ) );
@@ -741,6 +828,7 @@ function sendbeam_screen_docs() {
 		'contacts:read, contacts:write, lists:write' => __( 'The opt-in box at registration, comments or checkout, and forms from Contact Form 7, Elementor Pro, WPForms, Gravity Forms and Fluent Forms', 'sendbeam' ),
 		'tags:read, tags:write'                      => __( 'A form plugin form that adds a tag', 'sendbeam' ),
 		'transactional:send'                         => __( 'Site email', 'sendbeam' ),
+		'ecommerce:write'                            => __( 'E-commerce events: Cart Abandoned, Product Viewed, Order Placed', 'sendbeam' ),
 	) as $perm => $why ) {
 		printf( '<tr><td><code>%s</code></td><td>%s</td></tr>', esc_html( $perm ), esc_html( $why ) );
 	}

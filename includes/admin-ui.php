@@ -24,12 +24,13 @@ defined( 'ABSPATH' ) || exit;
  */
 function sendbeam_tabs() {
 	return array(
-		'overview' => __( 'Overview', 'sendbeam' ),
-		'forms'    => __( 'Forms', 'sendbeam' ),
-		'audience' => __( 'Audience', 'sendbeam' ),
-		'popup'    => __( 'Pop-ups', 'sendbeam' ),
-		'mail'     => __( 'Site email', 'sendbeam' ),
-		'docs'     => __( 'Docs', 'sendbeam' ),
+		'overview'  => __( 'Overview', 'sendbeam' ),
+		'forms'     => __( 'Forms', 'sendbeam' ),
+		'audience'  => __( 'Audience', 'sendbeam' ),
+		'popup'     => __( 'Pop-ups', 'sendbeam' ),
+		'mail'      => __( 'Site email', 'sendbeam' ),
+		'ecommerce' => __( 'E-commerce events', 'sendbeam' ),
+		'docs'      => __( 'Docs', 'sendbeam' ),
 	);
 }
 
