@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.0
+Stable tag: 1.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,6 +123,9 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 7. The Site email tab, which routes wp_mail() through SendBeam.
 
 == Changelog ==
+
+= 1.8.1 =
+* Corrected the privacy policy and terms links in this readme, which pointed at pages that no longer exist.
 
 = 1.8.0 =
 * E-commerce events tab (WooCommerce): Order placed, Product viewed and Cart abandoned, each its own switch, feeding SendBeam's native automation triggers of the same names.

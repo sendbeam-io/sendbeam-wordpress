@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1
+
+- Corrected the privacy policy and terms links in `readme.txt`. They pointed at
+  `/privacy` and `/terms`, which no longer exist; the pages are at
+  `/legal/privacy` and `/legal/terms`.
+
 ## 1.8.0
 
 - **E-commerce events (WooCommerce).** A new tab feeds SendBeam's three native e-commerce automation triggers: Order placed (from WooCommerce's own order-processed hook — reliable, and keeps a running `lifetime_value` total on the contact), Product viewed (only for a known contact: logged in, or an email already given this visit — never anonymous tracking) and Cart abandoned. Each is its own switch, off by default.
