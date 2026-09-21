@@ -46,7 +46,7 @@ This plugin talks to SendBeam (sendbeam.io) in five distinct ways. Nothing is se
 
 **E-commerce events** (off by default, each of the three switched on separately, WooCommerce only) posts to `https://sendbeam.io/api/v1/ecommerce/events` with your API key: an email address, and depending on the event a name, an order total and its currency. Order placed sends when an order is completed. Product viewed sends only when the visitor is a known contact (logged in, or an email already given this visit) — never for an anonymous visitor. Cart abandoned is a best-effort heuristic: adding an item to the cart is timestamped locally on your server, and if no order has followed within a window you set (60 minutes by default) and an email became known at some point, one event is sent; nothing is sent for a cart nobody's email was ever known for.
 
-Full setup documentation: [sendbeam.io/docs/wordpress](https://sendbeam.io/docs/wordpress). See also the [SendBeam privacy policy](https://sendbeam.io/privacy) and [terms](https://sendbeam.io/terms).
+Full setup documentation: [sendbeam.io/docs/wordpress](https://sendbeam.io/docs/wordpress). See also the [SendBeam privacy policy](https://sendbeam.io/legal/privacy) and [terms](https://sendbeam.io/legal/terms).
 
 = Requirements =
 
