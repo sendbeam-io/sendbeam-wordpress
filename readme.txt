@@ -1,5 +1,5 @@
 === SendBeam ===
-Contributors: sendbeam
+Contributors: sendbeam, sendbeamsupport
 Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
