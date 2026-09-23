@@ -31,6 +31,21 @@ jobs:
       - name: Smoke test
         run: php tests/smoke.php
 
+  phpcs:
+    name: Coding standards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer
+      - name: WordPress Coding Standards
+        run: |
+          composer global config --no-interaction allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer global require --no-interaction --quiet dealerdirect/phpcodesniffer-composer-installer wp-coding-standards/wpcs phpcompatibility/phpcompatibility-wp
+          "$(composer global config home)/vendor/bin/phpcs" --standard=phpcs.xml.dist --error-severity=1 --warning-severity=0 --report=summary .
   plugin-check:
     name: WordPress Plugin Check
     runs-on: ubuntu-latest
