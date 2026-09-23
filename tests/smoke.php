@@ -656,7 +656,18 @@ function sb_connect_reset() {
 // Only the scopes we offer survive, and `forms` is not optional.
 ok( sendbeam_connect_clean_scopes( array( 'transactional:send', 'sudo' ) ) === array( 'forms', 'transactional:send' ), 'connect: unknown scopes are dropped and forms is always asked for' );
 ok( sendbeam_connect_clean_scopes( null ) === array( 'forms' ), 'connect: ticking nothing still asks for forms' );
-ok( array_keys( sendbeam_connect_scopes() ) === array( 'forms', 'contacts:write', 'transactional:send', 'ecommerce' ), 'connect: the four scopes, in the order the consent page shows them' );
+ok( array_keys( sendbeam_connect_scopes() ) === array( 'forms', 'contacts:write', 'transactional:send', 'ecommerce', 'domain' ), 'connect: the five scopes, in the order the consent page shows them' );
+
+// The domain scope names the domain, not "your domain": a site owner has to
+// recognise it to decide whether to tick it.
+$GLOBALS['stub']['site_url'] = 'https://www.example-site.test';
+ok( 'example-site.test' === sendbeam_connect_site_host(), 'connect: the sending domain is the site host with www. stripped' );
+has( sendbeam_connect_scopes()['domain']['label'], 'example-site.test', 'connect: the domain scope says which domain it means' );
+ok( ! sendbeam_connect_scopes()['domain']['always'], 'connect: the domain scope can be unticked' );
+ok( sendbeam_connect_clean_scopes( array( 'domain' ) ) === array( 'forms', 'domain' ), 'connect: domain survives the scope clean-up' );
+$GLOBALS['stub']['site_url'] = 'https://shop.example.co.uk';
+ok( 'shop.example.co.uk' === sendbeam_connect_site_host(), 'connect: a host with no www. is left alone' );
+unset( $GLOBALS['stub']['site_url'] );
 
 // https everywhere, with a hole only for machines that cannot be reached
 // from the internet. An http origin on a real domain must be refused, or the
@@ -897,7 +908,496 @@ ok( empty( $GLOBALS['stub']['remote'] ), 'connect: a user without the capability
 ok( is_array( get_transient( 'sendbeam_connect_7' ) ), 'connect: a refused caller does not spend somebody else\'s state' );
 delete_transient( 'sendbeam_connect_7' );
 
+// ── Connect v2: what the exchange sets up, and what it refuses to ──────
+/**
+ * The v2 exchange body, with the parts each test wants overridden.
+ *
+ * @param array $over Keys to replace.
+ * @return string JSON.
+ */
+function sb_v2_body( $over = array() ) {
+	global $sendbeam_new_key, $form;
+	$body = array(
+		'api_key'      => $sendbeam_new_key,
+		'key_prefix'   => 'sb_live_kkkk',
+		'workspace'    => array( 'id' => 'ws_1', 'name' => 'Harbour Lane' ),
+		'scopes'       => array( 'forms', 'contacts:write', 'transactional:send', 'domain' ),
+		'default_form' => array( 'id' => $form, 'name' => 'Newsletter signup' ),
+		'domain'       => array(
+			'name'               => 'harbourlane.co.uk',
+			'verified'           => false,
+			'records'            => array(
+				array( 'type' => 'TXT', 'name' => '_sendbeam', 'value' => 'v=sb1 k=abc' ),
+				array( 'type' => 'cname', 'name' => 'sb1._domainkey', 'value' => 'sb1.dkim.sendbeam.io' ),
+			),
+			'domain_connect_url' => 'https://sendbeam.io/domain-connect/xyz',
+			'checked_at'         => null,
+		),
+		'sender'       => array( 'from_name' => 'Harbour Lane Roasters', 'from_email' => 'hello@harbourlane.co.uk' ),
+	);
+	foreach ( $over as $k => $v ) {
+		$body[ $k ] = $v;
+	}
+	return json_encode( $body );
+}
+
+/** Drive the return handler with one exchange reply. */
+function sb_v2_exchange( $body, $settings = array() ) {
+	global $sendbeam_good_state, $sendbeam_good_grant;
+	sb_connect_reset();
+	delete_transient( 'sendbeam_connect_status' );
+	update_option( 'sendbeam_settings', $settings );
+	sb_connect_pending( $sendbeam_good_state );
+	$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => $body );
+	$_GET                            = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
+	return sb_connect_run( 'sendbeam_connect_return' );
+}
+
+// An unverified domain: everything is stored, and site email stays off.
+sb_v2_exchange( sb_v2_body() );
+$v2 = sendbeam_settings();
+ok( $form === $v2['default_form'], 'connect v2: the form SendBeam made becomes this site\'s default' );
+ok( 'Harbour Lane Roasters' === $v2['mail_from_name'], 'connect v2: the workspace sender name fills the empty From name' );
+ok( 'hello@harbourlane.co.uk' === $v2['mail_from_email'], 'connect v2: the workspace sender address fills the empty From address' );
+ok( empty( $v2['mail_enabled'] ), 'connect v2: site email is NOT switched on while the domain is unverified' );
+ok( ! empty( $v2['sendbeam_mail_deferred'] ), 'connect v2: site email is remembered as held back, not forgotten' );
+ok( 'forms,contacts:write,transactional:send,domain' === $v2['sendbeam_connect_granted'], 'connect v2: the granted permissions are stored as the key actually carries them' );
+ok( sendbeam_connect_granted( 'domain' ), 'connect v2: the screen can ask whether a permission was granted' );
+ok( ! sendbeam_connect_granted( 'ecommerce' ), 'connect v2: a permission that was not granted reads false' );
+
+$v2_status = get_transient( 'sendbeam_connect_status' );
+ok( is_array( $v2_status ), 'connect v2: the status is cached for the Overview instead of being fetched again' );
+ok( 'harbourlane.co.uk' === $v2_status['domain']['name'], 'connect v2: the sending domain is cached' );
+ok( 2 === count( $v2_status['domain']['records'] ), 'connect v2: the DNS records are cached' );
+ok( 'CNAME' === $v2_status['domain']['records'][1]['type'], 'connect v2: a record type is upper-cased for display' );
+ok( 'https://sendbeam.io/domain-connect/xyz' === $v2_status['domain']['domain_connect_url'], 'connect v2: the registrar one-click link is kept' );
+ok( 'Newsletter signup' === $v2_status['default_form']['name'], 'connect v2: the form name is cached for the checklist' );
+
+// A domain-connect link pointing anywhere but SendBeam is a phishing link
+// wearing the plugin's chrome. It never becomes a button.
+sb_v2_exchange( sb_v2_body( array( 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => false, 'records' => array(), 'domain_connect_url' => 'https://evil.example.com/dns' ) ) ) );
+ok( '' === get_transient( 'sendbeam_connect_status' )['domain']['domain_connect_url'], 'connect v2: a domain-connect link on another host is dropped' );
+sb_v2_exchange( sb_v2_body( array( 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => false, 'records' => array(), 'domain_connect_url' => 'http://sendbeam.io/dns' ) ) ) );
+ok( '' === get_transient( 'sendbeam_connect_status' )['domain']['domain_connect_url'], 'connect v2: an http domain-connect link is dropped' );
+
+// A form ID that is not a form ID never becomes this site's default.
+sb_v2_exchange( sb_v2_body( array( 'default_form' => array( 'id' => 'nonsense', 'name' => 'X' ) ) ) );
+ok( '' === sendbeam_settings()['default_form'], 'connect v2: a malformed default form ID is dropped, not stored' );
+
+// A verified domain: site email goes on, because consent asked for it.
+sb_v2_exchange( sb_v2_body( array( 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array(), 'checked_at' => '2026-09-23T15:04:05Z' ) ) ) );
+$v2 = sendbeam_settings();
+ok( ! empty( $v2['mail_enabled'] ), 'connect v2: site email IS switched on when the domain is already verified' );
+ok( empty( $v2['sendbeam_mail_deferred'] ), 'connect v2: nothing is held back once it is on' );
+
+// Without the transactional scope, nothing about site email is touched at all.
+sb_v2_exchange( sb_v2_body( array( 'scopes' => array( 'forms', 'domain' ), 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ) ) ) );
+$v2 = sendbeam_settings();
+ok( empty( $v2['mail_enabled'] ), 'connect v2: a verified domain does not switch on site email the key cannot send' );
+ok( '' === $v2['mail_from_name'], 'connect v2: the sender is not filled in for a key that cannot send' );
+
+// A form the site already chose is never repointed: an embed may be live on a page.
+sb_v2_exchange( sb_v2_body(), array( 'default_form' => $other ) );
+ok( $other === sendbeam_settings()['default_form'], 'connect v2: reconnecting does not repoint a form the site already chose' );
+
+// A From address the owner typed is theirs, not SendBeam's to overwrite.
+sb_v2_exchange( sb_v2_body(), array( 'mail_from_email' => 'orders@harbourlane.co.uk', 'mail_from_name' => 'Orders' ) );
+$v2 = sendbeam_settings();
+ok( 'orders@harbourlane.co.uk' === $v2['mail_from_email'] && 'Orders' === $v2['mail_from_name'], 'connect v2: a sender the owner set is left alone' );
+
+// ── /api/v1/connect/status ─────────────────────────────────────────────
 sb_connect_reset();
+delete_transient( 'sendbeam_connect_status' );
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_statusstatusstatus' ) );
+$GLOBALS['stub']['remote_reply'] = array(
+	'response' => array( 'code' => 200 ),
+	'body'     => json_encode(
+		array(
+			'workspace'    => array( 'id' => 'ws_1', 'name' => 'Harbour Lane' ),
+			'default_form' => array( 'id' => $form, 'name' => 'Newsletter signup' ),
+			'domain'       => array( 'name' => 'harbourlane.co.uk', 'verified' => false, 'records' => array( array( 'type' => 'TXT', 'name' => '_sendbeam', 'value' => 'v=sb1' ) ), 'checked_at' => '2026-09-23T15:04:05Z' ),
+			'sender'       => array( 'from_name' => 'Harbour Lane Roasters', 'from_email' => 'hello@harbourlane.co.uk' ),
+		)
+	),
+);
+$st = sendbeam_connect_status();
+ok( 1 === count( $GLOBALS['stub']['remote'] ), 'status: one request the first time' );
+ok( 'GET' === $GLOBALS['stub']['remote'][0]['method'], 'status: a plain read is a GET' );
+ok( 'https://sendbeam.io/api/v1/connect/status' === $GLOBALS['stub']['remote'][0]['url'], 'status: goes to the contract URL' );
+// SENDBEAM_API_KEY is defined earlier in this file, and a key in wp-config.php
+// deliberately beats the saved one — so that, not the option, is what travels.
+ok( SENDBEAM_API_KEY === $GLOBALS['stub']['remote'][0]['args']['headers']['x-api-key'], 'status: authenticates with the site\'s own key' );
+ok( $st['ok'] && 'harbourlane.co.uk' === $st['domain']['name'], 'status: the domain comes back' );
+
+sendbeam_connect_status();
+ok( 1 === count( $GLOBALS['stub']['remote'] ), 'status: the second read inside a minute is served from the cache' );
+
+$checked = sendbeam_connect_status( true );
+ok( 2 === count( $GLOBALS['stub']['remote'] ), 'status: a check bypasses the cache' );
+ok( 'POST' === $GLOBALS['stub']['remote'][1]['method'], 'status: a check is a POST' );
+ok( array( 'check_domain' => true ) === json_decode( $GLOBALS['stub']['remote'][1]['args']['body'], true ), 'status: a check asks for check_domain' );
+
+// The Overview renders for a site that was never connected: every key a
+// template reads is present, and nothing claims to be true.
+$st = sendbeam_connect_empty_status();
+ok( ! $st['ok'] && '' === $st['domain']['name'] && array() === $st['domain']['records'], 'status: an unconnected site gets the empty shape, not a missing key' );
+ok( '' === $st['workspace']['name'] && '' === $st['default_form']['id'] && '' === $st['sender']['from_email'], 'status: the empty shape has every key the Overview indexes into' );
+ok( array() === sendbeam_connect_normalise_status( 'not json' )['domain']['records'], 'status: a reply that is not an object normalises to empties rather than warning' );
+
+// A rejected key is reported, cached, and never crashes a template.
+sb_connect_reset();
+delete_transient( 'sendbeam_connect_status' );
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_revokedrevokedrevoked' ) );
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 401 ), 'body' => '{"error":"unauthorised"}' );
+$st = sendbeam_connect_status();
+ok( ! $st['ok'] && '' !== $st['error'], 'status: a rejected key is reported in plain words' );
+ok( '' === $st['sender']['from_name'] && '' === $st['default_form']['id'], 'status: a failure still returns every key a template reads' );
+sendbeam_connect_status();
+ok( 1 === count( $GLOBALS['stub']['remote'] ), 'status: a failure is cached too, so a revoked key is not retried on every page load' );
+
+// A 200 carrying nothing usable is a failure, not an answer: caching it as
+// one would blank the DNS records somebody is halfway through copying.
+sb_connect_reset();
+delete_transient( 'sendbeam_connect_status' );
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '<html>proxy error</html>' );
+$st = sendbeam_connect_status();
+ok( ! $st['ok'] && '' !== $st['error'], 'status: a 200 that is not JSON is treated as a failure, not as an empty workspace' );
+
+// ── Check now ──────────────────────────────────────────────────────────
+/** Drive an admin-post handler that ends in a redirect. */
+function sb_run_admin_post( $fn ) {
+	try {
+		$fn();
+	} catch ( SendBeamStubExit $e ) {
+		$GLOBALS['stub']['exit'] = $e->getMessage();
+	}
+	return isset( $GLOBALS['stub']['redirect']['url'] ) ? (string) $GLOBALS['stub']['redirect']['url'] : '';
+}
+
+/** A connected site with site email approved but held back. */
+function sb_deferred_site() {
+	sb_connect_reset();
+	delete_transient( 'sendbeam_connect_status' );
+	update_option(
+		'sendbeam_settings',
+		array(
+			'api_key'                  => 'sb_live_connectedconnectedxx',
+			'sendbeam_connected_via'   => 'connect',
+			'sendbeam_connect_granted' => 'forms,transactional:send,domain',
+			'sendbeam_mail_deferred'   => 1,
+			'mail_enabled'             => 0,
+		)
+	);
+	$_POST    = array( '_wpnonce' => 'nonce:sendbeam_domain_check' );
+	$_REQUEST = $_POST;
+}
+
+/** A status reply body with the domain verified or not. */
+function sb_status_body( $verified ) {
+	return json_encode(
+		array(
+			'workspace' => array( 'id' => 'ws_1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => $verified, 'records' => array(), 'checked_at' => '2026-09-23T15:04:05Z' ),
+			'sender'    => array( 'from_name' => 'Harbour Lane Roasters', 'from_email' => 'hello@harbourlane.co.uk' ),
+		)
+	);
+}
+
+sb_deferred_site();
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( false ) );
+$url = sb_run_admin_post( 'sendbeam_handle_domain_check' );
+has( $url, 'sendbeam_domain=pending', 'check: a domain that is still unverified says so' );
+ok( empty( sendbeam_settings()['mail_enabled'] ), 'check: an unverified domain never switches site email on' );
+ok( ! empty( sendbeam_settings()['sendbeam_mail_deferred'] ), 'check: site email stays held back' );
+
+sb_deferred_site();
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
+$url = sb_run_admin_post( 'sendbeam_handle_domain_check' );
+has( $url, 'sendbeam_domain=verified_mail', 'check: a verified domain finishes the job consent started' );
+$v2 = sendbeam_settings();
+ok( ! empty( $v2['mail_enabled'] ), 'check: site email goes on once the domain is verified' );
+ok( empty( $v2['sendbeam_mail_deferred'] ), 'check: nothing is left held back' );
+ok( 'hello@harbourlane.co.uk' === $v2['mail_from_email'], 'check: the workspace sender fills the empty From address' );
+
+// Site email switched off by hand is a decision. A later check must not undo it.
+sb_deferred_site();
+$off = sendbeam_sanitize_settings( array( '_tab' => 'mail' ) );
+update_option( 'sendbeam_settings', $off );
+ok( empty( $off['sendbeam_mail_deferred'] ), 'check: turning site email off by hand cancels the held-back switch-on' );
+$_POST                           = array( '_wpnonce' => 'nonce:sendbeam_domain_check' );
+$_REQUEST                        = $_POST;
+delete_transient( 'sendbeam_connect_status' );
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
+$url = sb_run_admin_post( 'sendbeam_handle_domain_check' );
+has( $url, 'sendbeam_domain=verified', 'check: a verified domain is still reported' );
+ok( empty( sendbeam_settings()['mail_enabled'] ), 'check: a verified domain does NOT re-enable site email the owner switched off' );
+
+// Nonce and capability.
+sb_deferred_site();
+$_POST    = array();
+$_REQUEST = array();
+sb_run_admin_post( 'sendbeam_handle_domain_check' );
+ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'check: no nonce, no check' );
+sb_deferred_site();
+$GLOBALS['stub']['caps']['manage_options'] = false;
+sb_run_admin_post( 'sendbeam_handle_domain_check' );
+ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'check: the capability is required' );
+
+// ── Switch on ──────────────────────────────────────────────────────────
+sb_deferred_site();
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_mail_switch_on' );
+$_REQUEST = $_POST;
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( false ) );
+$url = sb_run_admin_post( 'sendbeam_handle_mail_switch_on' );
+has( $url, 'sendbeam_mail=unverified', 'switch on: refuses while the domain is unverified' );
+ok( empty( sendbeam_settings()['mail_enabled'] ), 'switch on: nothing is enabled while the domain is unverified' );
+
+sb_deferred_site();
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_mail_switch_on' );
+$_REQUEST = $_POST;
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
+$url = sb_run_admin_post( 'sendbeam_handle_mail_switch_on' );
+has( $url, 'sendbeam_mail=on', 'switch on: turns site email on once the domain is verified' );
+ok( ! empty( sendbeam_settings()['mail_enabled'] ), 'switch on: site email is on' );
+
+// A key without the scope cannot be talked into it by a replayed form.
+sb_deferred_site();
+$noscope = sendbeam_settings();
+$noscope['sendbeam_connect_granted'] = 'forms';
+update_option( 'sendbeam_settings', $noscope );
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_mail_switch_on' );
+$_REQUEST = $_POST;
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
+$url = sb_run_admin_post( 'sendbeam_handle_mail_switch_on' );
+has( $url, 'sendbeam_mail=noscope', 'switch on: refuses a key that was never given the permission' );
+ok( empty( sendbeam_settings()['mail_enabled'] ), 'switch on: nothing is enabled without the permission' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'switch on: a key without the permission is not even asked about' );
+
+// ── Disconnect ─────────────────────────────────────────────────────────
+/** A connected site, armed for a disconnect. */
+function sb_connected_site() {
+	sb_connect_reset();
+	update_option(
+		'sendbeam_settings',
+		array(
+			'api_key'                    => 'sb_live_connectedconnectedxx',
+			'sendbeam_connected_via'     => 'connect',
+			'sendbeam_connect_workspace' => 'Harbour Lane',
+			'sendbeam_connect_granted'   => 'forms,transactional:send,domain',
+			'sendbeam_mail_deferred'     => 1,
+		)
+	);
+	set_transient( 'sendbeam_connect_status', sendbeam_connect_empty_status(), 60 );
+	$_POST    = array( '_wpnonce' => 'nonce:sendbeam_disconnect' );
+	$_REQUEST = $_POST;
+}
+
+sb_connected_site();
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 204 ), 'body' => '' );
+$url = sb_run_admin_post( 'sendbeam_connect_disconnect' );
+ok( 1 === count( $GLOBALS['stub']['remote'] ), 'disconnect: SendBeam is asked to revoke the key' );
+ok( 'https://sendbeam.io/api/v1/connect/disconnect' === $GLOBALS['stub']['remote'][0]['url'], 'disconnect: the revoke goes to the contract URL' );
+ok( 'POST' === $GLOBALS['stub']['remote'][0]['method'], 'disconnect: the revoke is a POST' );
+ok( SENDBEAM_API_KEY === $GLOBALS['stub']['remote'][0]['args']['headers']['x-api-key'], 'disconnect: the key revokes itself' );
+ok( 10 === $GLOBALS['stub']['remote'][0]['args']['timeout'], 'disconnect: the revoke has the short timeout the contract asks for' );
+$v2 = sendbeam_settings();
+ok( '' === $v2['api_key'], 'disconnect: the key is forgotten' );
+ok( '' === $v2['sendbeam_connected_via'] && '' === $v2['sendbeam_connect_workspace'], 'disconnect: the Connect marker and workspace name go with it' );
+ok( '' === $v2['sendbeam_connect_granted'] && empty( $v2['sendbeam_mail_deferred'] ), 'disconnect: the permissions and the held-back switch-on are forgotten' );
+ok( false === get_transient( 'sendbeam_connect_status' ), 'disconnect: the cached status is dropped' );
+has( $url, 'sendbeam_disconnected=ok', 'disconnect: the notice says the key was revoked' );
+
+// SendBeam unreachable: the site still forgets the key, and says so.
+sb_connected_site();
+$GLOBALS['stub']['remote_reply'] = new WP_Error( 'http_request_failed', 'cURL error 28' );
+$url = sb_run_admin_post( 'sendbeam_connect_disconnect' );
+ok( '' === sendbeam_settings()['api_key'], 'disconnect: an unreachable SendBeam still forgets the key here' );
+has( $url, 'sendbeam_disconnected=unreachable', 'disconnect: an unreachable SendBeam is reported so the key can be revoked by hand' );
+
+// A key SendBeam has already forgotten is not a live key.
+sb_connected_site();
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 401 ), 'body' => '{"error":"unauthorised"}' );
+$url = sb_run_admin_post( 'sendbeam_connect_disconnect' );
+has( $url, 'sendbeam_disconnected=ok', 'disconnect: a key SendBeam already rejects counts as revoked' );
+
+// Nonce and capability.
+sb_connected_site();
+$_POST    = array();
+$_REQUEST = array();
+sb_run_admin_post( 'sendbeam_connect_disconnect' );
+ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'disconnect: no nonce, no disconnect' );
+ok( 'sb_live_connectedconnectedxx' === sendbeam_settings()['api_key'], 'disconnect: a request with no nonce keeps the key' );
+sb_connected_site();
+$GLOBALS['stub']['caps']['manage_options'] = false;
+sb_run_admin_post( 'sendbeam_connect_disconnect' );
+ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'disconnect: the capability is required' );
+ok( 'sb_live_connectedconnectedxx' === sendbeam_settings()['api_key'], 'disconnect: a caller without the capability changes nothing' );
+
+// ── A blocked pop-up ───────────────────────────────────────────────────
+sb_connect_reset();
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_connect_start', 'sendbeam_popup' => '0' );
+$_REQUEST = $_POST;
+try {
+	sendbeam_connect_start();
+} catch ( SendBeamStubExit $e ) {
+	$GLOBALS['stub']['exit'] = $e->getMessage();
+}
+$blocked_state = get_transient( 'sendbeam_connect_7' );
+ok( isset( $blocked_state['popup'] ) && 0 === $blocked_state['popup'], 'pop-up blocked: the flow remembers it is happening in this tab' );
+
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_v2_body() );
+$_GET                            = array( 'state' => $blocked_state['state'], 'grant' => $sendbeam_good_grant );
+$blocked_html                    = sb_connect_run( 'sendbeam_connect_return' );
+has( $blocked_html, 'Connected', 'pop-up blocked: the connection still completes' );
+has( $blocked_html, 'Back to the site', 'pop-up blocked: the page offers a way back instead of a dead end' );
+lacks( $blocked_html, 'window.close()', 'pop-up blocked: nothing tries to close the tab the person is using' );
+lacks( $blocked_html, 'postMessage', 'pop-up blocked: there is no opener to message' );
+
+// The pop-up path is unchanged.
+sb_connect_reset();
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_connect_start', 'sendbeam_popup' => '1' );
+$_REQUEST = $_POST;
+try {
+	sendbeam_connect_start();
+} catch ( SendBeamStubExit $e ) {
+	$GLOBALS['stub']['exit'] = $e->getMessage();
+}
+$popup_state                     = get_transient( 'sendbeam_connect_7' );
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_v2_body() );
+$_GET                            = array( 'state' => $popup_state['state'], 'grant' => $sendbeam_good_grant );
+$popup_html                      = sb_connect_run( 'sendbeam_connect_return' );
+has( $popup_html, 'window.close()', 'pop-up: a real pop-up still closes itself' );
+has( $popup_html, 'Back to SendBeam settings', 'pop-up: the link underneath still points at the settings screen' );
+
+// The form carries the flag the script flips, and the script flips it.
+sb_connect_reset();
+ob_start();
+sendbeam_connect_panel();
+$panel_html = ob_get_clean();
+has( $panel_html, 'name="sendbeam_popup" value="0"', 'pop-up: the form defaults to "this tab" until the script says otherwise' );
+has( $panel_html, 'example-site.test', 'pop-up: the domain permission names this site\'s domain' );
+has( sendbeam_connect_admin_js(), 'sb-connect-popup', 'pop-up: the script sets the flag it was given' );
+
+// ── The Overview itself ────────────────────────────────────────────────
+// No test could see a settings screen before, which is how a permission
+// check or a form could drift on the page layer without anything noticing.
+// These render the real function and read the real HTML.
+
+/**
+ * Render the Overview for a site in a given state.
+ *
+ * @param array $settings Saved settings.
+ * @param array $status   Status payload, as the API would send it.
+ * @param array $get      Query arguments on the screen.
+ * @return string
+ */
+function sb_overview( $settings, $status, $get = array() ) {
+	$GLOBALS['stub']['caps']['manage_options'] = true;
+	$GLOBALS['stub']['user_id']                = 7;
+	$GLOBALS['stub']['current_user']           = array( 'email' => 'admin@example-site.test' );
+	$GLOBALS['stub']['remote']                 = array();
+	$_GET                                      = $get;
+	update_option( 'sendbeam_settings', $settings );
+	set_transient( 'sendbeam_connection', array( 'state' => '' === (string) ( $settings['api_key'] ?? '' ) ? 'none' : 'ok', 'message' => '', 'count' => 1 ) );
+	set_transient( 'sendbeam_remote_forms', array() );
+	set_transient( 'sendbeam_remote_lists', array() );
+	set_transient( 'sendbeam_subscriber_count', 0 );
+	set_transient( 'sendbeam_connect_status', sendbeam_connect_normalise_status( $status ), 60 );
+	ob_start();
+	sendbeam_screen_overview();
+	return ob_get_clean();
+}
+
+$sb_connected = array(
+	'api_key'                    => 'sb_live_connectedconnectedxx',
+	'sendbeam_connected_via'     => 'connect',
+	'sendbeam_connect_workspace' => 'Harbour Lane',
+	'sendbeam_connect_granted'   => 'forms,transactional:send,domain',
+	'sendbeam_mail_deferred'     => 1,
+);
+$sb_unverified = array(
+	'workspace'    => array( 'id' => 'ws_1', 'name' => 'Harbour Lane' ),
+	'default_form' => array( 'id' => $form, 'name' => 'Newsletter signup' ),
+	'domain'       => array(
+		'name'               => 'harbourlane.co.uk',
+		'verified'           => false,
+		'records'            => array(
+			array( 'type' => 'TXT', 'name' => '_sendbeam', 'value' => 'v=sb1 k=abc' ),
+			array( 'type' => 'MX', 'name' => 'send', 'value' => '10 feedback-smtp.eu-west-1.amazonses.com' ),
+		),
+		'domain_connect_url' => 'https://sendbeam.io/dc/1',
+		'checked_at'         => '2026-09-23T15:04:05Z',
+	),
+	'sender'       => array( 'from_name' => 'Harbour Lane', 'from_email' => 'hello@harbourlane.co.uk' ),
+);
+
+$ov = sb_overview( $sb_connected, $sb_unverified );
+has( $ov, 'Verify your sending domain', 'overview: the domain step is on the checklist' );
+has( $ov, 'Put a form on the site', 'overview: the form step is on the checklist' );
+has( $ov, 'Send this site&#039;s email through SendBeam', 'overview: the site email step is on the checklist' );
+has( $ov, 'v=sb1 k=abc', 'overview: the DNS records are shown, not linked to' );
+has( $ov, '10 feedback-smtp.eu-west-1.amazonses.com', 'overview: every record is shown' );
+has( $ov, 'data-copy="10 feedback-smtp.eu-west-1.amazonses.com"', 'overview: each record value has its own Copy button' );
+has( $ov, 'Check now', 'overview: the domain can be re-checked without leaving wp-admin' );
+has( $ov, 'value="sendbeam_domain_check"', 'overview: Check now posts to the check handler' );
+has( $ov, 'nonce:sendbeam_domain_check', 'overview: Check now carries a nonce' );
+has( $ov, 'Set up DNS automatically', 'overview: the registrar one-click button is offered' );
+has( $ov, 'https://sendbeam.io/dc/1', 'overview: the one-click button points at the link SendBeam sent' );
+has( $ov, 'target="_blank"', 'overview: the one-click button opens in a new tab' );
+has( $ov, 'Disconnect', 'overview: Disconnect is visible on the connected card' );
+has( $ov, 'value="sendbeam_disconnect"', 'overview: Disconnect posts to the disconnect handler' );
+has( $ov, 'nonce:sendbeam_disconnect', 'overview: Disconnect carries a nonce' );
+has( $ov, 'sb-confirm', 'overview: Disconnect is confirmed before it runs' );
+lacks( $ov, 'confirm(', 'overview: the confirmation is the plugin\'s own, not a browser dialog' );
+lacks( $ov, 'Switch on', 'overview: site email cannot be switched on while the domain is unverified' );
+has( $ov, 'Waiting on step 2', 'overview: the site email step says what it is waiting for' );
+lacks( $ov, 'sb_live_connectedconnectedxx', 'overview: the key is never printed on the screen' );
+
+$ov = sb_overview( $sb_connected, $sb_unverified, array( 'sendbeam_domain' => 'pending' ) );
+has( $ov, 'Not verified yet', 'overview: a check that found nothing says so at the top' );
+$ov = sb_overview( $sb_connected, $sb_unverified, array( 'sendbeam_disconnected' => 'unreachable' ) );
+has( $ov, 'revoke it under Settings', 'overview: a disconnect SendBeam never heard about says where to finish the job' );
+$ov = sb_overview( $sb_connected, $sb_unverified, array( 'sendbeam_domain' => '<script>alert(1)</script>' ) );
+lacks( $ov, 'alert(1)', 'overview: a notice name from the URL is not a message to print' );
+
+// Verified, site email approved but not yet on: one button.
+$sb_verified                        = $sb_unverified;
+$sb_verified['domain']['verified']  = true;
+$ov = sb_overview( $sb_connected, $sb_verified );
+has( $ov, 'Verified', 'overview: a verified domain is ticked off' );
+has( $ov, 'Switch on', 'overview: site email offers one button once the domain is verified' );
+has( $ov, 'value="sendbeam_mail_switch_on"', 'overview: Switch on posts to the switch-on handler' );
+has( $ov, 'nonce:sendbeam_mail_switch_on', 'overview: Switch on carries a nonce' );
+has( $ov, 'hello@harbourlane.co.uk', 'overview: Switch on says which address email will come from' );
+
+// Verified, but the key was never given the permission.
+$sb_noscope                             = $sb_connected;
+$sb_noscope['sendbeam_connect_granted'] = 'forms,domain';
+$ov = sb_overview( $sb_noscope, $sb_verified );
+lacks( $ov, 'Switch on', 'overview: no Switch on button for a key that cannot send' );
+has( $ov, 'not given permission to send', 'overview: the screen says the permission is what is missing' );
+
+// Site email already on: the test send is right there.
+$sb_on                 = $sb_connected;
+$sb_on['mail_enabled'] = 1;
+$ov = sb_overview( $sb_on, $sb_verified );
+has( $ov, 'Send a test email', 'overview: site email that is on offers the test send' );
+has( $ov, 'nonce:sendbeam_test_mail', 'overview: the test send carries a nonce' );
+
+// Never connected: the Connect button, and no checklist that pretends to know anything.
+$ov = sb_overview( array(), array() );
+has( $ov, 'Connect SendBeam', 'overview: an unconnected site gets the button' );
+has( $ov, 'I already have an API key', 'overview: pasting a key is still possible' );
+lacks( $ov, 'Check now', 'overview: nothing offers to check a domain that does not exist' );
+lacks( $ov, 'value="sendbeam_disconnect"', 'overview: nothing offers to disconnect what is not connected' );
+has( $ov, 'Connect the site first', 'overview: the domain step says to connect first' );
+
+sb_connect_reset();
+delete_transient( 'sendbeam_connect_status' );
+delete_transient( 'sendbeam_connection' );
+delete_transient( 'sendbeam_remote_forms' );
+delete_transient( 'sendbeam_remote_lists' );
+delete_transient( 'sendbeam_subscriber_count' );
 update_option( 'sendbeam_settings', array() );
 
 // One version number, five files. 1.6.2 shipped with the block's asset

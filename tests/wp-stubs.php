@@ -184,6 +184,21 @@ function wp_unschedule_hook( $hook ) {
 if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
 	define( 'MINUTE_IN_SECONDS', 60 );
 }
+if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
+	define( 'HOUR_IN_SECONDS', 3600 );
+}
+function esc_attr__( $s, $d = null ) { return esc_attr( $s ); }
+
+/**
+ * Enough of the Settings API to render a tab. The fields themselves are
+ * exercised elsewhere; what these let the smoke test see is the *screen* —
+ * which is the one layer no test could reach before, and the one where a
+ * missing function is a fatal error on a live wp-admin page.
+ */
+function do_settings_sections( $page ) { echo '<!--sections:' . esc_attr( $page ) . '-->'; }
+function settings_fields( $group ) { echo '<!--fields:' . esc_attr( $group ) . '-->'; }
+function submit_button( $text = '', $type = 'primary', $name = 'submit', $wrap = true ) { echo '<button type="submit">' . esc_html( $text ) . '</button>'; }
+function number_format_i18n( $n, $decimals = 0 ) { return number_format( (float) $n, (int) $decimals ); }
 function is_user_logged_in() { return ! empty( $GLOBALS['stub']['current_user'] ); }
 function get_the_ID() { return isset( $GLOBALS['stub']['post_id'] ) ? $GLOBALS['stub']['post_id'] : 0; }
 function wp_get_current_user() {
