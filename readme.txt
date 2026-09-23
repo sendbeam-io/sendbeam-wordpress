@@ -55,7 +55,7 @@ A SendBeam account (the Free plan is enough) with at least one form. Form IDs ar
 
 == Installation ==
 
-Five minutes, no code.
+Five minutes, no code. You need a SendBeam account first: it is free to start at [sendbeam.io/signup](https://sendbeam.io/signup), and the workspace it creates is where your forms, lists, campaigns and automations live.
 
 1. Install and activate the plugin, then open **Settings → SendBeam**. The Overview tab shows a three-step checklist and ticks each step off as you go.
 2. **Connect your account.** In SendBeam, go to Settings → API keys and create a key with the **Forms (read)** permission (add **Send site email** if you want WordPress email to go through SendBeam). Paste it on the Overview tab and save. The page confirms the connection and lists your workspace's forms.
