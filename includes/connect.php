@@ -523,9 +523,9 @@ function sendbeam_connect_panel() {
 	wp_nonce_field( 'sendbeam_connect_start' );
 	echo '<input type="hidden" name="action" value="sendbeam_connect_start" />';
 	echo '<p style="margin:0 0 6px"><strong>' . esc_html__( 'This site will ask SendBeam for permission to:', 'sendbeam' ) . '</strong></p>';
-	echo '<ul class="sb-scopes" style="margin:0 0 14px">';
+	echo '<ul class="sb-scopes">';
 	foreach ( sendbeam_connect_scopes() as $scope => $meta ) {
-		echo '<li><label>';
+		echo '<li><label class="sb-inline sb-scope">';
 		printf(
 			'<input type="checkbox" name="sendbeam_scopes[]" value="%s" checked="checked"%s /> ',
 			esc_attr( $scope ),
@@ -539,7 +539,7 @@ function sendbeam_connect_panel() {
 	}
 	echo '</ul>';
 	printf(
-		'<p><button type="submit" class="button button-primary">%s</button></p>',
+		'<p><button type="submit" class="sb-btn">%s</button></p>',
 		esc_html__( 'Connect SendBeam', 'sendbeam' )
 	);
 	echo '</form>';

@@ -230,6 +230,17 @@ function sendbeam_admin_css() {
 	.sb-rule__foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
 		margin-top:14px;padding-top:12px;border-top:1px solid #d8d6d0}
 	.sb-inline{display:inline-flex;align-items:center;gap:6px;font-size:13px}
+	/* Connect: the permission list. The plugin colour on the native box, the
+	   box aligned to the first line of a label that may wrap on a phone. */
+	.sb-scopes{list-style:none;margin:0 0 14px;padding:0}
+	.sb-scopes li{margin:0 0 8px}
+	.sb-scope{align-items:flex-start;line-height:1.4}
+	.sb-scope input[type=checkbox]{margin:2px 0 0;flex:0 0 auto;border-color:#121212;border-radius:0}
+	.sb-scope input[type=checkbox]:checked::before{content:url("data:image/svg+xml;utf8,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 20 20%27%3E%3Cpath d=%27M14.83 4.89l1.34.94-5.81 8.38H9.02L5.78 9.67l1.34-1.25 2.57 2.4z%27 fill=%27%23121212%27/%3E%3C/svg%3E")}
+	.sb-scope input[type=checkbox]:checked,.sb-scope input[type=checkbox]:disabled{background:#fff;opacity:1}
+	.sb-scope input[type=checkbox]:disabled:checked::before{opacity:1}
+	.sb-scope input[type=checkbox]:focus{box-shadow:0 0 0 1px #121212}
+	.sb-scope .sb-note{margin-left:4px}
 	.sb-rule [hidden]{display:none!important}
 
 	.sb-doc h3{font-size:14px;margin:0 0 6px}
