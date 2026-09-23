@@ -12,7 +12,7 @@ Newsletter signup forms, pop-ups, opt-ins at registration and checkout, and your
 
 == Description ==
 
-[SendBeam](https://sendbeam.io) is email marketing for people who run more than one website: one account, a workspace per site, and a plan that counts subscribers across all of them.
+[SendBeam](https://sendbeam.io) is email marketing for people who run more than one website: one account, a workspace per site, and a plan that counts subscribers across all of them. Every signup this plugin collects joins a list in SendBeam, where campaigns and automations pick it up — the forms and pop-ups are the front door, not the whole house.
 
 This plugin puts your SendBeam forms on a WordPress site without copying embed code around:
 
