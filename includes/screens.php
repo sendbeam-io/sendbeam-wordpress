@@ -578,6 +578,43 @@ function sendbeam_popup_row( $i, $rule ) {
 					placeholder="<?php esc_attr_e( 'One email a month. Unsubscribe any time.', 'sendbeam' ); ?>" class="regular-text" style="width:100%" />
 			</label>
 
+			<label>
+				<span class="sb-label"><?php esc_html_e( 'Style', 'sendbeam' ); ?></span>
+				<select name="<?php echo esc_attr( $name ); ?>[style]">
+					<?php foreach ( sendbeam_popup_styles() as $k => $v ) : ?>
+						<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $rule['style'], $k ); ?>><?php echo esc_html( $v ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</label>
+
+			<label style="grid-column:1/-1">
+				<span class="sb-label"><?php esc_html_e( 'Image', 'sendbeam' ); ?></span>
+				<span style="display:flex;gap:8px;align-items:center">
+					<input type="url" name="<?php echo esc_attr( $name ); ?>[image]" value="<?php echo esc_attr( $rule['image'] ); ?>"
+						placeholder="https://example.com/wp-content/uploads/letter.jpg" class="regular-text sb-image" style="width:100%" />
+					<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-image-pick"><?php esc_html_e( 'Choose', 'sendbeam' ); ?></button>
+				</span>
+				<span class="sb-note" style="display:block;margin-top:4px"><?php esc_html_e( 'Shown beside the form in the split and slide-in styles. Pick one from your Media Library, or paste an https address.', 'sendbeam' ); ?></span>
+			</label>
+
+			<label>
+				<span class="sb-label"><?php esc_html_e( 'Eyebrow', 'sendbeam' ); ?></span>
+				<input type="text" maxlength="40" name="<?php echo esc_attr( $name ); ?>[eyebrow]" value="<?php echo esc_attr( $rule['eyebrow'] ); ?>" class="regular-text" />
+				<span class="sb-note" style="display:block;margin-top:4px"><?php esc_html_e( 'A short label above the headline, e.g. Monthly · Free', 'sendbeam' ); ?></span>
+			</label>
+
+			<label>
+				<span class="sb-label"><?php esc_html_e( 'Button label', 'sendbeam' ); ?></span>
+				<input type="text" maxlength="30" name="<?php echo esc_attr( $name ); ?>[button]" value="<?php echo esc_attr( $rule['button'] ); ?>"
+					placeholder="<?php esc_attr_e( 'Subscribe', 'sendbeam' ); ?>" class="regular-text" />
+			</label>
+
+			<label class="sb-inline" style="grid-column:1/-1;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+				<input type="checkbox" name="<?php echo esc_attr( $name ); ?>[proof]" value="1" <?php checked( ! empty( $rule['proof'] ) ); ?> />
+				<span><?php esc_html_e( 'Show subscriber count', 'sendbeam' ); ?></span>
+				<span class="sb-note"><?php esc_html_e( 'Shows "Joined by N readers" once the list has 50 people.', 'sendbeam' ); ?></span>
+			</label>
+
 			<label class="sb-when-button" <?php echo 'button' === $rule['trigger'] ? '' : 'hidden'; ?>>
 				<span class="sb-label"><?php esc_html_e( 'Button label', 'sendbeam' ); ?></span>
 				<input type="text" name="<?php echo esc_attr( $name ); ?>[label]" value="<?php echo esc_attr( $rule['label'] ); ?>" placeholder="<?php esc_attr_e( 'Subscribe', 'sendbeam' ); ?>" class="regular-text" />

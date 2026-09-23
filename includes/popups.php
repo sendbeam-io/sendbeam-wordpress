@@ -40,6 +40,21 @@ function sendbeam_popup_defaults() {
 		'once'    => 'day',
 		'where'   => 'everywhere',
 		'url'     => '',
+		'style'   => 'split',
+		'image'   => '',
+		'eyebrow' => '',
+		'button'  => '',
+		'proof'   => 0,
+	);
+}
+
+/** Pop-up styles. @return array<string,string> */
+function sendbeam_popup_styles() {
+	return array(
+		'split'     => __( 'Split with image', 'sendbeam' ),
+		'editorial' => __( 'Editorial', 'sendbeam' ),
+		'bold'      => __( 'Bold colour', 'sendbeam' ),
+		'slide'     => __( 'Slide-in', 'sendbeam' ),
 	);
 }
 
@@ -146,6 +161,19 @@ function sendbeam_clean_popup( $raw ) {
 	$out['heading'] = isset( $raw['heading'] ) ? mb_substr( sanitize_text_field( wp_unslash( $raw['heading'] ) ), 0, 80 ) : '';
 	$out['blurb']   = isset( $raw['blurb'] ) ? mb_substr( sanitize_text_field( wp_unslash( $raw['blurb'] ) ), 0, 200 ) : '';
 	$out['url']     = isset( $raw['url'] ) ? sanitize_text_field( wp_unslash( $raw['url'] ) ) : '';
+
+	$style        = isset( $raw['style'] ) ? sanitize_key( $raw['style'] ) : '';
+	$out['style'] = isset( sendbeam_popup_styles()[ $style ] ) ? $style : $d['style'];
+
+	// An image is only ever loaded over https: a pop-up on a secure page that
+	// pulls a picture over http is a mixed-content warning, not a design.
+	$image        = isset( $raw['image'] ) ? esc_url_raw( trim( (string) wp_unslash( $raw['image'] ) ) ) : '';
+	$out['image'] = 0 === strpos( (string) $image, 'https://' ) ? $image : '';
+
+	// Short by design: these sit above and inside the pop-up's own card.
+	$out['eyebrow'] = isset( $raw['eyebrow'] ) ? mb_substr( sanitize_text_field( wp_unslash( $raw['eyebrow'] ) ), 0, 40 ) : '';
+	$out['button']  = isset( $raw['button'] ) ? mb_substr( sanitize_text_field( wp_unslash( $raw['button'] ) ), 0, 30 ) : '';
+	$out['proof']   = empty( $raw['proof'] ) ? 0 : 1;
 
 	return $out;
 }

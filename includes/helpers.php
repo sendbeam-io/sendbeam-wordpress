@@ -142,9 +142,11 @@ function sendbeam_appearance_args() {
  * The pop-up loader script for a form.
  *
  * @param string $form_id Form ID.
+ * @param array  $popup   The pop-up rule, when there is one: its own look is
+ *                        hashed alongside the site-wide appearance.
  * @return string
  */
-function sendbeam_popup_script_url( $form_id ) {
+function sendbeam_popup_script_url( $form_id, $popup = array() ) {
 	$url = sendbeam_app_url() . '/f/' . rawurlencode( strtolower( $form_id ) ) . '/popup.js';
 
 	// The loader is served with a four-hour public cache and no version in its
@@ -152,6 +154,16 @@ function sendbeam_popup_script_url( $form_id ) {
 	// returning visitor until their browser felt like asking again. Hashing the
 	// appearance (and the plugin version) means the URL changes exactly when
 	// the result would change, and stays cacheable the rest of the time.
-	$stamp = substr( md5( SENDBEAM_VERSION . wp_json_encode( sendbeam_appearance_args() ) ), 0, 8 );
+	// The per-pop-up look — style, image, eyebrow, button label, count — goes
+	// into the same fingerprint, so switching a pop-up from split to bold
+	// reaches a visitor who already has the old loader cached.
+	$look = array();
+	foreach ( array( 'style', 'image', 'eyebrow', 'button', 'proof' ) as $key ) {
+		if ( isset( $popup[ $key ] ) ) {
+			$look[ $key ] = (string) $popup[ $key ];
+		}
+	}
+
+	$stamp = substr( md5( SENDBEAM_VERSION . wp_json_encode( sendbeam_appearance_args() ) . wp_json_encode( $look ) ), 0, 8 );
 	return add_query_arg( 'v', $stamp, $url );
 }
