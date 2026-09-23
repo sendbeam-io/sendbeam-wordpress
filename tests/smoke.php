@@ -1174,13 +1174,20 @@ ok( empty( sendbeam_settings()['mail_enabled'] ), 'switch on: nothing is enabled
 ok( empty( $GLOBALS['stub']['remote'] ), 'switch on: a key without the permission is not even asked about' );
 
 // ── Disconnect ─────────────────────────────────────────────────────────
-/** A connected site, armed for a disconnect. */
+/**
+ * A connected site, armed for a disconnect.
+ *
+ * The saved key is SENDBEAM_API_KEY's value on purpose. This file defines
+ * that constant earlier, and a key in wp-config.php beats the saved one — so
+ * a site where the two differ is a site whose live key Connect never issued,
+ * which has its own test below.
+ */
 function sb_connected_site() {
 	sb_connect_reset();
 	update_option(
 		'sendbeam_settings',
 		array(
-			'api_key'                    => 'sb_live_connectedconnectedxx',
+			'api_key'                    => SENDBEAM_API_KEY,
 			'sendbeam_connected_via'     => 'connect',
 			'sendbeam_connect_workspace' => 'Harbour Lane',
 			'sendbeam_connect_granted'   => 'forms,transactional:send,domain',
@@ -1220,18 +1227,31 @@ $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 401 ), 
 $url = sb_run_admin_post( 'sendbeam_connect_disconnect' );
 has( $url, 'sendbeam_disconnected=ok', 'disconnect: a key SendBeam already rejects counts as revoked' );
 
+// A key defined in wp-config.php is not this button's to revoke: it beats the
+// saved key everywhere, so revoking it would take down something Connect
+// never issued and something else is probably using.
+sb_connected_site();
+$const_site            = sendbeam_settings();
+$const_site['api_key'] = 'sb_live_storedbutnotusedxxx';
+update_option( 'sendbeam_settings', $const_site );
+$GLOBALS['stub']['remote'] = array();
+$url = sb_run_admin_post( 'sendbeam_connect_disconnect' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'disconnect: a key from wp-config.php is never revoked by this button' );
+ok( '' === sendbeam_settings()['api_key'], 'disconnect: the stored key is still forgotten' );
+has( $url, 'sendbeam_disconnected=constant', 'disconnect: the screen is told the live key is in wp-config.php' );
+
 // Nonce and capability.
 sb_connected_site();
 $_POST    = array();
 $_REQUEST = array();
 sb_run_admin_post( 'sendbeam_connect_disconnect' );
 ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'disconnect: no nonce, no disconnect' );
-ok( 'sb_live_connectedconnectedxx' === sendbeam_settings()['api_key'], 'disconnect: a request with no nonce keeps the key' );
+ok( SENDBEAM_API_KEY === sendbeam_settings()['api_key'], 'disconnect: a request with no nonce keeps the key' );
 sb_connected_site();
 $GLOBALS['stub']['caps']['manage_options'] = false;
 sb_run_admin_post( 'sendbeam_connect_disconnect' );
 ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'disconnect: the capability is required' );
-ok( 'sb_live_connectedconnectedxx' === sendbeam_settings()['api_key'], 'disconnect: a caller without the capability changes nothing' );
+ok( SENDBEAM_API_KEY === sendbeam_settings()['api_key'], 'disconnect: a caller without the capability changes nothing' );
 
 // ── A blocked pop-up ───────────────────────────────────────────────────
 sb_connect_reset();

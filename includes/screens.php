@@ -129,6 +129,7 @@ function sendbeam_overview_notices() {
 		'gone'   => array(
 			'ok'          => array( 'ok', __( 'Disconnected. The key was revoked in SendBeam.', 'sendbeam' ) ),
 			'unreachable' => array( 'warn', __( 'Disconnected, but this server could not reach SendBeam; revoke it under Settings → API keys.', 'sendbeam' ) ),
+			'constant'    => array( 'warn', __( 'Disconnected here, and nothing was revoked: this site sends with the key defined as SENDBEAM_API_KEY in wp-config.php, which is not the one this button issued. Remove it there, and revoke it under Settings → API keys.', 'sendbeam' ) ),
 		),
 	);
 

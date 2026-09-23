@@ -578,12 +578,25 @@ function sendbeam_connect_disconnect() {
 	}
 	check_admin_referer( 'sendbeam_disconnect' );
 
-	$revoked = false;
-	if ( '' !== sendbeam_api_key() ) {
+	/*
+	 * SENDBEAM_API_KEY in wp-config.php beats the stored key everywhere,
+	 * including here — so on a site that defines it, POST /connect/disconnect
+	 * would revoke *that* key, which this button never issued and which is
+	 * very likely shared with something else. A key this site does not store
+	 * is not this site's to revoke: it is left alone, the stored one is
+	 * forgotten, and the screen says where the live one is.
+	 */
+	$stored   = (string) sendbeam_settings()['api_key'];
+	$constant = ( defined( 'SENDBEAM_API_KEY' ) && SENDBEAM_API_KEY ) ? (string) SENDBEAM_API_KEY : '';
+	$note     = 'unreachable';
+
+	if ( '' !== $constant && $constant !== $stored ) {
+		$note = 'constant';
+	} elseif ( '' !== sendbeam_api_key() ) {
 		$result = sendbeam_api_post( '/api/v1/connect/disconnect', array(), 10 );
 		// A key SendBeam has already forgotten is a key that is not live, so
 		// 401 counts as revoked rather than as a failure to report.
-		$revoked = $result['ok'] || 401 === $result['status'];
+		$note = ( $result['ok'] || 401 === $result['status'] ) ? 'ok' : 'unreachable';
 	}
 
 	$settings                               = sendbeam_settings();
@@ -597,7 +610,7 @@ function sendbeam_connect_disconnect() {
 	sendbeam_flush_cache();
 	sendbeam_connect_forget_status();
 
-	wp_safe_redirect( add_query_arg( 'sendbeam_disconnected', $revoked ? 'ok' : 'unreachable', sendbeam_tab_url( 'overview' ) ) );
+	wp_safe_redirect( add_query_arg( 'sendbeam_disconnected', $note, sendbeam_tab_url( 'overview' ) ) );
 	exit;
 }
 
