@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.1
+Stable tag: 1.8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,6 +19,7 @@ This plugin puts your SendBeam forms on a WordPress site without copying embed c
 * **SendBeam Form block** — pick a form, set a height, done. Works in posts, pages, templates and the site editor.
 * **Shortcodes** — `[sendbeam_form id="…"]`, `[sendbeam_contact]` and `[sendbeam_popup_button]` for widgets, page builders and the classic editor.
 * **Pop-up** — show a signup form in a modal after a delay or from a floating button, on every page, posts only, pages only or the home page; hidden for a day, a week or for good once a visitor closes it.
+* **Pop-up styles** — four looks for the modal: split with image, editorial, bold colour and slide-in, each with its own image, eyebrow, button label and optional subscriber count, chosen per pop-up.
 * **A default form** — set it once under Settings → SendBeam and every block and shortcode without an ID uses it.
 * **Form plugins** — send the people who fill in forms built with Contact Form 7, Elementor Pro, WPForms, Gravity Forms or Fluent Forms to SendBeam, onto the list and with the tag you choose. Switched on form by form, and only for people who ticked your consent field or filled in a form you marked as a signup form.
 * **Site email** — send everything WordPress sends with `wp_mail()` (WooCommerce order confirmations, password resets, form and comment notifications, plugin alerts) through your verified SendBeam domain. No SMTP host, port or password: one API key, one switch, a test button and a log of recent results.
@@ -123,6 +124,9 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 7. The Site email tab, which routes wp_mail() through SendBeam.
 
 == Changelog ==
+
+= 1.8.2 =
+* Pop-ups come in four styles — split with image, editorial, bold colour and slide-in — with an image, an eyebrow, a button label and an optional subscriber count, set per pop-up.
 
 = 1.8.1 =
 * Corrected the privacy policy and terms links in this readme, which pointed at pages that no longer exist.
