@@ -481,6 +481,7 @@ function sendbeam_connect_store_key( $api_key, $workspace, $data = array() ) {
 	// The form SendBeam made during consent becomes this site's default, but
 	// only when the site has not already chosen one: a reconnect must not
 	// quietly repoint an embed that is already live on a page.
+	$clean['sendbeam_connect_notes'] = isset( $status['notes'] ) && is_array( $status['notes'] ) ? array_values( $status['notes'] ) : array();
 	if ( '' === trim( (string) $clean['default_form'] ) && sendbeam_is_form_id( $status['default_form']['id'] ) ) {
 		$clean['default_form'] = strtolower( $status['default_form']['id'] );
 	}
@@ -603,6 +604,7 @@ function sendbeam_connect_disconnect() {
 	$settings['api_key']                    = '';
 	$settings['sendbeam_connected_via']     = '';
 	$settings['sendbeam_connect_workspace'] = '';
+	$settings['sendbeam_connect_notes']     = array();
 	$settings['sendbeam_connect_granted']   = '';
 	$settings['sendbeam_mail_deferred']     = 0;
 	update_option( 'sendbeam_settings', $settings );

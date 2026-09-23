@@ -105,6 +105,16 @@ function sendbeam_connect_normalise_status( $data ) {
 		$out['workspace']['name'] = isset( $data['workspace']['name'] ) ? sanitize_text_field( (string) $data['workspace']['name'] ) : '';
 	}
 
+	// What SendBeam could not set up, in its words, so step 2 can say why.
+	$out['notes'] = array();
+	if ( isset( $data['notes'] ) && is_array( $data['notes'] ) ) {
+		foreach ( array_slice( $data['notes'], 0, 3 ) as $note ) {
+			if ( is_string( $note ) && '' !== trim( $note ) ) {
+				$out['notes'][] = mb_substr( sanitize_text_field( $note ), 0, 200 );
+			}
+		}
+	}
+
 	// A form ID that is not a form ID is dropped rather than stored: it would
 	// become this site's default form and every embed would 404.
 	if ( isset( $data['default_form'] ) && is_array( $data['default_form'] ) && sendbeam_is_form_id( isset( $data['default_form']['id'] ) ? $data['default_form']['id'] : null ) ) {

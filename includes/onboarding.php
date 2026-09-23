@@ -135,7 +135,11 @@ function sendbeam_setup_steps() {
 		/* translators: %s: the sending domain, e.g. harbourlane.co.uk */
 		$domain_detail = sprintf( __( 'Add these records to the DNS for %s, then press Check now. Until they are in place SendBeam cannot send as you.', 'sendbeam' ), $domain['name'] );
 	} else {
-		$domain_detail = __( 'No sending domain yet. Add one under Sending in SendBeam.', 'sendbeam' );
+		$notes = isset( $settings['sendbeam_connect_notes'] ) && is_array( $settings['sendbeam_connect_notes'] ) ? $settings['sendbeam_connect_notes'] : array();
+		$domain_detail = $notes
+			/* translators: %s: SendBeam's own explanation, e.g. a plan cap on sending domains */
+			? sprintf( __( 'SendBeam could not set the domain up: %s Add it under Sending in SendBeam, then press Check now.', 'sendbeam' ), rtrim( (string) $notes[0], '.' ) . '.' )
+			: __( 'No sending domain yet. Add one under Sending in SendBeam.', 'sendbeam' );
 	}
 
 	$placed = ( $using_form || $using_popup ) ? sendbeam_form_is_placed() : false;

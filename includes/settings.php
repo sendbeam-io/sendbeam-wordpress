@@ -243,6 +243,7 @@ function sendbeam_sanitize_settings( $input ) {
 		sendbeam_flush_cache();
 		$out['sendbeam_connected_via']     = '';
 		$out['sendbeam_connect_workspace'] = '';
+		$out['sendbeam_connect_notes']     = array();
 		// The permissions and the held-back site email belonged to the old
 		// key. A pasted key's permissions are unknown, and claiming the old
 		// ones would offer buttons that cannot work.
