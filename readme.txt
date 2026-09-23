@@ -58,10 +58,11 @@ A SendBeam account (the Free plan is enough) with at least one form. Form IDs ar
 Five minutes, no code. You need a SendBeam account first: it is free to start at [sendbeam.io/signup](https://sendbeam.io/signup), and the workspace it creates is where your forms, lists, campaigns and automations live.
 
 1. Install and activate the plugin, then open **Settings → SendBeam**. The Overview tab shows a three-step checklist and ticks each step off as you go.
-2. **Connect your account.** In SendBeam, go to Settings → API keys and create a key with the **Forms (read)** permission (add **Send site email** if you want WordPress email to go through SendBeam). Paste it on the Overview tab and save. The page confirms the connection and lists your workspace's forms.
-3. **Choose a default form** on the Forms tab. Every SendBeam Form block and `[sendbeam_form]` shortcode without an ID uses it.
-4. **Put it on the site.** Add the **SendBeam Form** block to a post, page or template, or drop `[sendbeam_form]` anywhere shortcodes work. The form appears exactly as it is set up in SendBeam.
-5. **Optional, when you want them:** a pop-up on the Pop-ups tab (pick a form, where it shows, when it opens, and one of four styles), opt-in boxes at registration, comments and checkout on the Audience tab, and your site's own email on the Site email tab, each with a test button.
+2. **Verify your sending domain** in SendBeam under Settings → Sending: add the DNS records it shows and press verify. Forms work without this, but nothing is sent from your own address, whether a campaign, an automation or your site's email, until the domain is verified.
+3. **Connect your account.** In SendBeam, go to Settings → API keys and create a key with the **Forms (read)** permission (add **Send site email** if you want WordPress email to go through SendBeam). Paste it on the Overview tab and save. The page confirms the connection and lists your workspace's forms.
+4. **Choose a default form** on the Forms tab. Every SendBeam Form block and `[sendbeam_form]` shortcode without an ID uses it.
+5. **Put it on the site.** Add the **SendBeam Form** block to a post, page or template, or drop `[sendbeam_form]` anywhere shortcodes work. The form appears exactly as it is set up in SendBeam.
+6. **Optional, when you want them:** a pop-up on the Pop-ups tab (pick a form, where it shows, when it opens, and one of four styles), opt-in boxes at registration, comments and checkout on the Audience tab, and your site's own email on the Site email tab, each with a test button.
 
 Stuck? The Docs tab inside the plugin opens the guide for whichever tab you are on.
 
