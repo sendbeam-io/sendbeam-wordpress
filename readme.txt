@@ -45,6 +45,8 @@ This plugin talks to SendBeam (sendbeam.io) in six distinct ways. Nothing is sen
 
 **6. Connecting this site to SendBeam** (only when you press the Connect SendBeam button). A window opens on `https://sendbeam.io/connect/wordpress` carrying this site's address, its title, your WordPress administrator email address — used only to fill in the signup or sign-in form, so you do not type it again — and the list of permissions this site is asking for. If you do not already have a SendBeam account you create one there, on sendbeam.io; account creation never happens on your site and your SendBeam password is never seen by WordPress. When you approve, your server makes one call to `https://sendbeam.io/api/v1/connect/exchange` and receives an API key for this site with exactly the permissions you ticked. The key is stored in this site's options table, the same place a pasted key goes. Press nothing and nothing is sent.
 
+What SendBeam does at that moment, in your workspace, is decided by the boxes you tick: if you leave the sending-domain box ticked it adds this site's domain as a sending domain so its DNS records exist for you to copy, and if the workspace has no signup form yet it creates a list called Subscribers and a form called Newsletter signup on it. Afterwards, while a site administrator has the SendBeam settings page open, your server reads `https://sendbeam.io/api/v1/connect/status` with this site's key to show the domain's records and whether it is verified; the answer is cached for a minute. Pressing **Check now** posts to the same address to ask for the DNS to be looked up again. Pressing **Disconnect** posts to `https://sendbeam.io/api/v1/connect/disconnect`, which revokes this site's key in SendBeam, and then the key is deleted from this site.
+
 **Site email** (off by default) posts each email your site sends from your server to `https://sendbeam.io/api/v1/transactional` with your API key: the recipient addresses, subject, body and reply-to, so SendBeam can deliver it from your verified domain. Messages with attachments are left to the server's own mailer.
 
 **E-commerce events** (off by default, each of the three switched on separately, WooCommerce only) posts to `https://sendbeam.io/api/v1/ecommerce/events` with your API key: an email address, and depending on the event a name, an order total and its currency. Order placed sends when an order is completed. Product viewed sends only when the visitor is a known contact (logged in, or an email already given this visit) — never for an anonymous visitor. Cart abandoned is a best-effort heuristic: adding an item to the cart is timestamped locally on your server, and if no order has followed within a window you set (60 minutes by default) and an email became known at some point, one event is sent; nothing is sent for a cart nobody's email was ever known for.
@@ -59,8 +61,9 @@ A SendBeam account (the Free plan is enough) with at least one form. Form IDs ar
 
 1. Install and activate the plugin.
 2. Go to **Settings → SendBeam** and click **Connect SendBeam**. Create your account or sign in in the window that opens, tick what this site may do, and the key arrives on its own — there is nothing to copy. If you already have an API key, "I already have an API key" on the same screen still takes one.
-3. Pick your signup form (and, if you like, a contact form and a pop-up form) from the dropdown of your own forms.
-4. Add the **SendBeam Form** block to a post or page, or use `[sendbeam_form]` anywhere shortcodes work.
+3. Verify your sending domain — the plugin shows the records, or sets them up for you where your registrar supports it. Copy each value into your DNS, press **Check now**, and the step ticks itself off. Nothing SendBeam sends for you leaves your own domain until this is done.
+4. Pick your signup form (and, if you like, a contact form and a pop-up form) from the dropdown of your own forms.
+5. Add the **SendBeam Form** block to a post or page, or use `[sendbeam_form]` anywhere shortcodes work.
 
 == Frequently Asked Questions ==
 
@@ -130,6 +133,11 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 
 = 1.8.3 =
 * **Connect SendBeam.** One button on the Overview tab replaces making an account, finding the API keys screen, working out which permissions to give and pasting the key back. You tick what this site may do, create your account or sign in on sendbeam.io in a pop-up, and the site is handed a key with exactly those permissions. Pasting a key by hand still works, under "I already have an API key".
+* Connecting can now set up your sending domain as well: tick the box and SendBeam adds this site's domain, and the Overview shows you the DNS records with a Copy button on every value, a **Check now** button, and a **Set up DNS automatically** button where your registrar supports it.
+* The set-up checklist has four steps rather than three, with verifying your sending domain second — it is what everything else depends on, and it used to be buried under "optional".
+* Site email can be switched on from the Overview in one click, but only once the sending domain is verified. A site's password resets should never start going out through a domain that has not been set up.
+* **Disconnect** is now a visible button on the Overview, and it revokes the key in SendBeam before forgetting it here. Before, it only forgot this site's copy and left the key live in your account.
+* If your browser blocks the pop-up, connecting now carries on in the same tab and offers a link back instead of a blank window.
 
 = 1.8.2 =
 * Pop-ups come in four styles — split with image, editorial, bold colour and slide-in — with an image, an eyebrow, a button label and an optional subscriber count, set per pop-up.

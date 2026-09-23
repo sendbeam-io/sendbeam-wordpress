@@ -33,11 +33,20 @@ cd sendbeam-wordpress && bin/build-zip.sh     # → build/sendbeam.zip
 Then Settings → SendBeam and press **Connect SendBeam**. The button opens a window on sendbeam.io where you
 create your account or sign in — the site's name and your administrator email address are already filled in —
 and tick what this site may do: show your forms, add people who opt in, send the site's own email, send
-WooCommerce events. Approve, and this site is handed an API key with exactly those permissions. The key never
-passes through the browser: the window comes back with a single-use grant bound to this site's address and to
-the `state` this site minted, and your server swaps it for the key in one call. Nothing is sent to SendBeam
-until you press the button. If you already have a key, "I already have an API key" on the same screen still
-takes one. Forms are then picked from a dropdown of the connected workspace's own forms — no IDs to copy.
+WooCommerce events, set up this site's sending domain. Approve, and this site is handed an API key with
+exactly those permissions. The key never passes through the browser: the window comes back with a single-use
+grant bound to this site's address and to the `state` this site minted, and your server swaps it for the key
+in one call. Nothing is sent to SendBeam until you press the button. If you already have a key, "I already
+have an API key" on the same screen still takes one. Forms are then picked from a dropdown of the connected
+workspace's own forms — no IDs to copy.
+
+Leaving the sending-domain box ticked does the next piece of setting up for you. SendBeam adds this site's
+domain to the workspace, and the Overview's second step shows its DNS records with a Copy button on every
+value, a **Check now** button that re-runs the check without leaving wp-admin, and a **Set up DNS
+automatically** button where your registrar supports one-click set-up. Site email fills in its sender from the
+workspace but only switches on once that domain is verified — a site should never have its password resets
+quietly routed through a domain nothing has set up yet. **Disconnect**, on the connected card, revokes the key
+in SendBeam first and then forgets it here.
 
 ## API key permissions
 
@@ -49,6 +58,7 @@ Only what you use. Placing a form or a pop-up needs no key at all.
 | `lists:read` | The Audience tab and its subscriber counts |
 | `contacts:read`, `contacts:write`, `lists:write` | The opt-in box at registration, comments or checkout |
 | `transactional:send` | Site email |
+| `domains:read` | The sending-domain step: its DNS records, and **Check now** |
 
 Paste the key in the settings, or define `SENDBEAM_API_KEY` in `wp-config.php` to keep it out of the database.
 
