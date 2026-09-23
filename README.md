@@ -67,12 +67,14 @@ than supplied as a font stack. The same appearance is carried into pop-ups.
 ## Pop-ups
 
 Add as many as you like. Rules are ordered and **the first that matches a page wins**, so two pop-ups can
-never argue over one visitor.
+never argue over one visitor. Each one picks its own look — split with an image, editorial, bold colour or a
+slide-in — along with an eyebrow, a button label and an optional subscriber count.
 
 | Setting | Values |
 | --- | --- |
 | Show on | Every page · Home page · Single posts · Pages · Address contains… |
 | Open | After a delay · Scroll depth · Exit intent · Floating button · Only from a button I place |
+| Style | Split with image · Editorial · Bold colour · Slide-in — each with its own image, eyebrow, button label and optional subscriber count, set per pop-up |
 | Headline and copy | Per pop-up — it has no page around it to explain itself |
 | After it is closed | Hidden for a day · a week · never again · show every visit |
 

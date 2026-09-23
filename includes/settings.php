@@ -571,6 +571,12 @@ function sendbeam_admin_assets( $hook ) {
 		return;
 	}
 
+	// The pop-up tab offers a picture; that is the only screen that needs the
+	// media frame, so it is the only one that loads it.
+	if ( 'popup' === sendbeam_current_tab() ) {
+		wp_enqueue_media();
+	}
+
 	wp_register_style( 'sendbeam-admin', false, array(), SENDBEAM_VERSION );
 	wp_enqueue_style( 'sendbeam-admin' );
 	wp_add_inline_style( 'sendbeam-admin', sendbeam_admin_css() );
@@ -630,6 +636,21 @@ function sendbeam_admin_assets( $hook ) {
 				if ( first ) { first.focus(); }
 			} );
 		}
+
+		// "Choose" opens the Media Library and writes the URL into the field
+		// beside it. Delegated, so a pop-up added after the page loaded works.
+		document.addEventListener( "click", function ( e ) {
+			var pick = e.target.closest( ".sb-image-pick" );
+			if ( ! pick || ! window.wp || ! wp.media ) { return; }
+			e.preventDefault();
+			var field = pick.parentNode.querySelector( ".sb-image" );
+			var frame = wp.media( { title: "Choose an image", library: { type: "image" }, button: { text: "Use this image" }, multiple: false } );
+			frame.on( "select", function () {
+				var img = frame.state().get( "selection" ).first().toJSON();
+				if ( field && img && img.url ) { field.value = img.url; }
+			} );
+			frame.open();
+		} );
 
 		document.addEventListener( "click", function ( e ) {
 			var btn = e.target.closest( ".sb-copy" );

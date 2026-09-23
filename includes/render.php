@@ -227,7 +227,7 @@ function sendbeam_print_popup_loader() {
 	foreach ( $load as $form_id => $popup ) {
 		$trigger    = $popup['trigger'];
 		$attributes = array(
-			'src'       => sendbeam_popup_script_url( $form_id ),
+			'src'       => sendbeam_popup_script_url( $form_id, $popup ),
 			'async'     => true,
 			'data-once' => $popup['once'],
 		);
@@ -245,6 +245,24 @@ function sendbeam_print_popup_loader() {
 		}
 		if ( ! empty( $popup['blurb'] ) ) {
 			$attributes['data-sub'] = (string) $popup['blurb'];
+		}
+
+		// The style always travels — the loader's own default is not
+		// necessarily the one this plugin offers as its default.
+		$attributes['data-style'] = isset( $popup['style'] ) && isset( sendbeam_popup_styles()[ $popup['style'] ] )
+			? (string) $popup['style']
+			: 'split';
+		if ( ! empty( $popup['image'] ) ) {
+			$attributes['data-image'] = (string) $popup['image'];
+		}
+		if ( ! empty( $popup['eyebrow'] ) ) {
+			$attributes['data-eyebrow'] = (string) $popup['eyebrow'];
+		}
+		if ( ! empty( $popup['button'] ) ) {
+			$attributes['data-button'] = (string) $popup['button'];
+		}
+		if ( ! empty( $popup['proof'] ) ) {
+			$attributes['data-proof'] = '1';
 		}
 
 		if ( 'timer' === $trigger ) {

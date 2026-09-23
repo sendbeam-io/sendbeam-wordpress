@@ -80,8 +80,8 @@ function sendbeam_ecommerce_settings() {
 	if ( ! is_array( $saved ) ) {
 		$saved = array();
 	}
-	$out                           = array_merge( sendbeam_ecommerce_defaults(), $saved );
-	$out['cart_abandoned_window']  = max( SENDBEAM_CART_WINDOW_MIN, min( SENDBEAM_CART_WINDOW_MAX, (int) $out['cart_abandoned_window'] ) );
+	$out                          = array_merge( sendbeam_ecommerce_defaults(), $saved );
+	$out['cart_abandoned_window'] = max( SENDBEAM_CART_WINDOW_MIN, min( SENDBEAM_CART_WINDOW_MAX, (int) $out['cart_abandoned_window'] ) );
 	foreach ( array( 'order_placed', 'product_viewed', 'cart_abandoned' ) as $flag ) {
 		$out[ $flag ] = empty( $out[ $flag ] ) ? 0 : 1;
 	}
@@ -190,9 +190,18 @@ function sendbeam_ecommerce_run_event( $job ) {
 	unset( $body['type'], $body['email'] );
 	$result = sendbeam_api_post(
 		'/api/v1/ecommerce/events',
-		array_merge( array( 'type' => $job['type'], 'email' => $job['email'] ), array_filter( $body, static function ( $v ) {
-			return '' !== $v && null !== $v;
-		} ) )
+		array_merge(
+			array(
+				'type'  => $job['type'],
+				'email' => $job['email'],
+			),
+			array_filter(
+				$body,
+				static function ( $v ) {
+					return '' !== $v && null !== $v;
+				}
+			)
+		)
 	);
 	sendbeam_ecommerce_log( $job['type'], $job['email'], $result['ok'], $result['ok'] ? '' : ( $result['error'] ? $result['error'] : 'HTTP ' . $result['status'] ) );
 }

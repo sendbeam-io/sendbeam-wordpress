@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.2
+
+- Pop-ups come in four styles — split with image, editorial, bold colour and slide-in — with an image, an eyebrow, a button label and an optional subscriber count, set per pop-up.
+
 ## 1.8.1
 
 - Corrected the privacy policy and terms links in `readme.txt`. They pointed at

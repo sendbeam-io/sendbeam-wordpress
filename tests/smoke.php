@@ -53,6 +53,30 @@ ok( $rule['scroll'] === 100, 'scroll depth clamped to 100' );
 ok( $rule['label'] === 'Join', 'label stripped of tags' );
 ok( sendbeam_clean_popup( array( 'form' => 'not-an-id' ) )['form'] === '', 'rule drops a bad form id' );
 
+// The look of one pop-up: a known style and an https picture survive; an
+// unknown style, and a picture served over http, do not.
+$look = sendbeam_clean_popup(
+	array(
+		'form'    => $other,
+		'style'   => 'bold',
+		'image'   => 'https://example-site.test/wp-content/uploads/letter.jpg',
+		'eyebrow' => str_repeat( 'e', 60 ),
+		'button'  => str_repeat( 'b', 50 ),
+		'proof'   => '1',
+	)
+);
+ok( $look['style'] === 'bold', 'a known style is kept' );
+ok( $look['image'] === 'https://example-site.test/wp-content/uploads/letter.jpg', 'an https image is kept' );
+ok( mb_strlen( $look['eyebrow'] ) === 40, 'eyebrow capped at 40' );
+ok( mb_strlen( $look['button'] ) === 30, 'button label capped at 30' );
+ok( 1 === $look['proof'], 'subscriber count is a one' );
+
+$plain = sendbeam_clean_popup( array( 'form' => $other, 'style' => 'neon', 'image' => 'http://example-site.test/letter.jpg' ) );
+ok( $plain['style'] === 'split', 'an unknown style falls back to split' );
+ok( $plain['image'] === '', 'an http image is refused' );
+ok( 0 === $plain['proof'], 'no subscriber count unless asked for' );
+ok( sendbeam_clean_popup( array( 'form' => $other ) )['style'] === 'split', 'split is the default style' );
+
 // Form HTML.
 ok( sendbeam_form_html( 'nope' ) === '', 'invalid id renders nothing' );
 $html = sendbeam_form_html( $form, 50, 'A "quoted" title' );
@@ -90,6 +114,14 @@ has( $tag, '/f/' . $other . '/popup.js?v=', 'loader src carries an appearance fi
 $first_stamp = sendbeam_popup_script_url( $other );
 update_option( 'sendbeam_settings', array_merge( sendbeam_settings(), array( 'style_accent' => '#123456' ) ) );
 ok( sendbeam_popup_script_url( $other ) !== $first_stamp, 'changing a colour changes the loader URL' );
+// The style is part of the same fingerprint: a pop-up switched from split to
+// bold has to reach a visitor still holding the cached loader.
+$split_stamp = sendbeam_popup_script_url( $other, array( 'style' => 'split' ) );
+ok( sendbeam_popup_script_url( $other, array( 'style' => 'bold' ) ) !== $split_stamp, 'changing the style changes the loader URL' );
+ok( sendbeam_popup_script_url( $other, array( 'style' => 'split' ) ) === $split_stamp, 'the same style keeps the loader URL' );
+has( $tag, 'data-style="split"', 'the style always travels with the loader' );
+lacks( $tag, 'data-image', 'no image attribute when no image was chosen' );
+lacks( $tag, 'data-proof', 'no count attribute unless it was asked for' );
 has( $tag, 'data-delay="3000"', 'delay in ms' );
 has( $tag, 'data-once="week"', 'once' );
 has( $tag, ' async', 'async' );
@@ -111,6 +143,37 @@ update_option( 'sendbeam_popups', array( array( 'enabled' => 1, 'form' => $other
 sendbeam_print_popup_loader();
 has( $GLOBALS['stub']['printed'], 'data-trigger="button"', 'button trigger' );
 has( $GLOBALS['stub']['printed'], 'data-label="Get the letter"', 'button label' );
+
+// A styled pop-up: the five look attributes travel with the loader.
+$GLOBALS['stub']['printed'] = '';
+unset( $GLOBALS['sendbeam_popup_buttons'] );
+update_option(
+	'sendbeam_popups',
+	array(
+		array(
+			'enabled' => 1,
+			'form'    => $other,
+			'trigger' => 'timer',
+			'delay'   => 5,
+			'scroll'  => 50,
+			'label'   => '',
+			'once'    => 'day',
+			'where'   => 'everywhere',
+			'url'     => '',
+			'style'   => 'editorial',
+			'image'   => 'https://example-site.test/letter.jpg',
+			'eyebrow' => 'Monthly - Free',
+			'button'  => 'Join the letter',
+			'proof'   => 1,
+		),
+	)
+);
+$styled = popup_output();
+has( $styled, 'data-style="editorial"', 'the chosen style travels' );
+has( $styled, 'data-image="https://example-site.test/letter.jpg"', 'the image travels' );
+has( $styled, 'data-eyebrow="Monthly - Free"', 'the eyebrow travels' );
+has( $styled, 'data-button="Join the letter"', 'the button label travels' );
+has( $styled, 'data-proof="1"', 'the subscriber count is asked for' );
 
 // Several rules: the first that matches wins, and nothing else is printed.
 $GLOBALS['stub']['printed'] = '';
