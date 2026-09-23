@@ -606,6 +606,300 @@ $stub['cron'] = array( array( 'hook' => SENDBEAM_CART_CHECK_HOOK, 'args' => arra
 sendbeam_ecommerce_clear_scheduled();
 ok( 1 === count( $stub['cron'] ) && 'something_else' === $stub['cron'][0]['hook'], 'deactivation: only this plugin\'s own scheduled checks are cleared' );
 
+// ── Connect ────────────────────────────────────────────────────────────
+//
+// The plugin is the client: it mints the state, sends the person to
+// sendbeam.io, and swaps a single-use grant for a key server-to-server. The
+// SendBeam end is stubbed here — what is being proved is that this end builds
+// exactly the URL the contract specifies, refuses anything whose state does
+// not come back unchanged, and never writes a key by any path other than the
+// one a pasted key goes through.
+
+/**
+ * Drive a Connect handler to the end WordPress would exit at, and return
+ * whatever it rendered.
+ *
+ * @param callable $fn The handler.
+ * @return string
+ */
+function sb_connect_run( $fn ) {
+	$GLOBALS['stub']['throw_on']['sendbeam_connect_result'] = true;
+	ob_start();
+	try {
+		$fn();
+	} catch ( SendBeamStubExit $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- WordPress would have exited here.
+		$GLOBALS['stub']['exit'] = $e->getMessage();
+	}
+	$html = ob_get_clean();
+	unset( $GLOBALS['stub']['throw_on']['sendbeam_connect_result'] );
+	return $html;
+}
+
+/** Put the world back to a signed-in administrator on an https site. */
+function sb_connect_reset() {
+	$GLOBALS['stub']['caps']['manage_options'] = true;
+	$GLOBALS['stub']['user_id']                = 7;
+	$GLOBALS['stub']['current_user']           = array( 'email' => 'admin@example-site.test' );
+	$GLOBALS['stub']['site_url']               = 'https://www.example-site.test';
+	$GLOBALS['stub']['bloginfo']               = array();
+	$GLOBALS['stub']['remote']                 = array();
+	$GLOBALS['stub']['remote_reply']           = null;
+	$GLOBALS['stub']['redirect']               = null;
+	$GLOBALS['stub']['exit']                   = '';
+	$_GET                                      = array();
+	$_POST                                     = array();
+	$_REQUEST                                  = array();
+	delete_transient( 'sendbeam_connect_7' );
+	delete_transient( 'sendbeam_connect_9' );
+}
+
+// Only the scopes we offer survive, and `forms` is not optional.
+ok( sendbeam_connect_clean_scopes( array( 'transactional:send', 'sudo' ) ) === array( 'forms', 'transactional:send' ), 'connect: unknown scopes are dropped and forms is always asked for' );
+ok( sendbeam_connect_clean_scopes( null ) === array( 'forms' ), 'connect: ticking nothing still asks for forms' );
+ok( array_keys( sendbeam_connect_scopes() ) === array( 'forms', 'contacts:write', 'transactional:send', 'ecommerce' ), 'connect: the four scopes, in the order the consent page shows them' );
+
+// https everywhere, with a hole only for machines that cannot be reached
+// from the internet. An http origin on a real domain must be refused, or the
+// grant travels in clear.
+ok( sendbeam_connect_origin_ok( 'https://example.com' ), 'connect: https is allowed' );
+ok( sendbeam_connect_origin_ok( 'http://localhost:8080' ), 'connect: http on localhost is allowed for dev boxes' );
+ok( sendbeam_connect_origin_ok( 'http://127.0.0.1' ), 'connect: http on 127.0.0.1 is allowed' );
+ok( sendbeam_connect_origin_ok( 'http://wp.test' ), 'connect: http on a .test host is allowed' );
+ok( sendbeam_connect_origin_ok( 'http://site.local' ), 'connect: http on a .local host is allowed' );
+ok( ! sendbeam_connect_origin_ok( 'http://example.com' ), 'connect: plain http on a real domain is refused' );
+ok( ! sendbeam_connect_origin_ok( 'ftp://example.com' ), 'connect: a non-http scheme is refused' );
+ok( ! sendbeam_connect_origin_ok( 'nonsense' ), 'connect: a value that is not a URL is refused' );
+
+// Starting: the exact URL from the contract, every parameter.
+sb_connect_reset();
+$GLOBALS['stub']['bloginfo']['name'] = str_repeat( 'Ä', 100 );   // over the 80 the contract allows.
+$_POST                               = array(
+	'sendbeam_scopes' => array( 'transactional:send', 'not-a-scope' ),
+	'_wpnonce'        => 'nonce:sendbeam_connect_start',
+);
+$_REQUEST                            = $_POST;
+try {
+	sendbeam_connect_start();
+} catch ( SendBeamStubExit $e ) {
+	$GLOBALS['stub']['exit'] = $e->getMessage();
+}
+ok( 'wp_redirect' === $GLOBALS['stub']['exit'], 'connect: start redirects the pop-up' );
+$sendbeam_start = (string) $GLOBALS['stub']['redirect']['url'];
+ok( 302 === $GLOBALS['stub']['redirect']['status'], 'connect: start redirects with a 302' );
+ok( 0 === strpos( $sendbeam_start, 'https://sendbeam.io/connect/wordpress?' ), "connect: start goes to the contract's page — got $sendbeam_start" );
+parse_str( (string) wp_parse_url( $sendbeam_start, PHP_URL_QUERY ), $sendbeam_q );
+ok( 'https://www.example-site.test' === ( $sendbeam_q['site_url'] ?? '' ), 'connect: site_url is the origin, with no path' );
+ok( mb_strlen( $sendbeam_q['site_name'] ?? '' ) === 80, 'connect: site_name is clipped to 80 characters' );
+ok( 'admin@example-site.test' === ( $sendbeam_q['email'] ?? '' ), "connect: the admin's address is sent to prefill signup" );
+ok( 'forms,transactional:send' === ( $sendbeam_q['scopes'] ?? '' ), 'connect: scopes is the approved csv, forms first' );
+ok( 'https://www.example-site.test/wp-admin/admin-post.php?action=sendbeam_connect_return' === ( $sendbeam_q['return_to'] ?? '' ), 'connect: return_to is this site, on the site_url origin' );
+ok( 1 === preg_match( '/^[A-Za-z0-9_\-]{32,}$/', $sendbeam_q['state'] ?? '' ), 'connect: state is 32+ characters of [A-Za-z0-9_-]' );
+ok( 43 === strlen( $sendbeam_q['state'] ), 'connect: state is 43 characters' );
+
+$sendbeam_state   = $sendbeam_q['state'];
+$sendbeam_stored  = get_transient( 'sendbeam_connect_7' );
+ok( is_array( $sendbeam_stored ) && $sendbeam_stored['state'] === $sendbeam_state, 'connect: the state is remembered against the admin who started it' );
+ok( $sendbeam_stored['scopes'] === array( 'forms', 'transactional:send' ), 'connect: the approved scopes are remembered too' );
+
+// Two admins connecting at once must not share a state.
+$GLOBALS['stub']['user_id'] = 9;
+try {
+	sendbeam_connect_start();
+} catch ( SendBeamStubExit $e ) {
+	$GLOBALS['stub']['exit'] = $e->getMessage();
+}
+ok( get_transient( 'sendbeam_connect_9' )['state'] !== $sendbeam_state, 'connect: a second administrator gets their own state, not the first one\'s' );
+delete_transient( 'sendbeam_connect_9' );
+
+// A site with no https address cannot be connected at all.
+sb_connect_reset();
+$GLOBALS['stub']['site_url'] = 'http://insecure.example.com';
+$_POST                       = array( '_wpnonce' => 'nonce:sendbeam_connect_start' );
+$_REQUEST                    = $_POST;
+try {
+	sendbeam_connect_start();
+} catch ( SendBeamStubExit $e ) {
+	$GLOBALS['stub']['exit'] = $e->getMessage();
+}
+ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'connect: an http-only site is refused rather than sent off insecurely' );
+ok( null === $GLOBALS['stub']['redirect'], 'connect: nothing is sent to SendBeam from an http-only site' );
+ok( false === get_transient( 'sendbeam_connect_7' ), 'connect: an http-only site is not left holding a connection it can never finish' );
+
+// Without the nonce, nothing starts.
+sb_connect_reset();
+$_POST    = array();
+$_REQUEST = array();
+try {
+	sendbeam_connect_start();
+} catch ( SendBeamStubExit $e ) {
+	$GLOBALS['stub']['exit'] = $e->getMessage();
+}
+ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'connect: start refuses a request with no nonce' );
+ok( false === get_transient( 'sendbeam_connect_7' ), 'connect: a refused start stores no state' );
+
+// ── Coming back ────────────────────────────────────────────────────────
+$sendbeam_good_state = str_repeat( 'a', 43 );
+$sendbeam_good_grant = str_repeat( 'g', 43 );
+$sendbeam_new_key    = 'sb_live_' . str_repeat( 'k', 32 );
+
+/** Arm a pending connection for user 7. */
+function sb_connect_pending( $state ) {
+	set_transient( 'sendbeam_connect_7', array( 'state' => $state, 'scopes' => array( 'forms' ) ), 900 );
+}
+
+// A state that is not the one we minted: no request, nothing changed.
+sb_connect_reset();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting' ) );
+sb_connect_pending( $sendbeam_good_state );
+$_GET  = array( 'state' => str_repeat( 'b', 43 ), 'grant' => $sendbeam_good_grant );
+$sendbeam_html = sb_connect_run( 'sendbeam_connect_return' );
+has( $sendbeam_html, 'Not connected', 'connect: a mismatched state is not connected' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'connect: a mismatched state makes no request to SendBeam' );
+ok( false === get_transient( 'sendbeam_connect_7' ), 'connect: the state is spent even when it did not match' );
+ok( 'sb_live_existingexistingexisting' === sendbeam_settings()['api_key'], 'connect: a mismatched state leaves the saved key alone' );
+lacks( $sendbeam_html, 'postMessage', 'connect: a failure does not tell the opener it succeeded' );
+
+// No state at all — a bare visit to the return URL.
+sb_connect_reset();
+sb_connect_pending( $sendbeam_good_state );
+$_GET          = array();
+$sendbeam_html = sb_connect_run( 'sendbeam_connect_return' );
+has( $sendbeam_html, 'Not connected', 'connect: a bare visit to the return URL is not connected' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'connect: a bare visit makes no request' );
+
+// Refused on the consent page.
+sb_connect_reset();
+sb_connect_pending( $sendbeam_good_state );
+$_GET          = array( 'state' => $sendbeam_good_state, 'error' => 'denied' );
+$sendbeam_html = sb_connect_run( 'sendbeam_connect_return' );
+has( $sendbeam_html, 'Not connected', 'connect: refusing on the consent page is not connected' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'connect: refusing makes no request to exchange anything' );
+ok( false === get_transient( 'sendbeam_connect_7' ), 'connect: the state is spent after a refusal' );
+ok( 'sb_live_existingexistingexisting' === sendbeam_settings()['api_key'], 'connect: refusing leaves the saved key alone' );
+
+// The happy path: the grant is exchanged, server to server, exactly once.
+sb_connect_reset();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting', 'default_form' => $form ) );
+sb_connect_pending( $sendbeam_good_state );
+$GLOBALS['stub']['remote_reply'] = array(
+	'response' => array( 'code' => 200 ),
+	'body'     => json_encode(
+		array(
+			'api_key'    => $sendbeam_new_key,
+			'key_prefix' => 'sb_live_kkkk',
+			'workspace'  => array( 'id' => 'ws_1', 'name' => 'Example Site' ),
+			'scopes'     => array( 'forms' ),
+		)
+	),
+);
+$_GET          = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
+$sendbeam_html = sb_connect_run( 'sendbeam_connect_return' );
+
+ok( 1 === count( $GLOBALS['stub']['remote'] ), 'connect: exactly one call is made to exchange the grant' );
+$sendbeam_req = $GLOBALS['stub']['remote'][0];
+ok( 'POST' === $sendbeam_req['method'], 'connect: the exchange is a POST' );
+ok( 'https://sendbeam.io/api/v1/connect/exchange' === $sendbeam_req['url'], 'connect: the exchange goes to the contract URL' );
+ok( 'application/json' === $sendbeam_req['args']['headers']['Content-Type'], 'connect: the exchange sends JSON' );
+ok( ! isset( $sendbeam_req['args']['headers']['x-api-key'] ), 'connect: the exchange carries no API key — the grant is the credential' );
+ok( ! isset( $sendbeam_req['args']['sslverify'] ), 'connect: certificate verification is left at the WordPress default' );
+ok( 15 === $sendbeam_req['args']['timeout'], 'connect: the exchange has a bounded timeout' );
+$sendbeam_body = json_decode( $sendbeam_req['args']['body'], true );
+ok(
+	$sendbeam_body === array( 'grant' => $sendbeam_good_grant, 'state' => $sendbeam_good_state, 'site_url' => 'https://www.example-site.test' ),
+	'connect: the exchange body is exactly grant, state and site_url — got ' . $sendbeam_req['args']['body']
+);
+
+ok( $sendbeam_new_key === sendbeam_settings()['api_key'], 'connect: the key SendBeam minted is saved' );
+ok( 'connect' === sendbeam_settings()['sendbeam_connected_via'], 'connect: the connection is marked as made through Connect' );
+ok( 'Example Site' === sendbeam_settings()['sendbeam_connect_workspace'], 'connect: the workspace name is remembered for the screen' );
+ok( $form === sendbeam_settings()['default_form'], 'connect: storing the key leaves the other tabs\' settings alone' );
+ok( sendbeam_connected_via_connect(), 'connect: the screen can tell this was the button' );
+ok( false === get_transient( 'sendbeam_connect_7' ), 'connect: the state is spent after a success' );
+ok( false === get_transient( SENDBEAM_CACHE_CONN ), 'connect: the cached connection state is dropped, so the screen re-checks' );
+
+has( $sendbeam_html, 'Connected', 'connect: the pop-up says it worked' );
+has( $sendbeam_html, 'postMessage', 'connect: the pop-up tells the opener to reload' );
+has( $sendbeam_html, '"https:\/\/www.example-site.test"', 'connect: the message is addressed to this site\'s origin, not "*"' );
+has( $sendbeam_html, 'window.close()', 'connect: the pop-up closes itself' );
+lacks( $sendbeam_html, $sendbeam_new_key, 'connect: the key is never rendered into the pop-up' );
+
+// A replay of the same return URL: the grant is gone, so nothing happens.
+$GLOBALS['stub']['remote'] = array();
+$sendbeam_html             = sb_connect_run( 'sendbeam_connect_return' );
+has( $sendbeam_html, 'Not connected', 'connect: replaying the return URL is not connected' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'connect: a replayed return URL makes no request' );
+
+// Pasting a key by hand afterwards must stop the screen claiming it was the button.
+$sendbeam_pasted = sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => 'sb_live_pastedpastedpastedpasted' ) );
+ok( '' === $sendbeam_pasted['sendbeam_connected_via'], 'connect: a key pasted by hand clears the Connect marker' );
+ok( '' === $sendbeam_pasted['sendbeam_connect_workspace'], 'connect: a key pasted by hand clears the workspace name' );
+$sendbeam_removed = sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key_remove' => '1' ) );
+ok( '' === $sendbeam_removed['api_key'] && '' === $sendbeam_removed['sendbeam_connected_via'], 'connect: Disconnect forgets the key and the marker together' );
+
+// SendBeam says the grant is spent or expired.
+foreach ( array(
+	410 => array( '{"error":"grant_expired_or_used"}', 'already been used' ),
+	400 => array( '{"error":"invalid"}', 'refused' ),
+	429 => array( '{"error":"rate_limited"}', 'rate-limiting' ),
+	500 => array( 'not json at all', 'refused' ),
+) as $sendbeam_code => $sendbeam_case ) {
+	sb_connect_reset();
+	update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting' ) );
+	sb_connect_pending( $sendbeam_good_state );
+	$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => $sendbeam_code ), 'body' => $sendbeam_case[0] );
+	$_GET                            = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
+	$sendbeam_html                   = sb_connect_run( 'sendbeam_connect_return' );
+
+	has( $sendbeam_html, 'Not connected', "connect: HTTP $sendbeam_code is not connected" );
+	has( $sendbeam_html, $sendbeam_case[1], "connect: HTTP $sendbeam_code says why in plain words" );
+	ok( 'sb_live_existingexistingexisting' === sendbeam_settings()['api_key'], "connect: HTTP $sendbeam_code leaves the saved key untouched" );
+	ok( '' === sendbeam_settings()['sendbeam_connected_via'], "connect: HTTP $sendbeam_code does not mark the site as connected" );
+	ok( false === get_transient( 'sendbeam_connect_7' ), "connect: HTTP $sendbeam_code spends the state" );
+	lacks( $sendbeam_html, 'postMessage', "connect: HTTP $sendbeam_code does not tell the opener it succeeded" );
+}
+
+// The server could not be reached at all.
+sb_connect_reset();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting' ) );
+sb_connect_pending( $sendbeam_good_state );
+$GLOBALS['stub']['remote_reply'] = new WP_Error( 'http_request_failed', 'cURL error 28' );
+$_GET                            = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
+$sendbeam_html                   = sb_connect_run( 'sendbeam_connect_return' );
+has( $sendbeam_html, 'could not reach sendbeam.io', 'connect: an unreachable server is reported plainly' );
+ok( 'sb_live_existingexistingexisting' === sendbeam_settings()['api_key'], 'connect: an unreachable server leaves the saved key untouched' );
+
+// Something that is not a key must never be written to the option.
+sb_connect_reset();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting' ) );
+sb_connect_pending( $sendbeam_good_state );
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{"api_key":"nope nope <script>","workspace":{"name":"X"}}' );
+$_GET                            = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
+$sendbeam_html                   = sb_connect_run( 'sendbeam_connect_return' );
+has( $sendbeam_html, 'Not connected', 'connect: a reply that is not a key is not a connection' );
+ok( 'sb_live_existingexistingexisting' === sendbeam_settings()['api_key'], 'connect: a reply that is not a key never reaches the option' );
+
+// A grant that is not shaped like one is never sent anywhere.
+sb_connect_reset();
+sb_connect_pending( $sendbeam_good_state );
+$_GET          = array( 'state' => $sendbeam_good_state, 'grant' => 'short' );
+$sendbeam_html = sb_connect_run( 'sendbeam_connect_return' );
+has( $sendbeam_html, 'Not connected', 'connect: a malformed grant is not connected' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'connect: a malformed grant is never sent to SendBeam' );
+
+// Someone without the capability gets nowhere, nonce or no nonce.
+sb_connect_reset();
+$GLOBALS['stub']['caps']['manage_options'] = false;
+sb_connect_pending( $sendbeam_good_state );
+$_GET = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
+sb_connect_run( 'sendbeam_connect_return' );
+ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'connect: the return handler still checks the capability' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'connect: a user without the capability exchanges nothing' );
+ok( is_array( get_transient( 'sendbeam_connect_7' ) ), 'connect: a refused caller does not spend somebody else\'s state' );
+delete_transient( 'sendbeam_connect_7' );
+
+sb_connect_reset();
+update_option( 'sendbeam_settings', array() );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

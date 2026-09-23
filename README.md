@@ -30,8 +30,14 @@ git clone https://github.com/sendbeam-io/sendbeam-wordpress
 cd sendbeam-wordpress && bin/build-zip.sh     # → build/sendbeam.zip
 ```
 
-Then Settings → SendBeam and paste an API key. Forms are picked from a dropdown of the connected workspace's
-own forms — no IDs to copy.
+Then Settings → SendBeam and press **Connect SendBeam**. The button opens a window on sendbeam.io where you
+create your account or sign in — the site's name and your administrator email address are already filled in —
+and tick what this site may do: show your forms, add people who opt in, send the site's own email, send
+WooCommerce events. Approve, and this site is handed an API key with exactly those permissions. The key never
+passes through the browser: the window comes back with a single-use grant bound to this site's address and to
+the `state` this site minted, and your server swaps it for the key in one call. Nothing is sent to SendBeam
+until you press the button. If you already have a key, "I already have an API key" on the same screen still
+takes one. Forms are then picked from a dropdown of the connected workspace's own forms — no IDs to copy.
 
 ## API key permissions
 

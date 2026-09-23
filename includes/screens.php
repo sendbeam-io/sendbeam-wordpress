@@ -35,29 +35,43 @@ function sendbeam_form_close() {
  * Overview tab: how far through set-up the site is, what the workspace holds, and the API key.
  */
 function sendbeam_screen_overview() {
-	$settings = sendbeam_settings();
-	$forms    = sendbeam_remote_forms();
-	$lists    = sendbeam_lists();
+	$forms = sendbeam_remote_forms();
+	$lists = sendbeam_lists();
 
 	// Asked for directly, not summed from the lists: one person on three lists
 	// is one subscriber, and adding the lists up counted them three times.
 	$subscribers = sendbeam_subscriber_count();
+	$connected   = sendbeam_is_connected();
 
 	echo '<div class="sb-grid">';
 
 	sendbeam_card_open( __( 'Setup', 'sendbeam' ) );
-	$steps = sendbeam_setup_steps();
-	echo '<ol class="sb-steps">';
+	$steps   = sendbeam_setup_steps();
 	$targets = array( sendbeam_tab_url( 'overview' ) . '#sendbeam_api_key', sendbeam_tab_url( 'forms' ), sendbeam_tab_url( 'mail' ) );
+	echo '<ol class="sb-steps">';
 	foreach ( $steps as $i => $step ) {
+		// Step one is not a link to a field any more when there is nothing
+		// connected: it is the thing itself, done here, in one button.
+		$is_connect_step = ( 0 === $i && ! $connected );
+
 		printf(
-			'<li class="%1$s"><span class="sb-num" aria-hidden="true">%2$s</span><span><strong><a href="%3$s">%4$s</a></strong><span>%5$s</span></span></li>',
+			'<li class="%1$s"><span class="sb-num" aria-hidden="true">%2$s</span><span>',
 			$step['done'] ? 'is-done' : '',
-			$step['done'] ? '&#10003;' : (int) ( $i + 1 ),
-			esc_url( $targets[ $i ] ),
-			esc_html( $step['label'] ),
-			esc_html( $step['detail'] )
+			$step['done'] ? '&#10003;' : (int) ( $i + 1 )
 		);
+		if ( $is_connect_step ) {
+			printf( '<strong>%s</strong>', esc_html( $step['label'] ) );
+			sendbeam_connect_panel();
+			sendbeam_connect_paste_disclosure();
+		} else {
+			printf(
+				'<strong><a href="%1$s">%2$s</a></strong><span>%3$s</span>',
+				esc_url( $targets[ $i ] ),
+				esc_html( $step['label'] ),
+				esc_html( $step['detail'] )
+			);
+		}
+		echo '</span></li>';
 	}
 	echo '</ol>';
 	sendbeam_card_close();
@@ -73,11 +87,64 @@ function sendbeam_screen_overview() {
 
 	echo '</div>';
 
-	sendbeam_card_open( __( 'Connect', 'sendbeam' ) );
+	// When nothing is connected the key field lives in the disclosure above,
+	// under the Connect button — one paste field on the screen, never two.
+	if ( $connected ) {
+		sendbeam_card_open( __( 'Connect', 'sendbeam' ) );
+		if ( sendbeam_connected_via_connect() ) {
+			sendbeam_connect_connected_panel();
+		} else {
+			sendbeam_form_open( 'connect' );
+			do_settings_sections( 'sendbeam_connect_page' );
+			sendbeam_form_close();
+		}
+		sendbeam_card_close();
+	}
+}
+
+/**
+ * The paste field, tucked away for the people who already have a key.
+ *
+ * Open by default would make the screen look like it still wants a key
+ * copied across, which is the friction Connect exists to remove.
+ */
+function sendbeam_connect_paste_disclosure() {
+	echo '<details class="sb-paste" style="margin-top:14px">';
+	echo '<summary>' . esc_html__( 'I already have an API key', 'sendbeam' ) . '</summary>';
+	echo '<div style="margin-top:10px">';
 	sendbeam_form_open( 'connect' );
 	do_settings_sections( 'sendbeam_connect_page' );
 	sendbeam_form_close();
-	sendbeam_card_close();
+	echo '</div></details>';
+}
+
+/**
+ * What the Connect card says once the button has done its work.
+ *
+ * Disconnect goes through the same "Remove the saved key" path a pasted key
+ * uses, so there is one way of forgetting a key rather than two. It forgets
+ * this site's copy and nothing else — the key itself is still live in
+ * SendBeam, which is where it has to be revoked, and saying so is the
+ * difference between a tidy uninstall and a key nobody knows is still valid.
+ */
+function sendbeam_connect_connected_panel() {
+	$workspace = sendbeam_connect_workspace_name();
+
+	if ( '' !== $workspace ) {
+		/* translators: %s: the SendBeam workspace name */
+		echo '<p style="margin-top:0"><strong>' . esc_html( sprintf( __( 'Connected to %s', 'sendbeam' ), $workspace ) ) . '</strong></p>';
+	} else {
+		echo '<p style="margin-top:0"><strong>' . esc_html__( 'Connected', 'sendbeam' ) . '</strong></p>';
+	}
+	echo '<p>' . esc_html__( 'This site was connected through SendBeam, and holds a key with only the permissions you approved.', 'sendbeam' ) . '</p>';
+	echo '<p class="sb-note">' . esc_html__( 'Disconnecting forgets this site\'s copy of the key. The key itself stays valid in SendBeam until you revoke it there, under Settings → API keys.', 'sendbeam' ) . '</p>';
+
+	echo '<form action="' . esc_url( admin_url( 'options.php' ) ) . '" method="post">';
+	settings_fields( 'sendbeam' );
+	echo '<input type="hidden" name="sendbeam_settings[_tab]" value="connect" />';
+	echo '<input type="hidden" name="sendbeam_settings[api_key_remove]" value="1" />';
+	submit_button( __( 'Disconnect', 'sendbeam' ), 'secondary', 'submit', false );
+	echo '</form>';
 }
 
 /**

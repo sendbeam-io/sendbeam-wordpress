@@ -228,8 +228,12 @@ function sendbeam_sanitize_settings( $input ) {
 
 	// A different key means a different workspace, so anything remembered about
 	// the old one — whether it worked, which forms it could see — is now a lie.
+	// That includes the Connect marker: a key pasted or removed by hand did not
+	// come from the Connect button, and the screen must stop claiming it did.
 	if ( $out['api_key'] !== (string) $saved['api_key'] ) {
 		sendbeam_flush_cache();
+		$out['sendbeam_connected_via']     = '';
+		$out['sendbeam_connect_workspace'] = '';
 	}
 
 	unset( $out['_tab'] );
@@ -675,5 +679,5 @@ function sendbeam_admin_assets( $hook ) {
 	';
 	wp_register_script( 'sendbeam-admin', '', array(), SENDBEAM_VERSION, true );
 	wp_enqueue_script( 'sendbeam-admin' );
-	wp_add_inline_script( 'sendbeam-admin', $js );
+	wp_add_inline_script( 'sendbeam-admin', $js . sendbeam_connect_admin_js() );
 }

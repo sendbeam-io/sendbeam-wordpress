@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.3
+
+- **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.
+- The plugin is the client in that exchange and never trusts the browser with the key. The pop-up comes back with a single-use grant, not a key; the key is fetched server-to-server from this site's own PHP (`POST /api/v1/connect/exchange`); and `state` — minted here, kept in a transient belonging to one administrator, and deleted the moment it is read — is the CSRF token, because a nonce cannot survive a redirect from another origin.
+- The key is written through the same `sendbeam_sanitize_settings()` path a pasted key goes through, so there is one set of validation rules rather than two. Pasting or removing a key by hand clears the Connect marker, and **Disconnect** is the existing "Remove the saved key" path — it forgets this site's copy, and says plainly that the key stays valid in SendBeam until revoked there.
+- Pasting a key still works, moved into a quiet "I already have an API key" disclosure under the button.
+- `uninstall.php` now sweeps `sendbeam_connect_*` transients for every administrator, not just the one doing the uninstalling.
+
 ## 1.8.2
 
 - Pop-ups come in four styles — split with image, editorial, bold colour and slide-in — with an image, an eyebrow, a button label and an optional subscriber count, set per pop-up.

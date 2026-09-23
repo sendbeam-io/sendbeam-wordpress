@@ -50,16 +50,32 @@ wp_unschedule_hook( 'sendbeam_bridge_subscribe' );
 wp_unschedule_hook( 'sendbeam_ecommerce_send_event' );
 wp_unschedule_hook( 'sendbeam_check_cart_abandonment' );
 
-// Cart-abandonment tracking is one transient per shopper session, keyed by
-// a hash (sendbeam_cart_<md5>) rather than a name this file can list up
-// front — the only way to find them all is a direct query.
-global $wpdb;
-if ( isset( $wpdb ) ) {
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one-off cleanup, no equivalent WP API for a prefix sweep.
-	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like( '_transient_sendbeam_cart_' ) . '%' ) );
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like( '_transient_timeout_sendbeam_cart_' ) . '%' ) );
+// Two families of transient are named after something this file cannot list
+// up front — a shopper's session (sendbeam_cart_<md5>) and an administrator's
+// user ID (sendbeam_connect_<id>) — so a prefix sweep is the only way to find
+// them all. delete_transient() for the current user would leave every other
+// administrator's behind.
+$sendbeam_transient_prefixes = array( 'sendbeam_cart_', 'sendbeam_connect_' );
+
+/**
+ * Delete every transient whose name starts with one of the prefixes.
+ *
+ * @param string[] $prefixes Transient name prefixes.
+ */
+function sendbeam_uninstall_sweep_transients( $prefixes ) {
+	global $wpdb;
+	if ( ! isset( $wpdb ) ) {
+		return;
+	}
+	foreach ( $prefixes as $sendbeam_prefix ) {
+		foreach ( array( '_transient_', '_transient_timeout_' ) as $sendbeam_key_prefix ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- one-off cleanup, no equivalent WP API for a prefix sweep.
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like( $sendbeam_key_prefix . $sendbeam_prefix ) . '%' ) );
+		}
+	}
 }
+
+sendbeam_uninstall_sweep_transients( $sendbeam_transient_prefixes );
 
 // Multisite: the same clean-up on every site in the network.
 if ( is_multisite() ) {
@@ -81,12 +97,7 @@ if ( is_multisite() ) {
 		wp_unschedule_hook( 'sendbeam_bridge_subscribe' );
 		wp_unschedule_hook( 'sendbeam_ecommerce_send_event' );
 		wp_unschedule_hook( 'sendbeam_check_cart_abandonment' );
-		if ( isset( $wpdb ) ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like( '_transient_sendbeam_cart_' ) . '%' ) );
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like( '_transient_timeout_sendbeam_cart_' ) . '%' ) );
-		}
+		sendbeam_uninstall_sweep_transients( $sendbeam_transient_prefixes );
 		restore_current_blog();
 	}
 }

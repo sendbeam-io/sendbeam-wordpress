@@ -62,7 +62,7 @@ function sendbeam_setup_steps() {
 			'label'  => __( 'Connect your SendBeam account', 'sendbeam' ),
 			'detail' => $connected
 				? __( 'Your key works.', 'sendbeam' )
-				: __( 'Paste an API key so this plugin can list your forms for you.', 'sendbeam' ),
+				: __( 'Press Connect SendBeam, approve what this site may do, and the key arrives on its own.', 'sendbeam' ),
 		),
 		array(
 			'done'   => $using_form || $using_popup,
@@ -108,7 +108,7 @@ function sendbeam_setup_notice() {
 	<div class="notice notice-info is-dismissible">
 		<p>
 			<strong><?php esc_html_e( 'SendBeam is installed.', 'sendbeam' ); ?></strong>
-			<?php esc_html_e( 'Connect your account and the plugin will list your forms for you, so you never have to copy an ID by hand.', 'sendbeam' ); ?>
+			<?php esc_html_e( 'Connect your account in one click and the plugin will list your forms for you, so you never have to copy a key or an ID by hand.', 'sendbeam' ); ?>
 		</p>
 		<p>
 			<a href="<?php echo esc_url( $settings_url ); ?>" class="button button-primary"><?php esc_html_e( 'Set up SendBeam', 'sendbeam' ); ?></a>

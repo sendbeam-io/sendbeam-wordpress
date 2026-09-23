@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.2
+Stable tag: 1.8.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -31,7 +31,7 @@ A site can listen for `sendbeam:submitted` on `document` to track a signup as an
 
 = External service =
 
-This plugin talks to SendBeam (sendbeam.io) in five distinct ways. Nothing is sent anywhere else.
+This plugin talks to SendBeam (sendbeam.io) in six distinct ways. Nothing is sent anywhere else.
 
 **1. Showing a form or pop-up.** The visitor's browser loads the form from `https://sendbeam.io/f/<form id>` and, for the pop-up, the script `https://sendbeam.io/f/<form id>/popup.js`. The URL carries the appearance you chose (colours, corner radius, text size, typeface) so the form matches your theme, and for a pop-up its headline, line underneath, style, image address, eyebrow, button label and whether to show the subscriber count; these are your settings, not anything about the visitor. Your server makes no request to show a form.
 
@@ -42,6 +42,8 @@ This plugin talks to SendBeam (sendbeam.io) in five distinct ways. Nothing is se
 **4. Subscribing someone who ticked the opt-in box** (off by default). When a visitor registers an account, leaves a comment or checks out in WooCommerce *and* ticks the subscribe box, their email address, first and last name and which of those three things they were doing are sent to `/api/v1/contacts` and added to the lists you chose. Nobody who has not ticked the box is ever sent, and the box is never pre-ticked.
 
 **5. Forms built with another form plugin** (off by default, and off for every form until you switch it on for that form). When someone submits a Contact Form 7, Elementor Pro, WPForms, Gravity Forms or Fluent Forms form you have connected, and either ticked the consent field you named or filled in a form you marked as a signup form, their email address, first and last name and the name of the form plugin are sent from your server to `/api/v1/contacts`, added to the list you chose (`/api/v1/lists/<id>/contacts`) and, if you set one, given a tag (`/api/v1/tags` and `/api/v1/contacts/<id>/tags`). Nothing else from the form is sent.
+
+**6. Connecting this site to SendBeam** (only when you press the Connect SendBeam button). A window opens on `https://sendbeam.io/connect/wordpress` carrying this site's address, its title, your WordPress administrator email address — used only to fill in the signup or sign-in form, so you do not type it again — and the list of permissions this site is asking for. If you do not already have a SendBeam account you create one there, on sendbeam.io; account creation never happens on your site and your SendBeam password is never seen by WordPress. When you approve, your server makes one call to `https://sendbeam.io/api/v1/connect/exchange` and receives an API key for this site with exactly the permissions you ticked. The key is stored in this site's options table, the same place a pasted key goes. Press nothing and nothing is sent.
 
 **Site email** (off by default) posts each email your site sends from your server to `https://sendbeam.io/api/v1/transactional` with your API key: the recipient addresses, subject, body and reply-to, so SendBeam can deliver it from your verified domain. Messages with attachments are left to the server's own mailer.
 
@@ -56,8 +58,9 @@ A SendBeam account (the Free plan is enough) with at least one form. Form IDs ar
 == Installation ==
 
 1. Install and activate the plugin.
-2. Go to **Settings → SendBeam** and paste the ID of your signup form (and, if you like, a contact form and a pop-up form).
-3. Add the **SendBeam Form** block to a post or page, or use `[sendbeam_form]` anywhere shortcodes work.
+2. Go to **Settings → SendBeam** and click **Connect SendBeam**. Create your account or sign in in the window that opens, tick what this site may do, and the key arrives on its own — there is nothing to copy. If you already have an API key, "I already have an API key" on the same screen still takes one.
+3. Pick your signup form (and, if you like, a contact form and a pop-up form) from the dropdown of your own forms.
+4. Add the **SendBeam Form** block to a post or page, or use `[sendbeam_form]` anywhere shortcodes work.
 
 == Frequently Asked Questions ==
 
@@ -124,6 +127,9 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 7. The Site email tab, which routes wp_mail() through SendBeam.
 
 == Changelog ==
+
+= 1.8.3 =
+* **Connect SendBeam.** One button on the Overview tab replaces making an account, finding the API keys screen, working out which permissions to give and pasting the key back. You tick what this site may do, create your account or sign in on sendbeam.io in a pop-up, and the site is handed a key with exactly those permissions. Pasting a key by hand still works, under "I already have an API key".
 
 = 1.8.2 =
 * Pop-ups come in four styles — split with image, editorial, bold colour and slide-in — with an image, an eyebrow, a button label and an optional subscriber count, set per pop-up.

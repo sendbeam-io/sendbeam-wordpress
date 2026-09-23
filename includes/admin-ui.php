@@ -129,6 +129,11 @@ function sendbeam_admin_css() {
 	.sendbeam-app .sb-mono,.sendbeam-app .sb-label,.sendbeam-app .sb-state,.sendbeam-app .sb-chip,.sendbeam-app .sb-tab,.sendbeam-app code
 		{font-family:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 
+	.sb-scopes{list-style:none;margin:0;padding:0}
+	.sb-scopes li{margin:0 0 6px}
+	.sb-scopes label{display:flex;gap:8px;align-items:flex-start;line-height:1.45}
+	.sb-paste>summary{cursor:pointer;font-size:12px;color:var(--ink-60)}
+
 	.sb-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;
 		padding:18px 22px;background:var(--ink);color:var(--paper)}
 	.sb-head__brand{display:flex;align-items:center;gap:10px}

@@ -27,27 +27,32 @@ function sendbeam_app_url() {
  */
 function sendbeam_default_settings() {
 	return array(
-		'default_form'    => '',
-		'contact_form'    => '',
-		'popup_form'      => '',
-		'popup_where'     => 'off',
-		'popup_trigger'   => 'timer',
-		'popup_delay'     => 5,
-		'popup_once'      => 'day',
-		'popup_label'     => '',
-		'style_accent'    => '',
-		'style_text'      => '',
-		'style_field'     => '',
-		'style_border'    => '',
-		'style_radius'    => '',
-		'style_font'      => 'inherit',
-		'style_size'      => '',
-		'style_bare'      => 1,
-		'mail_enabled'    => 0,
-		'api_key'         => '',
-		'mail_from_name'  => '',
-		'mail_from_email' => '',
-		'mail_fallback'   => 1,
+		'default_form'               => '',
+		'contact_form'               => '',
+		'popup_form'                 => '',
+		'popup_where'                => 'off',
+		'popup_trigger'              => 'timer',
+		'popup_delay'                => 5,
+		'popup_once'                 => 'day',
+		'popup_label'                => '',
+		'style_accent'               => '',
+		'style_text'                 => '',
+		'style_field'                => '',
+		'style_border'               => '',
+		'style_radius'               => '',
+		'style_font'                 => 'inherit',
+		'style_size'                 => '',
+		'style_bare'                 => 1,
+		'mail_enabled'               => 0,
+		'api_key'                    => '',
+		'mail_from_name'             => '',
+		'mail_from_email'            => '',
+		'mail_fallback'              => 1,
+		// Set only when the key arrived through Connect, so the Overview can
+		// name the workspace and offer Disconnect rather than a paste field.
+		// Cleared the moment the key is changed or removed by hand.
+		'sendbeam_connected_via'     => '',
+		'sendbeam_connect_workspace' => '',
 	);
 }
 

@@ -124,15 +124,48 @@ function is_wp_error( $t ) { return $t instanceof WP_Error; }
 function wp_remote_post( $url, $args ) { $GLOBALS['stub']['remote'][] = array( 'url' => $url, 'args' => $args, 'method' => 'POST' ); $r = $GLOBALS['stub']['remote_reply']; return ( $r instanceof Closure ) ? $r( $url, $args ) : $r; }
 function wp_remote_retrieve_response_code( $r ) { return $r['response']['code']; }
 function wp_remote_retrieve_body( $r ) { return $r['body']; }
-function do_action( $tag, ...$args ) { $GLOBALS['stub']['actions'][] = array( $tag, $args ); }
+function do_action( $tag, ...$args ) {
+	$GLOBALS['stub']['actions'][] = array( $tag, $args );
+	// The Connect pop-up fires this immediately before the request ends; the
+	// test uses it as the seam where WordPress would have called exit.
+	if ( ! empty( $GLOBALS['stub']['throw_on'][ $tag ] ) ) { throw new SendBeamStubExit( $tag ); }
+}
 function network_home_url() { return 'https://www.example-site.test/'; }
 function home_url() { return 'https://www.example-site.test'; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function is_email( $e ) { return (bool) filter_var( $e, FILTER_VALIDATE_EMAIL ); }
 function sanitize_email( $e ) { return trim( (string) $e ); }
 function checked( $a, $b = true, $echo = true ) { return $a == $b ? ' checked="checked"' : ''; }
-function get_bloginfo( $k ) { return 'Example Site'; }
+function get_bloginfo( $k ) { return isset( $GLOBALS['stub']['bloginfo'][ $k ] ) ? $GLOBALS['stub']['bloginfo'][ $k ] : 'Example Site'; }
 function selected( $a, $b, $echo = true ) { return $a == $b ? ' selected="selected"' : ''; }
+
+// ── Connect ─────────────────────────────────────────────────────────────
+/**
+ * The Connect flow ends a request in two ways WordPress can and the test
+ * cannot: wp_redirect()+exit on the way out, and a rendered page + exit on the
+ * way back. Both are turned into exceptions the test catches, so a handler can
+ * be driven to its end without killing the run.
+ */
+class SendBeamStubExit extends RuntimeException {}
+function site_url( $path = '' ) { $base = isset( $GLOBALS['stub']['site_url'] ) ? $GLOBALS['stub']['site_url'] : 'https://www.example-site.test'; return $base . $path; }
+function admin_url( $path = '' ) { return 'https://www.example-site.test/wp-admin/' . ltrim( (string) $path, '/' ); }
+function wp_redirect( $url, $status = 302 ) { $GLOBALS['stub']['redirect'] = array( 'url' => $url, 'status' => $status ); throw new SendBeamStubExit( 'wp_redirect' ); }
+function wp_safe_redirect( $url, $status = 302 ) { return wp_redirect( $url, $status ); }
+function wp_die( $message = '' ) { throw new SendBeamStubExit( 'wp_die: ' . $message ); }
+function check_admin_referer( $action = -1, $name = '_wpnonce' ) {
+	$nonce = isset( $_REQUEST[ $name ] ) ? $_REQUEST[ $name ] : '';
+	if ( ! wp_verify_nonce( $nonce, $action ) ) { wp_die( 'bad nonce' ); }
+	return 1;
+}
+function get_current_user_id() { return isset( $GLOBALS['stub']['user_id'] ) ? (int) $GLOBALS['stub']['user_id'] : 0; }
+function wp_generate_password( $length = 12, $special_chars = true, $extra_special_chars = false ) {
+	$chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+	if ( $special_chars ) { $chars .= '!@#$%^&*()'; }
+	$out = '';
+	for ( $i = 0; $i < $length; $i++ ) { $out .= $chars[ random_int( 0, strlen( $chars ) - 1 ) ]; }
+	return $out;
+}
+function nocache_headers() {}
 
 // ── Form plugin bridges ────────────────────────────────────────────────
 function wp_schedule_single_event( $timestamp, $hook, $args = array() ) { $GLOBALS['stub']['cron'][] = array( 'hook' => $hook, 'args' => $args ); return true; }
