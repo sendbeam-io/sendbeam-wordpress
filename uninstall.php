@@ -34,6 +34,7 @@ $sendbeam_transients = array(
 	'sendbeam_remote_forms',
 	'sendbeam_remote_lists',
 	'sendbeam_subscriber_count',
+	'sendbeam_form_placed',
 );
 foreach ( $sendbeam_transients as $sendbeam_transient ) {
 	delete_transient( $sendbeam_transient );

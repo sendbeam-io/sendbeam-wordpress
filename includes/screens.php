@@ -42,36 +42,34 @@ function sendbeam_screen_overview() {
 	// is one subscriber, and adding the lists up counted them three times.
 	$subscribers = sendbeam_subscriber_count();
 	$connected   = sendbeam_is_connected();
+	$status      = $connected ? sendbeam_connect_status() : sendbeam_connect_empty_status();
+
+	sendbeam_overview_notices();
 
 	echo '<div class="sb-grid">';
 
 	sendbeam_card_open( __( 'Setup', 'sendbeam' ) );
-	$steps   = sendbeam_setup_steps();
-	$targets = array( sendbeam_tab_url( 'overview' ) . '#sendbeam_api_key', sendbeam_tab_url( 'forms' ), sendbeam_tab_url( 'mail' ) );
 	echo '<ol class="sb-steps">';
-	foreach ( $steps as $i => $step ) {
-		// Step one is not a link to a field any more when there is nothing
-		// connected: it is the thing itself, done here, in one button.
-		$is_connect_step = ( 0 === $i && ! $connected );
-
+	foreach ( sendbeam_setup_steps() as $i => $step ) {
 		printf(
-			'<li class="%1$s"><span class="sb-num" aria-hidden="true">%2$s</span><span>',
+			'<li class="%1$s"><span class="sb-num" aria-hidden="true">%2$s</span><div class="sb-step">',
 			$step['done'] ? 'is-done' : '',
 			$step['done'] ? '&#10003;' : (int) ( $i + 1 )
 		);
-		if ( $is_connect_step ) {
-			printf( '<strong>%s</strong>', esc_html( $step['label'] ) );
-			sendbeam_connect_panel();
-			sendbeam_connect_paste_disclosure();
+
+		// The connect step is not a link to a field any more when there is
+		// nothing connected: it is the thing itself, done here, in one button.
+		$linked = ! ( 'connect' === $step['key'] && ! $connected );
+		if ( $linked ) {
+			printf( '<strong><a href="%1$s">%2$s</a></strong>', esc_url( $step['target'] ), esc_html( $step['label'] ) );
 		} else {
-			printf(
-				'<strong><a href="%1$s">%2$s</a></strong><span>%3$s</span>',
-				esc_url( $targets[ $i ] ),
-				esc_html( $step['label'] ),
-				esc_html( $step['detail'] )
-			);
+			printf( '<strong>%s</strong>', esc_html( $step['label'] ) );
 		}
-		echo '</span></li>';
+		printf( '<span class="sb-step__note">%s</span>', esc_html( $step['detail'] ) );
+
+		sendbeam_overview_step_panel( $step, $status, $connected );
+
+		echo '</div></li>';
 	}
 	echo '</ol>';
 	sendbeam_card_close();
@@ -87,19 +85,280 @@ function sendbeam_screen_overview() {
 
 	echo '</div>';
 
-	// When nothing is connected the key field lives in the disclosure above,
-	// under the Connect button — one paste field on the screen, never two.
-	if ( $connected ) {
-		sendbeam_card_open( __( 'Connect', 'sendbeam' ) );
-		if ( sendbeam_connected_via_connect() ) {
-			sendbeam_connect_connected_panel();
-		} else {
-			sendbeam_form_open( 'connect' );
-			do_settings_sections( 'sendbeam_connect_page' );
-			sendbeam_form_close();
-		}
+	// A pasted key still gets its own card: there is a field to edit. A key
+	// that arrived through Connect has nothing to edit, and its Disconnect
+	// button lives in step 1 where someone looking at the connection will
+	// actually find it — the old card was below the fold and titled
+	// "Connect", which read as an invitation to connect something.
+	if ( $connected && ! sendbeam_connected_via_connect() ) {
+		sendbeam_card_open( __( 'API key', 'sendbeam' ) );
+		sendbeam_form_open( 'connect' );
+		do_settings_sections( 'sendbeam_connect_page' );
+		sendbeam_form_close();
 		sendbeam_card_close();
 	}
+}
+
+/**
+ * Whatever the last button did, said in one line at the top of the screen.
+ *
+ * Every one of these arrives as a query argument on a redirect this plugin
+ * issued itself, so the only thing read out of the URL is which of a fixed
+ * list of sentences to print.
+ */
+function sendbeam_overview_notices() {
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- notice text only, chosen from a fixed list, set by our own redirect.
+	$domain = isset( $_GET['sendbeam_domain'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_domain'] ) ) : '';
+	$mail   = isset( $_GET['sendbeam_mail'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_mail'] ) ) : '';
+	$gone   = isset( $_GET['sendbeam_disconnected'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_disconnected'] ) ) : '';
+	// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+	$messages = array(
+		'domain' => array(
+			'verified'      => array( 'ok', __( 'Verified. SendBeam can now send email as your domain.', 'sendbeam' ) ),
+			'verified_mail' => array( 'ok', __( 'Verified, and this site\'s email has been switched on — it was waiting on exactly this. Send yourself a test below.', 'sendbeam' ) ),
+			'pending'       => array( 'warn', __( 'Not verified yet. DNS changes can take anything from a few minutes to a day to spread; the records are below, unchanged.', 'sendbeam' ) ),
+			'nodomain'      => array( 'warn', __( 'There is no sending domain on this workspace yet. Add one under Sending in SendBeam.', 'sendbeam' ) ),
+			'unreachable'   => array( 'bad', __( 'Could not ask SendBeam to check just now. Nothing was changed.', 'sendbeam' ) ),
+		),
+		'mail'   => array(
+			'on'         => array( 'ok', __( 'Site email is on. Password resets, receipts and notifications now go out through SendBeam.', 'sendbeam' ) ),
+			'noscope'    => array( 'bad', __( 'This site\'s key was not given permission to send your site\'s email, so it was not switched on. Reconnect and tick that box.', 'sendbeam' ) ),
+			'unverified' => array( 'bad', __( 'The sending domain is not verified, so site email was not switched on. Finish step 2 first.', 'sendbeam' ) ),
+		),
+		'gone'   => array(
+			'ok'          => array( 'ok', __( 'Disconnected. The key was revoked in SendBeam.', 'sendbeam' ) ),
+			'unreachable' => array( 'warn', __( 'Disconnected, but this server could not reach SendBeam; revoke it under Settings → API keys.', 'sendbeam' ) ),
+		),
+	);
+
+	foreach ( array(
+		'domain' => $domain,
+		'mail'   => $mail,
+		'gone'   => $gone,
+	) as $group => $value ) {
+		if ( '' === $value || ! isset( $messages[ $group ][ $value ] ) ) {
+			continue;
+		}
+		list( $tone, $text ) = $messages[ $group ][ $value ];
+		echo '<p class="sb-msg sb-msg--' . esc_attr( $tone ) . '">' . esc_html( $text ) . '</p>';
+	}
+}
+
+/**
+ * The working part of a checklist step, under its sentence.
+ *
+ * Four steps, four panels, and nothing shared between them but the wrapper —
+ * a step whose panel is a button and a step whose panel is a table of DNS
+ * records have nothing in common except that they both sit in an <li>.
+ *
+ * @param array $step      One entry from sendbeam_setup_steps().
+ * @param array $status    Normalised Connect status.
+ * @param bool  $connected Whether the key works.
+ */
+function sendbeam_overview_step_panel( $step, $status, $connected ) {
+	switch ( $step['key'] ) {
+		case 'connect':
+			if ( ! $connected ) {
+				sendbeam_connect_panel();
+				sendbeam_connect_paste_disclosure();
+			} elseif ( sendbeam_connected_via_connect() ) {
+				sendbeam_connect_connected_panel( $status );
+			}
+			break;
+		case 'domain':
+			sendbeam_overview_domain_panel( $status, $connected );
+			break;
+		case 'form':
+			sendbeam_overview_form_panel( $step, $connected );
+			break;
+		case 'mail':
+			sendbeam_overview_mail_panel( $status, $connected );
+			break;
+	}
+}
+
+/**
+ * Step 2: the sending domain, its records, and the two ways to finish it.
+ *
+ * The records are the whole point of this step existing. A site owner is
+ * being asked to go and edit DNS — the least forgiving thing in this entire
+ * product — so every value is one click to the clipboard rather than
+ * something to retype, and **Check now** is right there so they can find out
+ * whether it worked without leaving wp-admin.
+ *
+ * @param array $status    Normalised Connect status.
+ * @param bool  $connected Whether the key works.
+ */
+function sendbeam_overview_domain_panel( $status, $connected ) {
+	if ( ! $connected || '' === $status['domain']['name'] ) {
+		return;
+	}
+
+	$domain   = $status['domain'];
+	$verified = ! empty( $domain['verified'] );
+
+	echo '<div class="sb-step__panel">';
+
+	if ( $verified ) {
+		echo '<p class="sb-verified"><span class="sb-tick" aria-hidden="true">&#10003;</span> ';
+		printf(
+			/* translators: %s: the sending domain */
+			esc_html__( 'Verified — %s', 'sendbeam' ),
+			esc_html( $domain['name'] )
+		);
+		echo '</p>';
+	}
+
+	if ( $domain['records'] ) {
+		if ( $verified ) {
+			echo '<details class="sb-paste"><summary>' . esc_html__( 'The records SendBeam is using', 'sendbeam' ) . '</summary><div style="margin-top:10px">';
+		}
+		sendbeam_domain_records_table( $domain['records'] );
+		if ( $verified ) {
+			echo '</div></details>';
+		}
+	} elseif ( ! $verified ) {
+		echo '<p class="sb-note">' . esc_html__( 'SendBeam has not sent the DNS records for this domain. Open Sending in SendBeam to see them.', 'sendbeam' ) . '</p>';
+	}
+
+	echo '<div class="sb-actions">';
+	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	wp_nonce_field( 'sendbeam_domain_check' );
+	echo '<input type="hidden" name="action" value="sendbeam_domain_check" />';
+	printf(
+		'<button type="submit" class="sb-btn sb-btn--small">%s</button>',
+		esc_html( $verified ? __( 'Check again', 'sendbeam' ) : __( 'Check now', 'sendbeam' ) )
+	);
+	echo '</form>';
+
+	if ( ! $verified && '' !== $domain['domain_connect_url'] ) {
+		printf(
+			'<a class="sb-btn sb-btn--small sb-btn--ghost" href="%s" target="_blank" rel="noopener">%s</a>',
+			esc_url( $domain['domain_connect_url'] ),
+			esc_html__( 'Set up DNS automatically', 'sendbeam' )
+		);
+	}
+	echo '</div>';
+
+	if ( ! $verified && '' !== $domain['domain_connect_url'] ) {
+		echo '<p class="sb-note">' . esc_html__( 'Your registrar supports one-click set-up: that button signs you in there and adds the records for you. It opens in a new tab.', 'sendbeam' ) . '</p>';
+	}
+
+	if ( '' !== $domain['checked_at'] ) {
+		echo '<p class="sb-note">' . esc_html(
+			sprintf(
+				/* translators: %s: an ISO timestamp of the last DNS check */
+				__( 'Last checked %s.', 'sendbeam' ),
+				$domain['checked_at']
+			)
+		) . '</p>';
+	}
+
+	echo '</div>';
+}
+
+/**
+ * The DNS records, one row each, every value one click from the clipboard.
+ *
+ * @param array<int,array{type:string,name:string,value:string}> $records Records.
+ */
+function sendbeam_domain_records_table( $records ) {
+	echo '<div class="sb-scroll"><table class="sb-table sb-dns"><thead><tr>';
+	echo '<th>' . esc_html__( 'Type', 'sendbeam' ) . '</th>';
+	echo '<th>' . esc_html__( 'Name', 'sendbeam' ) . '</th>';
+	echo '<th>' . esc_html__( 'Value', 'sendbeam' ) . '</th>';
+	echo '<th><span class="screen-reader-text">' . esc_html__( 'Copy', 'sendbeam' ) . '</span></th>';
+	echo '</tr></thead><tbody>';
+	foreach ( $records as $record ) {
+		echo '<tr>';
+		echo '<td class="sb-mono">' . esc_html( $record['type'] ) . '</td>';
+		echo '<td><code>' . esc_html( '' !== $record['name'] ? $record['name'] : '@' ) . '</code></td>';
+		echo '<td><code class="sb-dns__value">' . esc_html( $record['value'] ) . '</code></td>';
+		printf(
+			'<td><button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-copy" data-copy="%1$s" data-done="%2$s" aria-label="%3$s">%4$s</button></td>',
+			esc_attr( $record['value'] ),
+			esc_attr__( 'Copied', 'sendbeam' ),
+			esc_attr(
+				sprintf(
+					/* translators: %s: a DNS record type, e.g. TXT */
+					__( 'Copy the %s record value', 'sendbeam' ),
+					$record['type']
+				)
+			),
+			esc_html__( 'Copy', 'sendbeam' )
+		);
+		echo '</tr>';
+	}
+	echo '</tbody></table></div>';
+}
+
+/**
+ * Step 3: the shortcode, for people who are not using the block editor.
+ *
+ * @param array $step      The step.
+ * @param bool  $connected Whether the key works.
+ */
+function sendbeam_overview_form_panel( $step, $connected ) {
+	if ( ! $connected || $step['done'] ) {
+		return;
+	}
+	$settings = sendbeam_settings();
+	if ( '' === (string) $settings['default_form'] && '' === (string) $settings['contact_form'] ) {
+		return;
+	}
+
+	echo '<div class="sb-actions"><code>[sendbeam_form]</code>';
+	printf(
+		'<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-copy" data-copy="%1$s" data-done="%2$s">%3$s</button>',
+		esc_attr( '[sendbeam_form]' ),
+		esc_attr__( 'Copied', 'sendbeam' ),
+		esc_html__( 'Copy', 'sendbeam' )
+	);
+	echo '</div>';
+}
+
+/**
+ * Step 4: one button when everything is in place, and why not when it is not.
+ *
+ * @param array $status    Normalised Connect status.
+ * @param bool  $connected Whether the key works.
+ */
+function sendbeam_overview_mail_panel( $status, $connected ) {
+	if ( ! $connected ) {
+		return;
+	}
+	$settings = sendbeam_settings();
+
+	if ( ! empty( $settings['mail_enabled'] ) ) {
+		echo '<div class="sb-actions">';
+		echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+		wp_nonce_field( 'sendbeam_test_mail' );
+		echo '<input type="hidden" name="action" value="sendbeam_test_mail" />';
+		printf( '<button type="submit" class="sb-btn sb-btn--small">%s</button>', esc_html__( 'Send a test email', 'sendbeam' ) );
+		echo '</form>';
+		echo '</div>';
+		return;
+	}
+
+	if ( ! sendbeam_connect_granted( 'transactional:send' ) || empty( $status['domain']['verified'] ) ) {
+		return; // The step's own sentence already says which one is missing.
+	}
+
+	echo '<div class="sb-actions">';
+	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	wp_nonce_field( 'sendbeam_mail_switch_on' );
+	echo '<input type="hidden" name="action" value="sendbeam_mail_switch_on" />';
+	printf( '<button type="submit" class="sb-btn sb-btn--small">%s</button>', esc_html__( 'Switch on', 'sendbeam' ) );
+	echo '</form>';
+	echo '</div>';
+	echo '<p class="sb-note">' . esc_html(
+		sprintf(
+			/* translators: %s: the From address site email will use */
+			__( 'Email will be sent as %s. You can change that on the Site email tab.', 'sendbeam' ),
+			'' !== $status['sender']['from_email'] ? $status['sender']['from_email'] : __( 'your workspace sender', 'sendbeam' )
+		)
+	) . '</p>';
 }
 
 /**
@@ -119,32 +378,71 @@ function sendbeam_connect_paste_disclosure() {
 }
 
 /**
- * What the Connect card says once the button has done its work.
+ * What step 1 says once the button has done its work.
  *
- * Disconnect goes through the same "Remove the saved key" path a pasted key
- * uses, so there is one way of forgetting a key rather than two. It forgets
- * this site's copy and nothing else — the key itself is still live in
- * SendBeam, which is where it has to be revoked, and saying so is the
- * difference between a tidy uninstall and a key nobody knows is still valid.
+ * Disconnect no longer goes through the settings form's "Remove the saved
+ * key" checkbox. That only ever forgot this site's copy, and left a live key
+ * in the workspace for the owner to go and revoke by hand — which is exactly
+ * what nobody does. It now calls SendBeam and revokes the key first.
+ *
+ * The confirmation is inline rather than window.confirm(): a browser dialog
+ * cannot say what disconnecting costs, and half of them are suppressed after
+ * the first one on a page. With scripts off the confirmation box is simply
+ * already open, so the button still works.
+ *
+ * @param array $status Normalised Connect status, for the workspace name.
  */
-function sendbeam_connect_connected_panel() {
+function sendbeam_connect_connected_panel( $status = null ) {
 	$workspace = sendbeam_connect_workspace_name();
+	if ( '' === $workspace && is_array( $status ) ) {
+		$workspace = (string) $status['workspace']['name'];
+	}
+
+	echo '<div class="sb-step__panel">';
 
 	if ( '' !== $workspace ) {
 		/* translators: %s: the SendBeam workspace name */
 		echo '<p style="margin-top:0"><strong>' . esc_html( sprintf( __( 'Connected to %s', 'sendbeam' ), $workspace ) ) . '</strong></p>';
-	} else {
-		echo '<p style="margin-top:0"><strong>' . esc_html__( 'Connected', 'sendbeam' ) . '</strong></p>';
 	}
-	echo '<p>' . esc_html__( 'This site was connected through SendBeam, and holds a key with only the permissions you approved.', 'sendbeam' ) . '</p>';
-	echo '<p class="sb-note">' . esc_html__( 'Disconnecting forgets this site\'s copy of the key. The key itself stays valid in SendBeam until you revoke it there, under Settings → API keys.', 'sendbeam' ) . '</p>';
 
-	echo '<form action="' . esc_url( admin_url( 'options.php' ) ) . '" method="post">';
-	settings_fields( 'sendbeam' );
-	echo '<input type="hidden" name="sendbeam_settings[_tab]" value="connect" />';
-	echo '<input type="hidden" name="sendbeam_settings[api_key_remove]" value="1" />';
-	submit_button( __( 'Disconnect', 'sendbeam' ), 'secondary', 'submit', false );
-	echo '</form>';
+	$granted = sendbeam_connect_granted_list();
+	if ( $granted ) {
+		echo '<ul class="sb-granted">';
+		foreach ( $granted as $label ) {
+			echo '<li>' . esc_html( $label ) . '</li>';
+		}
+		echo '</ul>';
+	}
+
+	echo '<form class="sb-confirm" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	wp_nonce_field( 'sendbeam_disconnect' );
+	echo '<input type="hidden" name="action" value="sendbeam_disconnect" />';
+	printf(
+		'<button type="button" class="sb-btn sb-btn--ghost sb-btn--small sb-confirm__ask" hidden>%s</button>',
+		esc_html__( 'Disconnect', 'sendbeam' )
+	);
+	echo '<div class="sb-confirm__box">';
+	echo '<p class="sb-note">' . esc_html__( 'Disconnect this site? The key is revoked in SendBeam and forgotten here. Forms already on your pages stop loading until you connect again.', 'sendbeam' ) . '</p>';
+	printf( '<button type="submit" class="sb-btn sb-btn--small">%s</button> ', esc_html__( 'Yes, disconnect', 'sendbeam' ) );
+	printf( '<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-confirm__cancel">%s</button>', esc_html__( 'Cancel', 'sendbeam' ) );
+	echo '</div></form>';
+
+	echo '</div>';
+}
+
+/**
+ * The permissions this site's key holds, in the consent page's own words.
+ *
+ * @return string[]
+ */
+function sendbeam_connect_granted_list() {
+	$out = array();
+	foreach ( sendbeam_connect_scopes() as $scope => $meta ) {
+		if ( sendbeam_connect_granted( $scope ) ) {
+			$out[] = $meta['label'];
+		}
+	}
+	return $out;
 }
 
 /**

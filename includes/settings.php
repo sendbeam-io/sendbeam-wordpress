@@ -202,7 +202,16 @@ function sendbeam_sanitize_settings( $input ) {
 	}
 
 	if ( isset( $touch['mail_enabled'] ) ) {
-		$out['mail_enabled']    = empty( $input['mail_enabled'] ) ? 0 : 1;
+		$out['mail_enabled'] = empty( $input['mail_enabled'] ) ? 0 : 1;
+
+		/*
+		 * Turning site email off by hand is a decision, and it cancels the
+		 * one Connect made on the site owner's behalf. Without this, the next
+		 * domain check would helpfully switch it straight back on.
+		 */
+		if ( empty( $out['mail_enabled'] ) ) {
+			$out['sendbeam_mail_deferred'] = 0;
+		}
 		$out['mail_from_name']  = isset( $input['mail_from_name'] ) ? sanitize_text_field( wp_unslash( $input['mail_from_name'] ) ) : '';
 		$from_email             = isset( $input['mail_from_email'] ) ? sanitize_email( wp_unslash( $input['mail_from_email'] ) ) : '';
 		$out['mail_from_email'] = $from_email && is_email( $from_email ) ? $from_email : '';
@@ -234,6 +243,17 @@ function sendbeam_sanitize_settings( $input ) {
 		sendbeam_flush_cache();
 		$out['sendbeam_connected_via']     = '';
 		$out['sendbeam_connect_workspace'] = '';
+		// The permissions and the held-back site email belonged to the old
+		// key. A pasted key's permissions are unknown, and claiming the old
+		// ones would offer buttons that cannot work.
+		$out['sendbeam_connect_granted'] = '';
+		$out['sendbeam_mail_deferred']   = 0;
+	}
+
+	// A form chosen or cleared changes what the checklist should be looking
+	// for on the site, so the cached answer is no longer about this site.
+	if ( isset( $touch['default_form'] ) ) {
+		delete_transient( 'sendbeam_form_placed' );
 	}
 
 	unset( $out['_tab'] );
@@ -654,6 +674,29 @@ function sendbeam_admin_assets( $hook ) {
 				if ( field && img && img.url ) { field.value = img.url; }
 			} );
 			frame.open();
+		} );
+
+		/*
+		 * Inline confirmation, in place of window.confirm(): a browser dialog
+		 * cannot explain what Disconnect costs, and Chrome suppresses repeat
+		 * dialogs on a page anyway. The markup ships with the confirmation
+		 * open and the plain button hidden, so a page with no JavaScript is
+		 * still usable — this swaps them round the moment script runs.
+		 */
+		document.querySelectorAll( ".sb-confirm" ).forEach( function ( form ) {
+			var ask = form.querySelector( ".sb-confirm__ask" );
+			var box = form.querySelector( ".sb-confirm__box" );
+			var no  = form.querySelector( ".sb-confirm__cancel" );
+			if ( ! ask || ! box ) { return; }
+			function shut() { box.hidden = true; ask.hidden = false; }
+			shut();
+			ask.addEventListener( "click", function () {
+				ask.hidden = true;
+				box.hidden = false;
+				var yes = box.querySelector( "button[type=submit]" );
+				if ( yes ) { yes.focus(); }
+			} );
+			if ( no ) { no.addEventListener( "click", function () { shut(); ask.focus(); } ); }
 		} );
 
 		document.addEventListener( "click", function ( e ) {

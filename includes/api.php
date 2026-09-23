@@ -195,6 +195,9 @@ function sendbeam_form_choices( $kind = '' ) {
  */
 function sendbeam_flush_cache() {
 	delete_transient( SENDBEAM_CACHE_CONN );
+	// The Connect status belongs to one key: the workspace, the sending
+	// domain and the sender all change with it.
+	delete_transient( 'sendbeam_connect_status' );
 	delete_transient( SENDBEAM_CACHE_FORMS );
 	delete_transient( SENDBEAM_CACHE_LISTS );
 	delete_transient( SENDBEAM_CACHE_SUBS );
@@ -320,11 +323,15 @@ function sendbeam_rest_forms() {
 /**
  * POST JSON to the SendBeam API with the saved key.
  *
- * @param string $path Path beginning with a slash.
- * @param array  $body Payload.
+ * @param string $path    Path beginning with a slash.
+ * @param array  $body    Payload.
+ * @param int    $timeout Seconds to wait. Disconnect uses a shorter one: it
+ *                        is best-effort, and a site owner pressing the button
+ *                        should not sit on a spinner because sendbeam.io is
+ *                        slow — the key is forgotten here either way.
  * @return array{ok:bool,status:int,data:array<mixed>,error:string}
  */
-function sendbeam_api_post( $path, $body ) {
+function sendbeam_api_post( $path, $body, $timeout = 12 ) {
 	$key = sendbeam_api_key();
 	if ( '' === $key ) {
 		return array(
@@ -338,7 +345,7 @@ function sendbeam_api_post( $path, $body ) {
 	$response = wp_remote_post(
 		sendbeam_app_url() . $path,
 		array(
-			'timeout' => 12,
+			'timeout' => max( 1, (int) $timeout ),
 			'headers' => array(
 				'x-api-key'    => $key,
 				'Content-Type' => 'application/json',

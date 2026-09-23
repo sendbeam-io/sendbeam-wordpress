@@ -204,7 +204,34 @@ function sendbeam_admin_css() {
 		font-family:"Martian Mono",ui-monospace,monospace}
 	.sb-steps li.is-done .sb-num{background:var(--m);border-color:var(--m);color:#fff}
 	.sb-steps strong{display:block;font-size:14px}
-	.sb-steps span{display:block;font-size:12px;color:var(--ink-60);margin-top:2px}
+	/* Scoped to the note, not to every span in the step: a step now contains a
+	   table, buttons and a disclosure, and `.sb-steps span` was greying all of
+	   it out and forcing each one onto its own line. */
+	.sb-steps .sb-step{flex:1 1 auto;min-width:0}
+	.sb-steps .sb-step__note{display:block;font-size:12px;color:var(--ink-60);margin-top:2px}
+	.sb-step__panel{margin-top:10px}
+	.sb-step__panel>*:first-child{margin-top:0}
+	.sb-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 6px}
+	.sb-actions form{margin:0}
+
+	/* The sending domain. The value column is the one people copy, so it gets
+	   the room; the whole table scrolls sideways rather than squeezing a TXT
+	   record into three words per line on a phone. */
+	.sb-scroll{overflow-x:auto;margin:0 0 10px}
+	.sb-dns td code{display:inline-block;max-width:46ch;overflow-wrap:anywhere}
+	.sb-dns__value{white-space:normal}
+	.sb-verified{margin:0 0 8px;font-weight:700;color:var(--m);display:flex;gap:6px;align-items:center}
+	.sb-tick{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;
+		background:var(--m);color:#fff;font-size:11px;flex:0 0 auto}
+	.sb-granted{list-style:none;margin:0 0 12px;padding:0;font-size:12px;color:var(--ink-60)}
+	.sb-granted li{position:relative;padding-left:14px;margin:0 0 3px}
+	.sb-granted li::before{content:"\2713";position:absolute;left:0;color:var(--m)}
+
+	/* Inline confirmation. With no script the box is simply already open and
+	   the plain button beside it never appears, so the form still submits. */
+	.sb-confirm{margin:0}
+	.sb-confirm__box{border-left:4px solid var(--v);background:var(--paper);padding:10px 12px}
+	.sb-confirm__box p{margin:0 0 8px}
 
 	.sb-msg{padding:10px 14px;border-left:4px solid var(--ink-60);background:#fff;border-top:1px solid var(--ink);
 		border-right:1px solid var(--ink);border-bottom:1px solid var(--ink);margin:0 0 14px;
@@ -241,7 +268,7 @@ function sendbeam_admin_css() {
 	.sb-scope input[type=checkbox]:disabled:checked::before{opacity:1}
 	.sb-scope input[type=checkbox]:focus{box-shadow:0 0 0 1px #121212}
 	.sb-scope .sb-note{margin-left:4px}
-	.sb-rule [hidden]{display:none!important}
+	.sendbeam-app [hidden]{display:none!important}
 
 	.sb-doc h3{font-size:14px;margin:0 0 6px}
 	.sb-doc p{margin:0 0 10px;max-width:62ch}

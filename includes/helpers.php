@@ -53,6 +53,17 @@ function sendbeam_default_settings() {
 		// Cleared the moment the key is changed or removed by hand.
 		'sendbeam_connected_via'     => '',
 		'sendbeam_connect_workspace' => '',
+		// The permissions SendBeam actually granted this key, as a csv. What
+		// was *asked* for is not the same thing — the person can untick a box
+		// on the consent page — and the Overview has to say "you did not give
+		// this site that permission" rather than guess.
+		'sendbeam_connect_granted'   => '',
+		// Site email was approved at consent time but held back because the
+		// sending domain was not verified yet. The domain check switches it
+		// on and clears this; turning site email off by hand clears it too,
+		// so a later check never re-enables something deliberately switched
+		// off.
+		'sendbeam_mail_deferred'     => 0,
 	);
 }
 

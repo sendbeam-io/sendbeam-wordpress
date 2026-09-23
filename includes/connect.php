@@ -27,6 +27,7 @@ defined( 'ABSPATH' ) || exit;
 
 add_action( 'admin_post_sendbeam_connect_start', 'sendbeam_connect_start' );
 add_action( 'admin_post_sendbeam_connect_return', 'sendbeam_connect_return' );
+add_action( 'admin_post_sendbeam_disconnect', 'sendbeam_connect_disconnect' );
 
 /** How long the person has to finish signing up in the pop-up. */
 const SENDBEAM_CONNECT_TTL = 15 * MINUTE_IN_SECONDS;
@@ -58,7 +59,31 @@ function sendbeam_connect_scopes() {
 			'label'  => __( 'Send WooCommerce order, cart and product events to SendBeam', 'sendbeam' ),
 			'always' => false,
 		),
+		'domain'             => array(
+			/* translators: %s: this site's domain, e.g. harbourlane.co.uk */
+			'label'  => sprintf( __( "Set up this site's sending domain (%s) in SendBeam", 'sendbeam' ), sendbeam_connect_site_host() ),
+			'always' => false,
+		),
 	);
+}
+
+/**
+ * The domain this site would send from: its host, without the `www.`.
+ *
+ * `www.` is stripped because a sending domain is the registrable name people
+ * see in the From address — mail from `www.harbourlane.co.uk` would be
+ * correct DNS and wrong to every human reading it — and because SendBeam
+ * derives the same value from `site_url` at the other end. The two must agree
+ * or the records shown here belong to a domain nobody set up.
+ *
+ * @return string Empty when this site has no usable host.
+ */
+function sendbeam_connect_site_host() {
+	$parts = wp_parse_url( site_url() );
+	if ( empty( $parts['host'] ) ) {
+		return '';
+	}
+	return preg_replace( '/^www\./i', '', strtolower( (string) $parts['host'] ) );
 }
 
 /**
@@ -225,11 +250,22 @@ function sendbeam_connect_start() {
 		wp_die( esc_html__( 'This site has no https address, so it cannot be connected to SendBeam. Add a certificate, or paste an API key instead.', 'sendbeam' ) );
 	}
 
+	/*
+	 * Whether a pop-up actually opened. The script sets this to 1 in the
+	 * submit handler when window.open() returned a window; a blocked pop-up
+	 * leaves it at 0 and the form simply navigates this tab instead. The
+	 * return page cannot work this out for itself — window.opener is null in
+	 * both cases once the redirect has happened — so it is remembered here
+	 * and used to decide between closing the window and offering a way back.
+	 */
+	$popup = isset( $_POST['sendbeam_popup'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['sendbeam_popup'] ) );
+
 	set_transient(
 		sendbeam_connect_transient_key( get_current_user_id() ),
 		array(
 			'state'  => $state,
 			'scopes' => $scopes,
+			'popup'  => $popup ? 1 : 0,
 		),
 		SENDBEAM_CONNECT_TTL
 	);
@@ -265,11 +301,17 @@ function sendbeam_connect_return() {
 
 	$expected = is_array( $stored ) && isset( $stored['state'] ) ? (string) $stored['state'] : '';
 
+	// A connection nobody can be sure about is treated as a pop-up, which is
+	// what it was before this flag existed: the window closes, and the link
+	// underneath is there either way.
+	$is_popup = ! is_array( $stored ) || ! isset( $stored['popup'] ) || ! empty( $stored['popup'] );
+
 	if ( '' === $expected || '' === $state || ! hash_equals( $expected, $state ) ) {
 		sendbeam_connect_render_result(
 			false,
 			__( 'Not connected', 'sendbeam' ),
-			__( 'This window did not come back from the request this site started. Nothing was changed. Close it and press Connect SendBeam again.', 'sendbeam' )
+			__( 'This window did not come back from the request this site started. Nothing was changed. Close it and press Connect SendBeam again.', 'sendbeam' ),
+			$is_popup
 		);
 		exit;
 	}
@@ -278,7 +320,8 @@ function sendbeam_connect_return() {
 		sendbeam_connect_render_result(
 			false,
 			__( 'Not connected', 'sendbeam' ),
-			__( 'You did not approve the connection, so this site was given nothing. You can press Connect SendBeam again whenever you like.', 'sendbeam' )
+			__( 'You did not approve the connection, so this site was given nothing. You can press Connect SendBeam again whenever you like.', 'sendbeam' ),
+			$is_popup
 		);
 		exit;
 	}
@@ -287,7 +330,8 @@ function sendbeam_connect_return() {
 		sendbeam_connect_render_result(
 			false,
 			__( 'Not connected', 'sendbeam' ),
-			__( 'SendBeam did not send anything this site could use. Nothing was changed.', 'sendbeam' )
+			__( 'SendBeam did not send anything this site could use. Nothing was changed.', 'sendbeam' ),
+			$is_popup
 		);
 		exit;
 	}
@@ -300,12 +344,13 @@ function sendbeam_connect_return() {
 			$result['workspace']
 				/* translators: %s: the SendBeam workspace name */
 				? sprintf( __( 'This site is connected to %s. You can close this window.', 'sendbeam' ), $result['workspace'] )
-				: __( 'This site is connected. You can close this window.', 'sendbeam' )
+				: __( 'This site is connected. You can close this window.', 'sendbeam' ),
+			$is_popup
 		);
 		exit;
 	}
 
-	sendbeam_connect_render_result( false, __( 'Not connected', 'sendbeam' ), $result['error'] );
+	sendbeam_connect_render_result( false, __( 'Not connected', 'sendbeam' ), $result['error'], $is_popup );
 	exit;
 }
 
@@ -379,7 +424,7 @@ function sendbeam_connect_exchange( $grant, $state ) {
 		$workspace = sanitize_text_field( $data['workspace']['name'] );
 	}
 
-	if ( ! sendbeam_connect_store_key( $data['api_key'], $workspace ) ) {
+	if ( ! sendbeam_connect_store_key( $data['api_key'], $workspace, $data ) ) {
 		return array(
 			'ok'        => false,
 			'workspace' => '',
@@ -403,11 +448,18 @@ function sendbeam_connect_exchange( $grant, $state ) {
  * of writing the same option is a second set of rules to keep in step, and
  * the one that skips the validation is the one that stores rubbish.
  *
+ * Everything else the exchange came back with is applied in the same write:
+ * the form SendBeam just made, the sender it worked out, and — only when the
+ * sending domain is already verified — site email itself. One update_option()
+ * rather than five, so a site is never left half-configured by a failure
+ * between them.
+ *
  * @param string $api_key   The key SendBeam minted.
  * @param string $workspace Workspace name, for the screen to show.
+ * @param array  $data      The whole exchange response.
  * @return bool False when the key did not survive validation — nothing saved.
  */
-function sendbeam_connect_store_key( $api_key, $workspace ) {
+function sendbeam_connect_store_key( $api_key, $workspace, $data = array() ) {
 	$clean = sendbeam_sanitize_settings(
 		array(
 			'_tab'    => 'connect',
@@ -419,12 +471,134 @@ function sendbeam_connect_store_key( $api_key, $workspace ) {
 		return false;
 	}
 
+	$granted = sendbeam_connect_granted_from_response( $data );
+	$status  = sendbeam_connect_normalise_status( $data );
+
 	$clean['sendbeam_connected_via']     = 'connect';
 	$clean['sendbeam_connect_workspace'] = $workspace;
+	$clean['sendbeam_connect_granted']   = implode( ',', $granted );
+
+	// The form SendBeam made during consent becomes this site's default, but
+	// only when the site has not already chosen one: a reconnect must not
+	// quietly repoint an embed that is already live on a page.
+	if ( '' === trim( (string) $clean['default_form'] ) && sendbeam_is_form_id( $status['default_form']['id'] ) ) {
+		$clean['default_form'] = strtolower( $status['default_form']['id'] );
+	}
+
+	if ( in_array( 'transactional:send', $granted, true ) ) {
+		if ( '' === trim( (string) $clean['mail_from_name'] ) && '' !== $status['sender']['from_name'] ) {
+			$clean['mail_from_name'] = $status['sender']['from_name'];
+		}
+		if ( '' === trim( (string) $clean['mail_from_email'] ) && '' !== $status['sender']['from_email'] ) {
+			$clean['mail_from_email'] = $status['sender']['from_email'];
+		}
+
+		/*
+		 * Site email is the one thing consent does not switch on by itself.
+		 * An unverified domain means every message would be sent from a name
+		 * the receiving server has no reason to trust, and a site whose
+		 * password resets silently stop arriving is worse off than one that
+		 * never turned the feature on. So: on when the domain is already
+		 * verified, and otherwise held — `sendbeam_mail_deferred` is what the
+		 * domain check later reads to finish the job.
+		 */
+		if ( empty( $clean['mail_enabled'] ) ) {
+			if ( ! empty( $status['domain']['verified'] ) ) {
+				$clean['mail_enabled']           = 1;
+				$clean['sendbeam_mail_deferred'] = 0;
+			} else {
+				$clean['sendbeam_mail_deferred'] = 1;
+			}
+		}
+	}
 
 	update_option( 'sendbeam_settings', $clean );
 	sendbeam_flush_cache();
+	sendbeam_connect_cache_status( $status );
 	return true;
+}
+
+/**
+ * Which permissions the key actually carries.
+ *
+ * Read from the response, never from what was asked for: the consent page can
+ * untick a box, and a screen that assumes otherwise tells someone to press a
+ * button that will always fail.
+ *
+ * @param array $data Exchange or status response.
+ * @return string[]
+ */
+function sendbeam_connect_granted_from_response( $data ) {
+	$known = array_keys( sendbeam_connect_scopes() );
+	$out   = array();
+	$raw   = isset( $data['scopes'] ) && is_array( $data['scopes'] ) ? $data['scopes'] : array();
+	foreach ( $raw as $scope ) {
+		$scope = is_string( $scope ) ? $scope : '';
+		if ( in_array( $scope, $known, true ) && ! in_array( $scope, $out, true ) ) {
+			$out[] = $scope;
+		}
+	}
+	return $out;
+}
+
+/**
+ * Was this permission granted to the key this site holds?
+ *
+ * A pasted key has no recorded permissions, so nothing is claimed about it:
+ * the answer is false and the screen says what is missing rather than
+ * offering a button that cannot work.
+ *
+ * @param string $scope Scope name.
+ * @return bool
+ */
+function sendbeam_connect_granted( $scope ) {
+	$settings = sendbeam_settings();
+	$granted  = array_filter( array_map( 'trim', explode( ',', (string) $settings['sendbeam_connect_granted'] ) ) );
+	return in_array( $scope, $granted, true );
+}
+
+/**
+ * Disconnect: revoke the key at SendBeam, then forget it here.
+ *
+ * In that order, and only in that order. Forgetting the key first would leave
+ * a live key in the workspace that nothing on this site can name any more —
+ * the exact situation the old "Remove the saved key" checkbox produced, and
+ * the reason its help text had to end with an instruction to go and revoke it
+ * by hand.
+ *
+ * The revoke is best-effort with a short timeout. If sendbeam.io cannot be
+ * reached the site still forgets the key — a site owner pressing Disconnect
+ * has decided, and leaving the key in the database because a request timed
+ * out would be answering a different question — and is told plainly that the
+ * key is still live and where to revoke it.
+ */
+function sendbeam_connect_disconnect() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+	}
+	check_admin_referer( 'sendbeam_disconnect' );
+
+	$revoked = false;
+	if ( '' !== sendbeam_api_key() ) {
+		$result = sendbeam_api_post( '/api/v1/connect/disconnect', array(), 10 );
+		// A key SendBeam has already forgotten is a key that is not live, so
+		// 401 counts as revoked rather than as a failure to report.
+		$revoked = $result['ok'] || 401 === $result['status'];
+	}
+
+	$settings                               = sendbeam_settings();
+	$settings['api_key']                    = '';
+	$settings['sendbeam_connected_via']     = '';
+	$settings['sendbeam_connect_workspace'] = '';
+	$settings['sendbeam_connect_granted']   = '';
+	$settings['sendbeam_mail_deferred']     = 0;
+	update_option( 'sendbeam_settings', $settings );
+
+	sendbeam_flush_cache();
+	sendbeam_connect_forget_status();
+
+	wp_safe_redirect( add_query_arg( 'sendbeam_disconnected', $revoked ? 'ok' : 'unreachable', sendbeam_tab_url( 'overview' ) ) );
+	exit;
 }
 
 /**
@@ -458,8 +632,12 @@ function sendbeam_connect_workspace_name() {
  * @param bool   $connected Whether a key was stored.
  * @param string $heading   Heading.
  * @param string $detail    One sentence under it.
+ * @param bool   $is_popup  Whether this really is the pop-up. False when the
+ *                          browser blocked it and the form navigated the tab
+ *                          the person was already on — closing that would
+ *                          leave them staring at nothing.
  */
-function sendbeam_connect_render_result( $connected, $heading, $detail ) {
+function sendbeam_connect_render_result( $connected, $heading, $detail, $is_popup = true ) {
 	$overview = admin_url( 'options-general.php?page=sendbeam' );
 	$origin   = sendbeam_connect_site_origin();
 
@@ -478,18 +656,27 @@ function sendbeam_connect_render_result( $connected, $heading, $detail ) {
 	printf(
 		'<p><a href="%s">%s</a></p>',
 		esc_url( $overview ),
-		esc_html__( 'Back to SendBeam settings', 'sendbeam' )
+		esc_html( $is_popup ? __( 'Back to SendBeam settings', 'sendbeam' ) : __( 'Back to the site', 'sendbeam' ) )
 	);
 
-	// Only a success is announced; the opener reloads on it and would
-	// otherwise throw away an unsaved settings form for nothing.
-	if ( $connected && '' !== $origin ) {
-		printf(
-			'<script>try{window.opener&&window.opener.postMessage({sendbeam:"connected"},%s);}catch(e){}window.close();</script>',
-			wp_json_encode( $origin, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT )
-		);
-	} else {
-		echo '<script>window.close();</script>';
+	/*
+	 * Nothing is closed when this is not the pop-up. A blocked pop-up turns
+	 * the whole flow into an ordinary navigation, and window.close() on a
+	 * window script did not open does nothing in every current browser — so
+	 * the person would be left on a dead-end page with no way back but the
+	 * link. It is the link they get.
+	 */
+	if ( $is_popup ) {
+		// Only a success is announced; the opener reloads on it and would
+		// otherwise throw away an unsaved settings form for nothing.
+		if ( $connected && '' !== $origin ) {
+			printf(
+				'<script>try{window.opener&&window.opener.postMessage({sendbeam:"connected"},%s);}catch(e){}window.close();</script>',
+				wp_json_encode( $origin, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT )
+			);
+		} else {
+			echo '<script>window.close();</script>';
+		}
 	}
 
 	echo '</body></html>';
@@ -522,6 +709,15 @@ function sendbeam_connect_panel() {
 	printf( '<form id="sb-connect-form" method="post" action="%s">', esc_url( admin_url( 'admin-post.php' ) ) );
 	wp_nonce_field( 'sendbeam_connect_start' );
 	echo '<input type="hidden" name="action" value="sendbeam_connect_start" />';
+
+	/*
+	 * Flipped to 1 by the submit handler when window.open() actually returned
+	 * a window. Left at 0 when the pop-up was blocked, when the browser has
+	 * no script at all, or when someone submitted this form some other way —
+	 * all three of which mean the flow is happening in this very tab, and the
+	 * page it lands on must offer a way back instead of trying to close.
+	 */
+	echo '<input type="hidden" id="sb-connect-popup" name="sendbeam_popup" value="0" />';
 	echo '<p style="margin:0 0 6px"><strong>' . esc_html__( 'This site will ask SendBeam for permission to:', 'sendbeam' ) . '</strong></p>';
 	echo '<ul class="sb-scopes">';
 	foreach ( sendbeam_connect_scopes() as $scope => $meta ) {
@@ -563,8 +759,15 @@ function sendbeam_connect_admin_js() {
 		var form   = document.getElementById( "sb-connect-form" );
 		if ( form ) {
 			form.addEventListener( "submit", function () {
-				var win = window.open( "", "sendbeam-connect", "width=600,height=760" );
-				if ( win ) { form.target = "sendbeam-connect"; }
+				var flag = document.getElementById( "sb-connect-popup" );
+				var win  = window.open( "", "sendbeam-connect", "width=600,height=760" );
+				if ( win ) {
+					form.target = "sendbeam-connect";
+					if ( flag ) { flag.value = "1"; }
+				} else {
+					form.removeAttribute( "target" );
+					if ( flag ) { flag.value = "0"; }
+				}
 			} );
 		}
 		window.addEventListener( "message", function ( e ) {
