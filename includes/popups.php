@@ -181,7 +181,7 @@ function sendbeam_clean_popup( $raw ) {
 /** Save the posted rules. */
 function sendbeam_handle_save_popups() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_save_popups' );
 

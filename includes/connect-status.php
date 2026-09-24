@@ -504,7 +504,7 @@ function sendbeam_status_is_fresh( $status ) {
  */
 function sendbeam_handle_domain_check() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_domain_check' );
 
@@ -560,7 +560,7 @@ function sendbeam_check_return_url() {
  */
 function sendbeam_handle_mail_switch_on() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_mail_switch_on' );
 
@@ -770,7 +770,7 @@ function sendbeam_connect_filled( $key ) {
  */
 function sendbeam_handle_mail_own_domain() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_mail_own_domain' );
 

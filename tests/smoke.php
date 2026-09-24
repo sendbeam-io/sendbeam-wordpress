@@ -4675,6 +4675,54 @@ has( $sb_sentence, 'Add one under Settings → Domains in SendBeam', 'domain: wi
 sb_connect_reset();
 sb_seed_settings( array() );
 
+// ── #16 Every permission refusal was served as HTTP 500 ─────────────────
+// wp_die() with no status argument defaults to 500, so every one of this
+// plugin's admin-post actions answered an Editor's POST with a server error.
+// The refusal itself was right; the status line put a 500 in every access log
+// and every uptime monitor watching status codes. The nonce refusals were
+// already correct, because check_admin_referer() answers 403.
+//
+// The list is taken from the hooks the plugin actually registered, so an
+// action added later cannot quietly miss this.
+$sb_actions = array();
+foreach ( $GLOBALS['stub']['callbacks'] as $sb_cb ) {
+	if ( 0 === strpos( $sb_cb[0], 'admin_post_sendbeam_' ) ) {
+		$sb_actions[ $sb_cb[0] ] = $sb_cb[1];
+	}
+}
+ok( count( $sb_actions ) >= 16, 'refusal: there are ' . count( $sb_actions ) . ' admin-post actions to check' );
+
+$GLOBALS['stub']['caps']['manage_options'] = false;
+foreach ( $sb_actions as $sb_hook => $sb_fn ) {
+	$GLOBALS['stub']['died'] = null;
+	$_POST                   = array();
+	$_REQUEST                = array();
+	try {
+		call_user_func( $sb_fn );
+	} catch ( SendBeamStubExit $e ) {
+		unset( $e ); // Expected: each of these refuses before doing anything.
+	}
+	$sb_died = $GLOBALS['stub']['died'];
+	ok( is_array( $sb_died ), "refusal: $sb_hook refuses a caller without the capability" );
+	has( $sb_died['message'], 'do not have permission', "refusal: $sb_hook says why" );
+	ok( 403 === $sb_died['status'], "refusal: $sb_hook answers 403, not a server error" );
+}
+$GLOBALS['stub']['caps']['manage_options'] = true;
+$GLOBALS['stub']['died']                   = null;
+$_POST                                     = array();
+$_REQUEST                                  = array();
+
+// And no permission refusal anywhere in the plugin is left on the default —
+// the bulk-action guard on the email log table is not an admin-post action
+// and would not be reached by the loop above.
+$sb_bad = array();
+foreach ( glob( dirname( __DIR__ ) . '/includes/*.php' ) as $sb_file ) {
+	if ( false !== strpos( file_get_contents( $sb_file ), "wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );" ) ) {
+		$sb_bad[] = basename( $sb_file );
+	}
+}
+ok( array() === $sb_bad, 'refusal: no wp_die() is left on the 500 default — ' . implode( ', ', $sb_bad ) );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

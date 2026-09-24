@@ -408,7 +408,7 @@ function sendbeam_sync_log( $email, $source, $ok, $note ) {
 /** Save the Audience settings. */
 function sendbeam_handle_save_sync() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_save_sync' );
 

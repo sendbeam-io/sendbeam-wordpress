@@ -78,6 +78,8 @@
 - **Check now comes back to the screen it was pressed on.** The check is offered on the Overview and on Settings → Sending domain and always landed on the Overview, so somebody working through the DNS records was moved to a different screen to be told the result and had to navigate back to carry on.
 - **The page about the sending domain said less than the checklist did.** Step 2 on the Overview carried the reason SendBeam gave; Settings → Sending domain dropped it, on the screen dedicated to the subject. There is one sentence for "this site has no sending domain" now, and where SendBeam's own note already says what to do, the plugin stops appending a second instruction naming a different SendBeam screen.
 
+- **Every "you do not have permission" was served as HTTP 500.** `wp_die()` with no status argument defaults to a server error, so all sixteen of the plugin's admin-post actions answered an Editor's POST with a 500 — a correct refusal, logged everywhere as a fault in the plugin. They answer 403. (The nonce refusals were already right: `check_admin_referer()` sends 403 itself.)
+
 ### Connect
 
 - **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.

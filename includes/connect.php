@@ -325,7 +325,7 @@ function sendbeam_connect_clean_scopes( $raw ) {
  */
 function sendbeam_connect_start() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_connect_start' );
 
@@ -387,7 +387,7 @@ function sendbeam_connect_start() {
  */
 function sendbeam_connect_return() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 
 	/*
@@ -770,7 +770,7 @@ function sendbeam_connect_granted( $scope ) {
  */
 function sendbeam_connect_disconnect() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_disconnect' );
 

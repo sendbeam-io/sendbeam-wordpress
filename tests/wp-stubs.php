@@ -191,7 +191,19 @@ function site_url( $path = '' ) { $base = isset( $GLOBALS['stub']['site_url'] ) 
 function admin_url( $path = '' ) { return 'https://www.example-site.test/wp-admin/' . ltrim( (string) $path, '/' ); }
 function wp_redirect( $url, $status = 302 ) { $GLOBALS['stub']['redirect'] = array( 'url' => $url, 'status' => $status ); throw new SendBeamStubExit( 'wp_redirect' ); }
 function wp_safe_redirect( $url, $status = 302 ) { return wp_redirect( $url, $status ); }
-function wp_die( $message = '' ) { throw new SendBeamStubExit( 'wp_die: ' . $message ); }
+/**
+ * Faithful enough to see the status code.
+ *
+ * Core defaults to 500 when no response is given, which is what every one of
+ * this plugin's permission refusals used to send: a server-error line in
+ * every access log and every uptime monitor, for a refusal that worked
+ * perfectly.
+ */
+function wp_die( $message = '', $title = '', $args = array() ) {
+	$status                    = is_array( $args ) && isset( $args['response'] ) ? (int) $args['response'] : 500;
+	$GLOBALS['stub']['died']   = array( 'message' => (string) $message, 'status' => $status );
+	throw new SendBeamStubExit( 'wp_die: ' . $message );
+}
 function check_admin_referer( $action = -1, $name = '_wpnonce' ) {
 	$nonce = isset( $_REQUEST[ $name ] ) ? $_REQUEST[ $name ] : '';
 	if ( ! wp_verify_nonce( $nonce, $action ) ) { wp_die( 'bad nonce' ); }

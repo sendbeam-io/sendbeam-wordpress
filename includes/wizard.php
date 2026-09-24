@@ -154,7 +154,7 @@ function sendbeam_maybe_redirect_to_wizard() {
  */
 function sendbeam_handle_wizard_step() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_wizard_step' );
 
@@ -447,7 +447,7 @@ function sendbeam_wizard_restart_url() {
 /** Put this person back at step 1 and open the guide. */
 function sendbeam_handle_wizard_restart() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_wizard_restart' );
 

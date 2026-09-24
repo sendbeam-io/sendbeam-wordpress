@@ -143,7 +143,7 @@ class SendBeam_Mail_Log_Table extends WP_List_Table {
 			return;
 		}
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+			wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 		}
 		check_admin_referer( 'bulk-' . $this->_args['plural'] );
 

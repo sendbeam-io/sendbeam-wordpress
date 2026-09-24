@@ -590,7 +590,7 @@ function sendbeam_setup_notice() {
  */
 function sendbeam_dismiss_setup() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_dismiss_setup' );
 	update_user_meta( get_current_user_id(), 'sendbeam_setup_dismissed', 1 );
@@ -608,7 +608,7 @@ function sendbeam_dismiss_setup() {
  */
 function sendbeam_handle_form_placed() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_form_placed' );
 
@@ -680,7 +680,7 @@ function sendbeam_checklist_url( $hide = true ) {
 /** Put the checklist away, or bring it back. */
 function sendbeam_handle_hide_checklist() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_hide_checklist' );
 

@@ -714,7 +714,7 @@ function sendbeam_section_connect_intro() {
 /** "Check again" — drop the cache and re-ask. */
 function sendbeam_handle_refresh() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_refresh' );
 	sendbeam_flush_cache();
