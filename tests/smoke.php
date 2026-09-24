@@ -4574,6 +4574,29 @@ ok( 'mail.example.co.uk' === sendbeam_connect_clean_host( ' MAIL.Example.CO.UK '
 sb_connect_reset();
 sb_seed_settings( array() );
 
+// ── #13 The longest DNS host was clipped on desktop ─────────────────────
+// The Host column is 30% — about 282px at 1280 — and a
+// `resend._domainkey.mail.<domain>` host is longer than that. The wrapping
+// rule lived only inside the <=782px media query, so the phone case that had
+// been complained about was fixed and the desktop one was not: the value was
+// cut off inside the very field the owner is told to read from.
+$sb_css = sendbeam_admin_css();
+$sb_field_rule = substr( $sb_css, strpos( $sb_css, '.sendbeam-app .sb-copy-field{' ) );
+$sb_field_rule = substr( $sb_field_rule, 0, strpos( $sb_field_rule, '}' ) );
+has( $sb_field_rule, 'white-space:pre-wrap', 'records: the copy field wraps at every width, not only on a phone' );
+has( $sb_field_rule, 'word-break:break-all', 'records: and breaks a host that has nowhere else to break' );
+lacks( $sb_field_rule, 'white-space:pre;', 'records: nothing pins it to one line' );
+has( $sb_field_rule, 'overflow:auto', 'records: with no script it scrolls rather than hiding the rest' );
+
+// The media query must not be the only place wrapping is switched on again.
+$sb_phone = substr( $sb_css, strpos( $sb_css, '@media (max-width:782px)' ) );
+lacks( $sb_phone, '.sb-dns .sb-copy-field{white-space:pre-wrap', 'records: the phone override is gone, because it is the default now' );
+
+// And a real host still renders whole into the field.
+$sb_long = 'resend._domainkey.mail.wp-test.sendbeam.io';
+has( sendbeam_copy_field( $sb_long, 'Host', 'sb-h1' ), '>' . $sb_long . '</textarea>', 'records: the whole host is in the field' );
+has( sendbeam_copy_field( $sb_long, 'Host', 'sb-h1' ), 'data-copy="' . $sb_long . '"', 'records: and the whole host is what gets copied' );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

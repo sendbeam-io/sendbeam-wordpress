@@ -352,10 +352,22 @@ function sendbeam_admin_css() {
 	/* The field a value is copied out of. Height comes from the line box and
 	   the padding rather than being pinned: a pinned height on a 12px mono
 	   field clips its own descenders, and an underscore in
-	   `resend._domainkey` simply disappeared. */
+	   `resend._domainkey` simply disappeared.
+
+	   It wraps at every width, not only on a phone. The Host column is 30% —
+	   about 282px at 1280 — and `resend._domainkey.mail.<domain>` is longer
+	   than that, so the end of the longest host on the screen was cut off
+	   inside the very field the owner is told to read from and compare
+	   against what they pasted into their registrar. A textarea is what makes
+	   this possible; an input cannot wrap at any width.
+
+	   overflow stays auto rather than hidden so that a browser with no
+	   JavaScript, where the fitting script never runs, scrolls to the rest of
+	   a wrapped value instead of hiding it. With the script it is sized
+	   exactly and no scrollbar appears. */
 	.sendbeam-app .sb-copy-field{display:block;width:100%;min-width:0;font-size:12px;line-height:1.5;
 		height:auto;min-height:0;padding:6px 8px;cursor:pointer;resize:none;overflow:auto;
-		white-space:pre;border:1px solid var(--ink);border-radius:0;background:#fff}
+		white-space:pre-wrap;word-break:break-all;border:1px solid var(--ink);border-radius:0;background:#fff}
 	.sendbeam-app .sb-copy-field.is-copied{border-color:var(--m);outline:2px solid var(--m);outline-offset:-2px}
 	.sb-dns__found{white-space:nowrap}
 	.sb-verified{margin:0 0 10px;font-weight:600;color:var(--m);display:flex;gap:8px;align-items:center}
@@ -560,7 +572,6 @@ function sendbeam_admin_css() {
 		/* The header row is gone, so each field says which one it is. */
 		.sb-dns td.sb-dns__host::before,.sb-dns td.sb-dns__value::before{
 			content:attr(data-label);display:block;font-size:12px;font-weight:600;color:var(--ink-60);margin:0 0 3px}
-		.sendbeam-app .sb-dns .sb-copy-field{white-space:pre-wrap;word-break:break-all;overflow:hidden}
 	}
 	';
 }
