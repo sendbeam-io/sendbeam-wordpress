@@ -225,3 +225,37 @@ function wp_nonce_field( $action = -1, $name = '_wpnonce' ) { echo '<input type=
 function get_post_meta( $id, $key = '', $single = false ) { return isset( $GLOBALS['stub']['postmeta'][ $id ][ $key ] ) ? $GLOBALS['stub']['postmeta'][ $id ][ $key ] : ( $single ? '' : array() ); }
 function update_post_meta( $id, $key, $value ) { $GLOBALS['stub']['postmeta'][ $id ][ $key ] = $value; return true; }
 function absint( $v ) { return abs( (int) $v ); }
+function get_post_types( $args = array(), $output = 'names' ) { return isset( $GLOBALS['stub']['post_types'] ) ? $GLOBALS['stub']['post_types'] : array( 'post', 'page', 'attachment' ); }
+
+/**
+ * Just enough of $wpdb for the "is a form on the site" query family.
+ *
+ * It records every statement so a test can assert what was looked for, and
+ * answers from $GLOBALS['stub']['db'] — one flag per place a form can hide,
+ * decided by which table and post types the statement names. The plugin's own
+ * fallback (no $wpdb at all) is still the default: $GLOBALS['wpdb'] is set
+ * only by the tests that want a database.
+ */
+class SendBeam_Stub_Db {
+	public $posts    = 'wp_posts';
+	public $postmeta = 'wp_postmeta';
+	public $queries  = array();
+
+	public function esc_like( $text ) { return addcslashes( (string) $text, '_%\\' ); }
+
+	public function prepare( $sql, ...$args ) {
+		if ( 1 === count( $args ) && is_array( $args[0] ) ) { $args = $args[0]; }
+		foreach ( $args as $arg ) {
+			$sql = preg_replace( '/%s/', "'" . addslashes( (string) $arg ) . "'", $sql, 1 );
+		}
+		return $sql;
+	}
+
+	public function get_var( $sql ) {
+		$this->queries[] = $sql;
+		$db              = isset( $GLOBALS['stub']['db'] ) ? $GLOBALS['stub']['db'] : array();
+		if ( false !== strpos( $sql, 'wp_postmeta' ) ) { return empty( $db['meta'] ) ? null : 1; }
+		if ( false !== strpos( $sql, 'wp_template' ) ) { return empty( $db['templates'] ) ? null : 1; }
+		return empty( $db['posts'] ) ? null : 1;
+	}
+}

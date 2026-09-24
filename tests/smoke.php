@@ -1556,6 +1556,103 @@ sb_connect_reset();
 update_option( 'sendbeam_settings', array() );
 $GLOBALS['stub']['cron'] = array();
 
+// ── Where a form can actually be ───────────────────────────────────────
+// Published post_content is one of perhaps six places a form ends up. A block
+// theme keeps the footer in wp_template_part; a classic theme keeps it in a
+// block widget; a page builder keeps its layout in post meta. All three used
+// to tick nothing, leaving the owner with an unfinished checklist beside a
+// working form.
+/** A site using a form, with a database that answers as the test says. */
+function sb_placement( $db, $options = array() ) {
+	delete_transient( 'sendbeam_form_placed' );
+	delete_option( 'sendbeam_form_placed' );
+	delete_option( 'widget_block' );
+	delete_option( 'sidebars_widgets' );
+	delete_option( 'widget_text' );
+	foreach ( $options as $name => $value ) {
+		update_option( $name, $value );
+	}
+	update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_connectedconnectedxx', 'default_form' => $GLOBALS['form'] ) );
+	update_option( 'sendbeam_popups', array() );
+	$GLOBALS['stub']['db'] = $db;
+	$GLOBALS['wpdb']       = new SendBeam_Stub_Db();
+	$where                 = sendbeam_form_placement( true );
+	$sql                   = implode( ' ', $GLOBALS['wpdb']->queries );
+	unset( $GLOBALS['wpdb'] );
+	return array( $where, $sql );
+}
+
+list( $sb_where, $sb_sql ) = sb_placement( array( 'posts' => true ) );
+ok( 'content' === $sb_where, 'placed: a form on a published page is found' );
+has( $sb_sql, 'wp:sendbeam/form', 'placed: the block is one of the things looked for' );
+has( $sb_sql, '[sendbeam\\_form', 'placed: so is the shortcode, with the underscore escaped for LIKE' );
+has( $sb_sql, 'https://sendbeam.io/f/' . $form, 'placed: and the form\'s own hosted URL, for an iframe a builder pasted in' );
+has( $sb_sql, "post_type IN ( 'post', 'page', 'attachment' )", 'placed: every public post type is searched, not only posts and pages' );
+
+list( $sb_where ) = sb_placement( array( 'templates' => true ) );
+ok( 'template' === $sb_where, 'placed: a form in a block theme\'s template part is found' );
+
+list( $sb_where ) = sb_placement( array( 'meta' => true ) );
+ok( 'meta' === $sb_where, 'placed: a form a page builder stored beside the post is found' );
+
+list( $sb_where, $sb_sql ) = sb_placement( array(), array( 'widget_block' => array( 2 => array( 'content' => '<!-- wp:sendbeam/form /-->' ) ) ) );
+ok( 'widget' === $sb_where, 'placed: a form in a block widget is found' );
+ok( '' === $sb_sql, 'placed: and found without asking the database at all' );
+
+list( $sb_where ) = sb_placement(
+	array(),
+	array(
+		'sidebars_widgets' => array( 'sidebar-1' => array( 'text-3' ) ),
+		'widget_text'      => array( 3 => array( 'text' => 'Join us [sendbeam_form]' ) ),
+	)
+);
+ok( 'widget' === $sb_where, 'placed: a text widget a sidebar actually holds is found' );
+
+list( $sb_where ) = sb_placement(
+	array(),
+	array(
+		'sidebars_widgets' => array( 'wp_inactive_widgets' => array( 'text-3' ) ),
+		'widget_text'      => array( 3 => array( 'text' => 'Join us [sendbeam_form]' ) ),
+	)
+);
+ok( '' === $sb_where, 'placed: a widget nobody has put in a sidebar is a leftover, not a form on the site' );
+
+list( $sb_where ) = sb_placement( array() );
+ok( '' === $sb_where, 'placed: a site with the form nowhere is not ticked off' );
+
+// No list of six will ever be seven, so the owner gets the last word.
+sb_connect_reset();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_connectedconnectedxx', 'default_form' => $form ) );
+delete_option( 'sendbeam_form_placed' );
+delete_transient( 'sendbeam_form_placed' );
+$_GET     = array( '_wpnonce' => 'nonce:sendbeam_form_placed' );
+$_REQUEST = $_GET;
+$url      = sb_run_admin_post( 'sendbeam_handle_form_placed' );
+has( $url, 'sendbeam_form=placed', 'placed: saying so is confirmed on the screen' );
+ok( 'manual' === sendbeam_form_placement(), 'placed: and the step is ticked, without a database in sight' );
+
+$_GET     = array( '_wpnonce' => 'nonce:sendbeam_form_placed', 'state' => '0' );
+$_REQUEST = $_GET;
+$url      = sb_run_admin_post( 'sendbeam_handle_form_placed' );
+has( $url, 'sendbeam_form=unplaced', 'placed: and taking it back is possible' );
+ok( 'manual' !== sendbeam_form_placement( true ), 'placed: the override really is gone' );
+
+$_GET     = array();
+$_REQUEST = array();
+sb_run_admin_post( 'sendbeam_handle_form_placed' );
+ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'placed: no nonce, no override' );
+$GLOBALS['stub']['caps']['manage_options'] = false;
+$_GET     = array( '_wpnonce' => 'nonce:sendbeam_form_placed' );
+$_REQUEST = $_GET;
+sb_run_admin_post( 'sendbeam_handle_form_placed' );
+ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'placed: the capability is required' );
+
+sb_connect_reset();
+delete_option( 'sendbeam_form_placed' );
+delete_transient( 'sendbeam_form_placed' );
+update_option( 'sendbeam_settings', array() );
+$GLOBALS['stub']['db'] = array();
+
 // ── A blocked pop-up ───────────────────────────────────────────────────
 sb_connect_reset();
 $_POST    = array( '_wpnonce' => 'nonce:sendbeam_connect_start', 'sendbeam_popup' => '0' );

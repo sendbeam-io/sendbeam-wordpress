@@ -22,6 +22,7 @@ register_activation_hook( SENDBEAM_FILE, 'sendbeam_on_activate' );
 register_deactivation_hook( SENDBEAM_FILE, 'sendbeam_on_deactivate' );
 add_action( 'admin_notices', 'sendbeam_setup_notice' );
 add_action( 'admin_post_sendbeam_dismiss_setup', 'sendbeam_dismiss_setup' );
+add_action( 'admin_post_sendbeam_form_placed', 'sendbeam_handle_form_placed' );
 
 /**
  * Remember when we were switched on, so the notice can be new-install-only.
@@ -59,26 +60,86 @@ function sendbeam_is_connected() {
  *
  * "A form is chosen in the settings" and "a visitor can see a form" are not
  * the same claim, and the checklist was making the first one while sounding
- * like the second. This looks for the block or either shortcode in published
- * content — one indexed-free LIKE, answered once and then cached for half a
- * day, because it drives one tick on one settings screen and is not worth a
- * query per page load.
- *
- * A live pop-up counts: it is a form on the site by any reading.
+ * like the second.
  *
  * @param bool $force Skip the cache.
  * @return bool
  */
 function sendbeam_form_is_placed( $force = false ) {
+	return '' !== sendbeam_form_placement( $force );
+}
+
+/**
+ * Where the form was found, or an empty string when it was not.
+ *
+ * The first version of this read published `post_content` and nothing else,
+ * which is one of perhaps six places a form actually ends up. A site running
+ * a block theme keeps its footer in `wp_template_part`; a classic theme keeps
+ * it in a block widget; every page builder worth the name stores its layout
+ * in post meta rather than in the post. All three tick nothing, and the owner
+ * is left looking at an unfinished checklist beside a working form.
+ *
+ * So all of them are looked at — and, because no list of six will ever be
+ * seven, the owner can simply say so and be believed.
+ *
+ * One query family, answered once and cached for half a day: this drives one
+ * tick on one settings screen and is not worth a query per page load.
+ *
+ * @param bool $force Skip the cache.
+ * @return string One of manual, popup, content, template, widget, meta; empty
+ *                when no form could be found anywhere.
+ */
+function sendbeam_form_placement( $force = false ) {
+	if ( get_option( 'sendbeam_form_placed' ) ) {
+		return 'manual';
+	}
 	if ( sendbeam_popups() ) {
-		return true;
+		return 'popup';
 	}
 
 	if ( ! $force ) {
 		$cached = get_transient( 'sendbeam_form_placed' );
-		if ( '1' === $cached || '0' === $cached ) {
-			return '1' === $cached;
+		if ( is_string( $cached ) && '' !== $cached ) {
+			return 'no' === $cached ? '' : $cached;
 		}
+	}
+
+	$found = sendbeam_find_form_placement();
+	set_transient( 'sendbeam_form_placed', '' === $found ? 'no' : $found, 12 * HOUR_IN_SECONDS );
+	return $found;
+}
+
+/**
+ * The needles: the block, both shortcodes, and the form's own hosted URL.
+ *
+ * The URL is what a page builder or an HTML block holding an iframe contains,
+ * and it is the only one of the four that names a particular form.
+ *
+ * @return string[]
+ */
+function sendbeam_form_needles() {
+	$needles  = array( 'wp:sendbeam/form', '[sendbeam_form', '[sendbeam_contact' );
+	$settings = sendbeam_settings();
+	foreach ( array( 'default_form', 'contact_form' ) as $key ) {
+		$id = (string) $settings[ $key ];
+		if ( sendbeam_is_form_id( $id ) ) {
+			$needles[] = sendbeam_app_url() . '/f/' . strtolower( $id );
+		}
+	}
+	return $needles;
+}
+
+/**
+ * Look in all six places, cheapest first.
+ *
+ * @return string
+ */
+function sendbeam_find_form_placement() {
+	$needles = sendbeam_form_needles();
+
+	$widget = sendbeam_form_in_widgets( $needles );
+	if ( '' !== $widget ) {
+		return $widget;
 	}
 
 	global $wpdb;
@@ -86,24 +147,95 @@ function sendbeam_form_is_placed( $force = false ) {
 		// No database to ask (the smoke tests, WP-CLI oddities): fall back to
 		// what the settings say rather than claiming the step is unfinished.
 		$settings = sendbeam_settings();
-		return '' !== $settings['default_form'] || '' !== $settings['contact_form'];
+		return ( '' !== $settings['default_form'] || '' !== $settings['contact_form'] ) ? 'content' : '';
 	}
 
-	$block     = '%' . $wpdb->esc_like( 'wp:sendbeam/form' ) . '%';
-	$shortcode = '%' . $wpdb->esc_like( '[sendbeam_form' ) . '%';
-	$contact   = '%' . $wpdb->esc_like( '[sendbeam_contact' ) . '%';
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- cached in a transient immediately below; there is no WP API for "is this block used anywhere".
-	$found = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT ID FROM {$wpdb->posts} WHERE post_status = 'publish' AND ( post_content LIKE %s OR post_content LIKE %s OR post_content LIKE %s ) LIMIT 1",
-			$block,
-			$shortcode,
-			$contact
-		)
-	);
+	$like = array();
+	foreach ( $needles as $needle ) {
+		$like[] = '%' . $wpdb->esc_like( $needle ) . '%';
+	}
+	$content_or = implode( ' OR ', array_fill( 0, count( $like ), 'post_content LIKE %s' ) );
 
-	set_transient( 'sendbeam_form_placed', $found ? '1' : '0', 12 * HOUR_IN_SECONDS );
-	return (bool) $found;
+	// Published content, in post types a visitor can actually reach.
+	$types = get_post_types( array( 'public' => true ), 'names' );
+	$types = array_values( array_filter( array_map( 'strval', (array) $types ) ) );
+	if ( ! $types ) {
+		$types = array( 'post', 'page' );
+	}
+	$type_in = implode( ', ', array_fill( 0, count( $types ), '%s' ) );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- cached in a transient by the caller; the two interpolated fragments are runs of %s placeholders built here, and every value goes through prepare().
+	if ( $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ( $type_in ) AND ( $content_or ) LIMIT 1", array_merge( $types, $like ) ) ) ) {
+		return 'content';
+	}
+
+	// A block theme keeps the header, the footer and every page layout here.
+	// Templates are not "published" in the way a page is, so status is not
+	// part of the question.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- as above.
+	if ( $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type IN ( 'wp_template', 'wp_template_part' ) AND post_status != 'trash' AND ( $content_or ) LIMIT 1", $like ) ) ) {
+		return 'template';
+	}
+
+	// Page builders keep their layout beside the post, not in it.
+	$meta_or = implode( ' OR ', array_fill( 0, count( $like ), 'meta_value LIKE %s' ) );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- as above.
+	if ( $wpdb->get_var( $wpdb->prepare( "SELECT meta_id FROM {$wpdb->postmeta} WHERE $meta_or LIMIT 1", $like ) ) ) {
+		return 'meta';
+	}
+
+	return '';
+}
+
+/**
+ * Block widgets, and the text widgets a sidebar actually holds.
+ *
+ * Widgets live in options rather than in posts, so no amount of looking at
+ * `post_content` will ever find one. A text widget that is in `widget_text`
+ * but in no sidebar is not on the site — it is a leftover — so the sidebars
+ * decide which of them count.
+ *
+ * @param string[] $needles What a placed form looks like.
+ * @return string 'widget', or empty.
+ */
+function sendbeam_form_in_widgets( $needles ) {
+	$haystacks = array();
+
+	$blocks = get_option( 'widget_block' );
+	if ( is_array( $blocks ) ) {
+		foreach ( $blocks as $block ) {
+			if ( is_array( $block ) && isset( $block['content'] ) ) {
+				$haystacks[] = (string) $block['content'];
+			}
+		}
+	}
+
+	$sidebars = get_option( 'sidebars_widgets' );
+	$text     = get_option( 'widget_text' );
+	if ( is_array( $sidebars ) && is_array( $text ) ) {
+		foreach ( $sidebars as $key => $ids ) {
+			if ( 'wp_inactive_widgets' === $key || ! is_array( $ids ) ) {
+				continue;
+			}
+			foreach ( $ids as $id ) {
+				if ( ! is_string( $id ) || 0 !== strpos( $id, 'text-' ) ) {
+					continue;
+				}
+				$number = (int) substr( $id, 5 );
+				if ( isset( $text[ $number ]['text'] ) ) {
+					$haystacks[] = (string) $text[ $number ]['text'];
+				}
+			}
+		}
+	}
+
+	foreach ( $haystacks as $haystack ) {
+		foreach ( $needles as $needle ) {
+			if ( false !== strpos( $haystack, $needle ) ) {
+				return 'widget';
+			}
+		}
+	}
+	return '';
 }
 
 /**
@@ -198,10 +330,19 @@ function sendbeam_setup_steps() {
 		$domain_detail = sendbeam_domain_sentence( $domain['name'], $verified );
 	}
 
-	$placed = ( $using_form || $using_popup ) ? sendbeam_form_is_placed() : false;
+	$where  = ( $using_form || $using_popup ) ? sendbeam_form_placement() : '';
+	$placed = '' !== $where;
 
 	if ( $placed ) {
-		$form_detail = __( 'A SendBeam form is on the site.', 'sendbeam' );
+		$found       = array(
+			'manual'   => __( 'You said a SendBeam form is on the site.', 'sendbeam' ),
+			'popup'    => __( 'A SendBeam pop-up is live on the site.', 'sendbeam' ),
+			'content'  => __( 'A SendBeam form is on a published page or post.', 'sendbeam' ),
+			'template' => __( 'A SendBeam form is in one of the theme\'s block templates.', 'sendbeam' ),
+			'widget'   => __( 'A SendBeam form is in a widget.', 'sendbeam' ),
+			'meta'     => __( 'A SendBeam form is in a layout stored with a page — a page builder, most likely.', 'sendbeam' ),
+		);
+		$form_detail = isset( $found[ $where ] ) ? $found[ $where ] : __( 'A SendBeam form is on the site.', 'sendbeam' );
 	} elseif ( $using_form || $using_popup ) {
 		$form_name = '' !== $status['default_form']['name'] ? $status['default_form']['name'] : __( 'Your form', 'sendbeam' );
 		/* translators: %s: the form name, e.g. Newsletter signup */
@@ -247,6 +388,7 @@ function sendbeam_setup_steps() {
 			'label'  => __( 'Put a form on the site', 'sendbeam' ),
 			'detail' => $form_detail,
 			'target' => sendbeam_tab_url( 'forms' ),
+			'where'  => $where,
 		),
 		array(
 			'key'       => 'mail',
@@ -307,4 +449,51 @@ function sendbeam_dismiss_setup() {
 	update_user_meta( get_current_user_id(), 'sendbeam_setup_dismissed', 1 );
 	wp_safe_redirect( wp_get_referer() ? wp_get_referer() : admin_url() );
 	exit;
+}
+
+/**
+ * "I've placed it elsewhere" — and the way back from it.
+ *
+ * No list of places a form can be will ever be complete: a theme that renders
+ * the shortcode in PHP, a form in a plugin this one has never heard of, a
+ * cached page. The owner can see their own site, so they get the last word,
+ * and the step says plainly that this is what is holding the tick.
+ */
+function sendbeam_handle_form_placed() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+	}
+	check_admin_referer( 'sendbeam_form_placed' );
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- checked immediately above.
+	$on = ! isset( $_GET['state'] ) || '0' !== sanitize_text_field( wp_unslash( $_GET['state'] ) );
+
+	if ( $on ) {
+		update_option( 'sendbeam_form_placed', 1, false );
+	} else {
+		delete_option( 'sendbeam_form_placed' );
+	}
+	delete_transient( 'sendbeam_form_placed' );
+
+	wp_safe_redirect( add_query_arg( 'sendbeam_form', $on ? 'placed' : 'unplaced', sendbeam_tab_url( 'overview' ) ) );
+	exit;
+}
+
+/**
+ * The URL behind that link.
+ *
+ * @param bool $on True to say the form is placed, false to take it back.
+ * @return string
+ */
+function sendbeam_form_placed_url( $on = true ) {
+	return wp_nonce_url(
+		add_query_arg(
+			array(
+				'action' => 'sendbeam_form_placed',
+				'state'  => $on ? '1' : '0',
+			),
+			admin_url( 'admin-post.php' )
+		),
+		'sendbeam_form_placed'
+	);
 }

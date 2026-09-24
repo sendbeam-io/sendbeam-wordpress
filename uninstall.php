@@ -25,6 +25,7 @@ $sendbeam_options = array(
 	'sendbeam_ecommerce',
 	'sendbeam_ecommerce_log',
 	'sendbeam_connect_recheck_runs',
+	'sendbeam_form_placed',   // The owner's "I've placed it elsewhere", which is an option; the transient of the same name is swept below.
 );
 foreach ( $sendbeam_options as $sendbeam_option ) {
 	delete_option( $sendbeam_option );

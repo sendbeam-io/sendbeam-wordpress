@@ -110,6 +110,7 @@ function sendbeam_overview_notices() {
 	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- notice text only, chosen from a fixed list, set by our own redirect.
 	$domain = isset( $_GET['sendbeam_domain'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_domain'] ) ) : '';
 	$mail   = isset( $_GET['sendbeam_mail'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_mail'] ) ) : '';
+	$placed = isset( $_GET['sendbeam_form'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_form'] ) ) : '';
 	$gone   = isset( $_GET['sendbeam_disconnected'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_disconnected'] ) ) : '';
 	// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
@@ -120,6 +121,10 @@ function sendbeam_overview_notices() {
 			'pending'       => array( 'warn', __( 'Not verified yet. DNS changes can take anything from a few minutes to a day to spread; the records are below, unchanged.', 'sendbeam' ) ),
 			'nodomain'      => array( 'warn', __( 'There is no sending domain on this workspace yet. Add one under Sending in SendBeam.', 'sendbeam' ) ),
 			'unreachable'   => array( 'bad', __( 'Could not ask SendBeam to check just now. Nothing was changed.', 'sendbeam' ) ),
+		),
+		'form'   => array(
+			'placed'   => array( 'ok', __( 'Noted — the form step is ticked. Say so again if you take the form off the site.', 'sendbeam' ) ),
+			'unplaced' => array( 'ok', __( 'The form step will look for itself again.', 'sendbeam' ) ),
 		),
 		'mail'   => array(
 			'on'         => array( 'ok', __( 'Site email is on. Password resets, receipts and notifications now go out through SendBeam.', 'sendbeam' ) ),
@@ -135,6 +140,7 @@ function sendbeam_overview_notices() {
 
 	foreach ( array(
 		'domain' => $domain,
+		'form'   => $placed,
 		'mail'   => $mail,
 		'gone'   => $gone,
 	) as $group => $value ) {
@@ -362,9 +368,25 @@ function sendbeam_record_verdict( $found ) {
  * @param bool  $connected Whether the key works.
  */
 function sendbeam_overview_form_panel( $step, $connected ) {
-	if ( ! $connected || $step['done'] ) {
+	if ( ! $connected ) {
 		return;
 	}
+
+	// Ticked because the owner said so, not because anything was found. The
+	// step says which, and offers to stop believing it.
+	if ( $step['done'] ) {
+		if ( 'manual' === ( isset( $step['where'] ) ? $step['where'] : '' ) ) {
+			echo '<div class="sb-actions">';
+			printf(
+				'<a class="sb-btn sb-btn--small sb-btn--ghost" href="%s">%s</a>',
+				esc_url( sendbeam_form_placed_url( false ) ),
+				esc_html__( 'Actually, it is not', 'sendbeam' )
+			);
+			echo '</div>';
+		}
+		return;
+	}
+
 	$settings = sendbeam_settings();
 	if ( '' === (string) $settings['default_form'] && '' === (string) $settings['contact_form'] ) {
 		return;
@@ -376,6 +398,11 @@ function sendbeam_overview_form_panel( $step, $connected ) {
 		esc_attr( '[sendbeam_form]' ),
 		esc_attr__( 'Copied', 'sendbeam' ),
 		esc_html__( 'Copy', 'sendbeam' )
+	);
+	printf(
+		'<a class="sb-btn sb-btn--small sb-btn--ghost" href="%s">%s</a>',
+		esc_url( sendbeam_form_placed_url() ),
+		esc_html__( 'I\'ve placed it elsewhere', 'sendbeam' )
 	);
 	echo '</div>';
 }
