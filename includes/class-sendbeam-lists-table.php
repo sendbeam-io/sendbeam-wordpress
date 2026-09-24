@@ -102,6 +102,12 @@ class SendBeam_Lists_Table extends WP_List_Table {
 	public function no_items() {
 		$lists = sendbeam_lists();
 		if ( null === $lists ) {
+			// See the note on the same branch in the forms table: a site with
+			// no key is not a site with a key missing a permission.
+			if ( '' === sendbeam_api_key() ) {
+				esc_html_e( 'This site is not connected to SendBeam yet, so there are no lists to show. Connect it on the Overview.', 'sendbeam' );
+				return;
+			}
 			esc_html_e( 'Your lists cannot be read with the current key. Give it the Lists (read) permission in SendBeam, or reconnect this site.', 'sendbeam' );
 			return;
 		}

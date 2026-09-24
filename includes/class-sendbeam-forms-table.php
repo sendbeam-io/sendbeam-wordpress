@@ -115,6 +115,13 @@ class SendBeam_Forms_Table extends WP_List_Table {
 	public function no_items() {
 		$forms = sendbeam_remote_forms();
 		if ( null === $forms ) {
+			// null answers two questions at once — "the key was refused" and
+			// "there is no key" — and blaming the permissions of a key that
+			// does not exist sends the owner to SendBeam to edit nothing.
+			if ( '' === sendbeam_api_key() ) {
+				esc_html_e( 'This site is not connected to SendBeam yet, so there are no forms to show. Connect it on the Overview.', 'sendbeam' );
+				return;
+			}
 			esc_html_e( 'Your forms cannot be read with the current key. Give it the Forms (read) permission in SendBeam, or reconnect this site.', 'sendbeam' );
 			return;
 		}

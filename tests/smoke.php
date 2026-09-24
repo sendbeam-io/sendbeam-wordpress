@@ -23,6 +23,20 @@ function has( $hay, $needle, $what ) { ok( false !== strpos( $hay, $needle ), "$
 function lacks( $hay, $needle, $what ) { ok( false === strpos( $hay, $needle ), "$what — did not expect: $needle\nGOT: $hay" ); }
 
 /*
+ * The classes are not declared until a screen that needs one asks for them.
+ * They extend WP_List_Table, which lives in wp-admin/includes and is NOT
+ * loaded when plugins are — so declaring them at plugin-load time is a fatal
+ * error on every page of a real site. Nothing but loading the plugin inside
+ * WordPress shows that, which is why it is asserted here.
+ */
+ok( ! class_exists( 'SendBeam_Forms_Table', false ), 'list tables: nothing extends WP_List_Table at plugin-load time' );
+ok( sendbeam_load_list_table(), 'list tables: a screen that needs them can load them' );
+ok( class_exists( 'SendBeam_Forms_Table', false ), 'list tables: and then the Forms table exists' );
+ok( class_exists( 'SendBeam_Mail_Log_Table', false ), 'list tables: and the email log' );
+ok( class_exists( 'SendBeam_Lists_Table', false ), 'list tables: and the audience lists' );
+ok( sendbeam_load_list_table(), 'list tables: asking twice is harmless' );
+
+/*
  * The email log is a table now, so the whole run needs a $wpdb. The one test
  * that deliberately runs without one swaps it out and puts it back.
  */
@@ -1648,6 +1662,27 @@ sb_seed_settings( array( 'api_key' => 'sb_live_pastedkeypastedkey' ) );
 has( sendbeam_status_report(), 'Connected by: A pasted key', 'support block: a pasted key still reads as pasted' );
 sb_seed_settings( array( 'api_key' => 'sb_live_pastedkeypastedkey', 'sendbeam_connected_via' => 'connect' ) );
 has( sendbeam_status_report(), 'Connected by: The Connect button', 'support block: and a Connect key as Connect' );
+
+// ── #10 Blaming a key's permissions on a site with no key ───────────────
+// sendbeam_remote_forms() and sendbeam_lists() both answer null to "the key
+// was refused" and "there is no key", and the empty states read only the
+// first, sending the owner to SendBeam to add a permission to a key that does
+// not exist — on a screen whose header band says "Not connected".
+sb_seed_settings( array( 'api_key' => '' ) );
+sendbeam_flush_cache();
+ok( null === sendbeam_remote_forms(), 'forms: a site with no key cannot read forms' );
+ob_start();
+( new SendBeam_Forms_Table() )->no_items();
+$sb_empty = ob_get_clean();
+lacks( $sb_empty, 'the current key', 'forms: and does not blame a key it does not have' );
+has( $sb_empty, 'not connected to SendBeam yet', 'forms: it says the site is not connected' );
+
+ob_start();
+( new SendBeam_Lists_Table() )->no_items();
+$sb_empty = ob_get_clean();
+lacks( $sb_empty, 'the current key', 'lists: same on the Audience screen' );
+has( $sb_empty, 'not connected to SendBeam yet', 'lists: it says the site is not connected' );
+sb_seed_settings( array() );
 
 /* ─────────────────────────────────────────────────────────────────────────
  * QA regressions that need a site with no API key at all. They have to sit
@@ -3323,20 +3358,6 @@ lacks( $sendbeam_links[0], 'options-general.php', 'plugins screen: the Settings 
  */
 $GLOBALS['stub']['caps']['manage_options'] = true;
 $_REQUEST                                  = array();
-
-/*
- * The classes are not declared until a screen that needs one asks for them.
- * They extend WP_List_Table, which lives in wp-admin/includes and is NOT
- * loaded when plugins are — so declaring them at plugin-load time is a fatal
- * error on every page of a real site. Nothing but loading the plugin inside
- * WordPress shows that, which is why it is asserted here.
- */
-ok( ! class_exists( 'SendBeam_Forms_Table', false ), 'list tables: nothing extends WP_List_Table at plugin-load time' );
-ok( sendbeam_load_list_table(), 'list tables: a screen that needs them can load them' );
-ok( class_exists( 'SendBeam_Forms_Table', false ), 'list tables: and then the Forms table exists' );
-ok( class_exists( 'SendBeam_Mail_Log_Table', false ), 'list tables: and the email log' );
-ok( class_exists( 'SendBeam_Lists_Table', false ), 'list tables: and the audience lists' );
-ok( sendbeam_load_list_table(), 'list tables: asking twice is harmless' );
 
 /** Render one list table the way sendbeam_list_card() does. */
 function sb_render_table( $table ) {

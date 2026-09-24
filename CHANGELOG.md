@@ -67,6 +67,7 @@
 - **`[sendbeam_contact]` takes an `id` now**, because the Forms screen offered a Copy button on every contact row and told the owner to "place it by shortcode". There was one shortcode for all of them and it always rendered the default, so copying the one beside "Wholesale enquiry" put the Contact-us form on the page. Every row names its own form; a bare `[sendbeam_contact]` still renders the default, so nothing already on a page changes.
 
 - **"Connected by: A pasted key" on a site with no key.** The Help page's system status — the block a site owner pastes into a support request, so the first thing support reads — answered a two-way ternary about how the key arrived without a third case for there being no key, directly under "API key: Not set". The sending-domain state was blank on the same block. Both say what is true now, and no field in that block is ever empty.
+- **Forms and Audience blamed the permissions of a key that did not exist.** Both screens branch on a `null` that means either "the key was refused" or "there is no key", and read only the first: a disconnected site was told "Your forms cannot be read with the current key. Give it the Forms (read) permission in SendBeam", under a header band already saying "Not connected". They say the site is not connected, and where to connect it.
 
 ### Connect
 
