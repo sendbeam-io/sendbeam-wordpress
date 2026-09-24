@@ -28,6 +28,14 @@ function lacks( $hay, $needle, $what ) { ok( false === strpos( $hay, $needle ), 
  */
 $GLOBALS['wpdb'] = new SendBeam_Stub_MailDb();
 
+/*
+ * Register the option for real, so update_option() runs the sanitiser the way
+ * WordPress does. Without this the whole class of "a programmatic write goes
+ * through the form's rules" bug is invisible here.
+ */
+sendbeam_admin_init();
+ok( isset( $GLOBALS['stub']['sanitize']['sendbeam_settings'] ), 'settings: the option is registered with its sanitiser, as WordPress has it' );
+
 /** The log, newest first, the way every screen reads it. */
 function sb_log() {
 	$rows = $GLOBALS['wpdb']->rows;
@@ -54,13 +62,13 @@ ok( ! isset( $clean['_tab'] ), 'the tab marker is not stored' );
 
 // Saving one tab must not flatten the others: an unchecked box and a field
 // that was never on screen look identical in $_POST.
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_keptkeptkept', 'default_form' => $form, 'mail_enabled' => 1 ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_keptkeptkept', 'default_form' => $form, 'mail_enabled' => 1 ) );
 $kept = sendbeam_sanitize_settings( array( '_tab' => 'forms', 'default_form' => $other, 'contact_form' => '' ) );
 ok( $kept['api_key'] === 'sb_live_keptkeptkept', 'saving Forms keeps the API key' );
 ok( (int) $kept['mail_enabled'] === 1, 'saving Forms keeps site email on' );
 $off = sendbeam_sanitize_settings( array( '_tab' => 'mail' ) );
 ok( (int) $off['mail_enabled'] === 0, 'unchecking site email on its own tab turns it off' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 // Pop-up rules: unknown enums fall back, numbers are clamped, tags are stripped.
 $rule = sendbeam_clean_popup( array( 'form' => $other, 'trigger' => 'moon', 'where' => 'moon', 'delay' => '999', 'scroll' => '999', 'once' => 'week', 'label' => '<b>Join</b>', 'enabled' => '1' ) );
@@ -117,7 +125,7 @@ $GLOBALS['stub']['caps']['edit_posts'] = true;
 has( do_shortcode_tag( 'sendbeam_form' ), 'no form ID', 'editors get a notice' );
 has( do_shortcode_tag( 'sendbeam_form', array( 'id' => $form, 'height' => '700' ) ), 'height:700px', 'explicit id + height' );
 
-update_option( 'sendbeam_settings', array( 'default_form' => $form, 'contact_form' => $other, 'popup_form' => $other, 'popup_where' => 'posts', 'popup_delay' => 3, 'popup_once' => 'week', 'popup_trigger' => 'timer' ) );
+sb_seed_settings( array( 'default_form' => $form, 'contact_form' => $other, 'popup_form' => $other, 'popup_where' => 'posts', 'popup_delay' => 3, 'popup_once' => 'week', 'popup_trigger' => 'timer' ) );
 has( do_shortcode_tag( 'sendbeam_form' ), '/f/' . $form . '?embed=1', 'default form used' );
 has( do_shortcode_tag( 'sendbeam_contact' ), '/f/' . $other . '?embed=1', 'contact form used' );
 has( do_shortcode_tag( 'sendbeam_contact' ), 'title="Contact form"', 'contact title' );
@@ -132,7 +140,7 @@ sendbeam_print_popup_loader();
 $tag = $GLOBALS['stub']['printed'];
 has( $tag, '/f/' . $other . '/popup.js?v=', 'loader src carries an appearance fingerprint' );
 $first_stamp = sendbeam_popup_script_url( $other );
-update_option( 'sendbeam_settings', array_merge( sendbeam_settings(), array( 'style_accent' => '#123456' ) ) );
+sb_seed_settings( array_merge( sendbeam_settings(), array( 'style_accent' => '#123456' ) ) );
 ok( sendbeam_popup_script_url( $other ) !== $first_stamp, 'changing a colour changes the loader URL' );
 // The style is part of the same fingerprint: a pop-up switched from split to
 // bold has to reach a visitor still holding the cached loader.
@@ -235,7 +243,7 @@ has( $GLOBALS['stub']['printed'], '/f/' . $other . '/popup.js', 'address rule ma
 
 // Upgrading from the single pop-up: the old settings become rule one.
 delete_option( 'sendbeam_popups' );
-update_option( 'sendbeam_settings', array( 'popup_form' => $form, 'popup_where' => 'home', 'popup_trigger' => 'button', 'popup_delay' => 3, 'popup_once' => 'week', 'popup_label' => 'Join us' ) );
+sb_seed_settings( array( 'popup_form' => $form, 'popup_where' => 'home', 'popup_trigger' => 'button', 'popup_delay' => 3, 'popup_once' => 'week', 'popup_label' => 'Join us' ) );
 $migrated = sendbeam_popups();
 ok( count( $migrated ) === 1, 'legacy pop-up migrates to one rule' );
 ok( $migrated[0]['form'] === $form && $migrated[0]['where'] === 'home', 'migrated form and placement' );
@@ -246,7 +254,7 @@ delete_option( 'sendbeam_popups' );
 $GLOBALS['stub']['printed'] = '';
 ob_start();
 $attributes = array( 'formId' => '', 'height' => 400 );
-update_option( 'sendbeam_settings', array( 'default_form' => $form ) );
+sb_seed_settings( array( 'default_form' => $form ) );
 include dirname( __DIR__ ) . '/blocks/form/render.php';
 $block = ob_get_clean();
 has( $block, 'class="wp-block-sendbeam-form sendbeam-form-wrap"', 'block wrapper' );
@@ -258,7 +266,7 @@ add_filter( 'sendbeam_app_url', function () { return 'https://mail.example.com/'
 has( sendbeam_form_html( $form ), 'src="https://mail.example.com/f/', 'app url filter' );
 
 // Appearance: only chosen values are sent, and a bad colour never leaves here.
-update_option( 'sendbeam_settings', array( 'style_accent' => '#B45309', 'style_radius' => '2', 'style_font' => 'serif', 'style_text' => 'rgb(1,2,3)' ) );
+sb_seed_settings( array( 'style_accent' => '#B45309', 'style_radius' => '2', 'style_font' => 'serif', 'style_text' => 'rgb(1,2,3)' ) );
 $args = sendbeam_appearance_args();
 ok( $args['accent'] === '%23b45309', 'accent is hex-escaped — a bare # would start the URL fragment' );
 has( sendbeam_form_url( $form ), 'accent=%23b45309', 'the escaped colour survives into the iframe URL' );
@@ -270,7 +278,7 @@ $clean_style = sendbeam_sanitize_settings( array( '_tab' => 'forms', 'style_acce
 ok( $clean_style['style_accent'] === '#B45309', 'a bad colour leaves the saved one untouched' );
 ok( $clean_style['style_radius'] === '28', 'radius clamped on save' );
 ok( $clean_style['style_font'] === 'inherit', 'an unknown font falls back' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 // ── Site email ──────────────────────────────────────────────────────────
 $stub = &$GLOBALS['stub'];
@@ -279,12 +287,12 @@ $stub['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '
 $mail_atts = array( 'to' => 'Ada <ada@customer.test>', 'subject' => 'Order #1001', 'message' => '<p>Thanks</p>', 'headers' => array( 'Content-Type: text/html; charset=UTF-8', 'Reply-To: Shop <shop@example-site.test>', 'Bcc: owner@example-site.test', 'X-Order-Id: 1001', 'List-Unsubscribe: <x>' ), 'attachments' => array() );
 
 // Off by default: WordPress keeps sending.
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 ok( null === apply_filters( 'pre_wp_mail', null, $mail_atts ), 'disabled → null (WordPress sends)' );
 ok( count( $stub['remote'] ) === 0, 'no API call when disabled' );
 
 // On, with a saved key: relayed, headers mapped, From falls back to the workspace sender.
-update_option( 'sendbeam_settings', array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 1 ) );
+sb_seed_settings( array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 1 ) );
 ok( true === apply_filters( 'pre_wp_mail', null, $mail_atts ), 'enabled → true (sent)' );
 $req = $stub['remote'][0];
 ok( $req['url'] === 'https://sendbeam.io/api/v1/transactional', 'posts to the transactional endpoint' );
@@ -312,7 +320,7 @@ unset( $stub['hooks']['wp_mail_from_name'] );
 
 // The settings' From wins over the caller's header.
 $stub['remote'] = array();
-update_option( 'sendbeam_settings', array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 1, 'mail_from_email' => 'hello@example-site.test', 'mail_from_name' => 'Example' ) );
+sb_seed_settings( array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 1, 'mail_from_email' => 'hello@example-site.test', 'mail_from_name' => 'Example' ) );
 apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm', 'headers' => 'From: x@y.test' ) );
 $sent = json_decode( $stub['remote'][0]['args']['body'], true );
 ok( $sent['from_email'] === 'hello@example-site.test' && $sent['from_name'] === 'Example', 'settings From wins' );
@@ -326,7 +334,7 @@ ok( count( $stub['remote'] ) === 0 && sb_log()[0]['result'] === 'fallback', 'no 
 $stub['remote_reply'] = array( 'response' => array( 'code' => 403 ), 'body' => '{"error":"Monthly email limit reached"}' );
 ok( null === apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm' ) ), 'refused + fallback → null' );
 ok( sb_log()[0]['note'] === 'Monthly email limit reached', 'API error in the log' );
-update_option( 'sendbeam_settings', array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 0 ) );
+sb_seed_settings( array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 0 ) );
 $stub['actions'] = array();
 ok( false === apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm' ) ), 'refused, no fallback → false' );
 ok( $stub['actions'][0][0] === 'wp_mail_failed' && $stub['actions'][0][1][0]->get_error_message() === 'Monthly email limit reached', 'wp_mail_failed fired with the reason' );
@@ -529,7 +537,7 @@ ok( 10080 === sendbeam_ecommerce_settings()['cart_abandoned_window'], 'e-commerc
 update_option( SENDBEAM_ECOMMERCE_OPTION, array() );
 
 ok( ! sendbeam_ecommerce_active( 'order_placed' ), 'e-commerce: nothing is active with no API key' );
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_ecommercetest0123456789' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_ecommercetest0123456789' ) );
 ok( ! sendbeam_ecommerce_active( 'order_placed' ), 'e-commerce: nothing is active without WooCommerce' );
 
 // Every hook is a genuine no-op while WooCommerce is absent — same guarantee
@@ -661,7 +669,7 @@ delete_transient( 'sendbeam_connection' );
 delete_transient( 'sendbeam_remote_forms' );
 delete_transient( 'sendbeam_remote_lists' );
 delete_transient( 'sendbeam_subscriber_count' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 /* ───────────────────────────── The surfaces ────────────────────────────
  * The sending domain, the test email, Site Health and the notices — the four
@@ -738,9 +746,7 @@ has( sb_domain_panel( $sb_records_some, true ), 'Check again', 'domain: a verifi
 lacks( sb_domain_panel( $sb_records_some, true ), 'sb-numbered', 'domain: a verified domain is not given a list of things to do' );
 
 // ── The test email ──────────────────────────────────────────────────────
-update_option(
-	'sendbeam_settings',
-	array(
+sb_seed_settings( array(
 		'api_key'         => 'sb_live_testmailtestmailxx',
 		'mail_enabled'    => 1,
 		'mail_from_name'  => 'Harbour Lane Roasters',
@@ -770,9 +776,7 @@ function sb_testmail( $from_email, $verified = true ) {
 			'sender'    => array( 'from_name' => 'Harbour Lane Roasters', 'from_email' => 'ws-f7485df7@post.sendbeam.io' ),
 		)
 	);
-	update_option(
-		'sendbeam_settings',
-		array(
+	sb_seed_settings( array(
 			'api_key'         => 'sb_live_testmailtestmailxx',
 			'mail_enabled'    => 1,
 			'mail_from_name'  => 'Harbour Lane Roasters',
@@ -831,7 +835,7 @@ has( $m['html'], 'SendBeam refuses messages from it', 'test email: and the next 
 
 /* ── none: nothing to report ── */
 $m = sb_testmail( '' );
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_testmailtestmailxx', 'mail_enabled' => 1 ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_testmailtestmailxx', 'mail_enabled' => 1 ) );
 sendbeam_connect_cache_status(
 	sendbeam_connect_normalise_status(
 		array(
@@ -879,9 +883,7 @@ $m = sb_testmail( 'ws-f7485df7@post.sendbeam.io' );
 has( $m['text'], 'Next step', 'test email: the plain-text alternative carries the next step too' );
 has( $m['text'], 'Open Site email: ', 'test email: with the link written out' );
 
-update_option(
-	'sendbeam_settings',
-	array(
+sb_seed_settings( array(
 		'api_key'         => 'sb_live_testmailtestmailxx',
 		'mail_enabled'    => 1,
 		'mail_from_name'  => 'Harbour Lane Roasters',
@@ -992,7 +994,7 @@ has( $failed['means'], 'could not reach sendbeam.io at all', 'test email: a requ
 has( $failed['do'], 'outbound HTTPS', 'test email: and points at the thing that usually blocks it' );
 
 // Site email off is not a send that failed.
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_testmailtestmailxx', 'mail_enabled' => 0 ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_testmailtestmailxx', 'mail_enabled' => 0 ) );
 $failed = sb_send_test();
 has( $failed['title'], 'Site email is not switched on yet', 'test email: nothing is sent when the relay is off, and the card says so' );
 has( $failed['do'], 'Tick "Send this site', 'test email: and says how to switch it on' );
@@ -1004,14 +1006,14 @@ foreach ( array( 'sendbeam-key', 'sendbeam-domain', 'sendbeam-mail' ) as $sendbe
 	ok( is_callable( $sendbeam_tests['direct'][ $sendbeam_t ]['test'] ), "site health: $sendbeam_t has a callable test" );
 }
 
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 sendbeam_flush_cache();
 sendbeam_connect_forget_status();
 $r = sendbeam_test_key();
 ok( 'recommended' === $r['status'], 'site health: no key is a recommendation, not a failure — the plugin is simply not in use' );
 has( $r['label'], 'SendBeam is not connected', 'site health: and says so' );
 
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_healthhealthhealth' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_healthhealthhealth' ) );
 set_transient( 'sendbeam_connection', array( 'state' => 'rejected', 'message' => 'nope' ) );
 $r = sendbeam_test_key();
 ok( 'critical' === $r['status'], 'site health: a rejected key is critical — things have stopped working' );
@@ -1036,7 +1038,7 @@ ok( 'recommended' === $r['status'], 'site health: an unverified domain is a reco
 has( $r['actions'], 'tab=domain', 'site health: and links straight at the records' );
 
 // The one that matters: the relay on behind a domain nothing has proved.
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_healthhealthhealth', 'mail_enabled' => 1 ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_healthhealthhealth', 'mail_enabled' => 1 ) );
 $r = sendbeam_test_mail_relay();
 ok( 'critical' === $r['status'], 'site health: site email on with an unverified domain is critical' );
 has( $r['label'], 'unverified domain', 'site health: and names the problem' );
@@ -1051,7 +1053,7 @@ sendbeam_connect_cache_status(
 );
 $r = sendbeam_test_mail_relay();
 ok( 'good' === $r['status'], 'site health: site email on behind a verified domain is good' );
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_healthhealthhealth', 'mail_enabled' => 0 ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_healthhealthhealth', 'mail_enabled' => 0 ) );
 $r = sendbeam_test_mail_relay();
 ok( 'good' === $r['status'], 'site health: site email off is not a fault — it is optional' );
 
@@ -1093,7 +1095,7 @@ lacks( sb_notices( 'toplevel_page_sendbeam', array( 'sendbeam_mail' => '<script>
 
 // The one exception: the Dashboard, once, for a site nobody has set up.
 delete_option( 'sendbeam_setup_done' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 sendbeam_flush_cache();
 $GLOBALS['stub']['usermeta'][7]['sendbeam_setup_dismissed'] = '';
 unset( $GLOBALS['stub']['usermeta'][7]['sendbeam_setup_dismissed'] );
@@ -1114,7 +1116,7 @@ delete_option( 'sendbeam_setup_done' );
 ok( '' === sb_notices( 'edit-page', array() ), 'notices: the setup notice is on the Dashboard and nowhere else' );
 ok( '' === sb_notices( 'plugins', array() ), 'notices: not even on the Plugins screen' );
 
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 sendbeam_flush_cache();
 $GLOBALS['stub']['remote_reply'] = null;
 unset( $GLOBALS['stub']['screen'] );
@@ -1133,9 +1135,7 @@ $GLOBALS['stub']['caps']['manage_options'] = true;
 
 /** Render the connected card for a key that arrived one way or the other. */
 function sb_connected_card( $via_connect ) {
-	update_option(
-		'sendbeam_settings',
-		array(
+	sb_seed_settings( array(
 			'api_key'                    => 'sb_live_cardkeycardkeycard',
 			'sendbeam_connected_via'     => $via_connect ? 'connect' : '',
 			'sendbeam_connect_workspace' => $via_connect ? 'Harbour Lane' : '',
@@ -1258,7 +1258,7 @@ has( $ov, 'sb-btn--primary', 'not connected: and it is primary' );
 has( $ov, 'I already have an API key', 'not connected: with the paste field folded away under it' );
 lacks( $ov, 'sb-confirm__ask', 'not connected: and nothing to disconnect' );
 
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 $GLOBALS['stub']['remote_reply'] = null;
 sendbeam_flush_cache();
 sendbeam_connect_forget_status();
@@ -1310,7 +1310,7 @@ ok( 3 === (int) get_user_meta( 7, SENDBEAM_WIZARD_STEP, true ), 'help: and nothi
 
 delete_option( 'sendbeam_setup_done' );
 delete_user_meta( 7, SENDBEAM_WIZARD_STEP );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 $GLOBALS['stub']['remote_reply'] = null;
 sendbeam_flush_cache();
 sendbeam_connect_forget_status();
@@ -1324,7 +1324,7 @@ sendbeam_connect_forget_status();
 $GLOBALS['stub']['user_id'] = 7;
 $GLOBALS['stub']['caps']['manage_options'] = true;
 delete_option( 'sendbeam_setup_done' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 sendbeam_flush_cache();
 
 /** Drive the redirect guard and say where it sent us, or '' for nowhere. */
@@ -1353,9 +1353,9 @@ $_GET = array();
 
 // A site that already has a key has already done this.
 sendbeam_on_activate();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_alreadysetupkey' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_alreadysetupkey' ) );
 ok( '' === sb_wizard_redirect(), 'wizard: a site that already has a key is not walked through setup' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 // A site that has been through it, or walked out of it, is not sent back.
 sendbeam_on_activate();
@@ -1374,7 +1374,7 @@ $GLOBALS['stub']['remote_reply'] = array(
 	'response' => array( 'code' => 200 ),
 	'body'     => wp_json_encode( array( 'forms' => array() ) ),
 );
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_wizardkeywizardkey' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_wizardkeywizardkey' ) );
 sendbeam_flush_cache();
 
 $sendbeam_wizard_headings = array(
@@ -1412,7 +1412,7 @@ has( $html, 'sb-rail__step is-current" aria-current="step"', 'wizard: the step y
 
 // The steps reuse the panels the settings screens use, rather than a second
 // copy of the Connect button and a second copy of the records table.
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 sendbeam_flush_cache();
 $_GET = array( 'page' => 'sendbeam-setup', 'step' => '1' );
 ob_start();
@@ -1484,9 +1484,70 @@ $_REQUEST = array();
 
 delete_user_meta( 7, SENDBEAM_WIZARD_STEP );
 delete_option( 'sendbeam_setup_done' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 $GLOBALS['stub']['remote_reply'] = null;
 sendbeam_flush_cache();
+
+/*
+ * Disconnect writes an empty API key, and every update_option() on a
+ * registered option runs the form's sanitiser — whose "a blank key field
+ * keeps the saved key" rule is right for a password field somebody left
+ * alone and exactly wrong for a button whose whole job is clearing it. The
+ * key went back in, the site stayed connected, and the owner pressed the
+ * button twice wondering why.
+ */
+sb_connect_reset();
+sb_seed_settings( array( 'api_key' => 'sb_live_stillconnectedxx', 'sendbeam_connected_via' => 'connect', 'sendbeam_connect_workspace' => 'Harbour Lane' ) );
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{}' );
+$_REQUEST                        = array( '_wpnonce' => 'nonce:sendbeam_disconnect' );
+try {
+	sendbeam_connect_disconnect();
+} catch ( SendBeamStubExit $e ) {
+	unset( $e );
+}
+$_REQUEST = array();
+ok( '' === sendbeam_settings()['api_key'], 'disconnect: the key is actually gone, not put back by the form\'s keep-the-key rule' );
+ok( '' === sendbeam_settings()['sendbeam_connected_via'], 'disconnect: and nothing still claims the site is connected' );
+ok( '' === sendbeam_settings()['sendbeam_connect_workspace'], 'disconnect: nor names a workspace it no longer has a key for' );
+ok( ! sendbeam_is_connected(), 'disconnect: so the screen shows a site that is not connected' );
+
+/*
+ * The same trap, the other way round: a programmatic write must not have the
+ * form's tab rules applied to it either. With no `_tab` every key counts as
+ * posted, and the rule that releases what Connect filled fired on every
+ * write — quietly undoing what the write had just recorded.
+ */
+sb_seed_settings( array( 'api_key' => 'sb_live_filledfilledfilled' ) );
+$sb_keep                            = sendbeam_settings();
+$sb_keep['mail_enabled']            = 1;
+$sb_keep['mail_from_email']         = 'hello@harbourlane.co.uk';
+$sb_keep['sendbeam_connect_filled'] = array( 'mail_enabled', 'mail_from_email' );
+sendbeam_write_settings( $sb_keep );
+ok( in_array( 'mail_from_email', sendbeam_settings()['sendbeam_connect_filled'], true ), 'write: what Connect filled stays recorded through a programmatic write' );
+ok( 1 === (int) sendbeam_settings()['mail_enabled'], 'write: and a value the caller set is not re-derived from whether a checkbox was posted' );
+ok( 'sb_live_filledfilledfilled' === sendbeam_settings()['api_key'], 'write: and the key it did not mention is left alone' );
+
+// The form's own rules still apply to the form.
+sb_seed_settings( array( 'api_key' => 'sb_live_typedbyahumanxxx' ) );
+$sb_form = sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => '' ) );
+ok( 'sb_live_typedbyahumanxxx' === $sb_form['api_key'], 'form: a password field left alone still keeps the saved key' );
+/*
+ * And the audit that keeps this from coming back: `sendbeam_settings` is the
+ * only option with a sanitiser on it, so it is the only one where a
+ * programmatic write can be quietly rewritten — and every writer of it now
+ * goes through the helper.
+ */
+$sb_src = '';
+foreach ( glob( dirname( __DIR__ ) . '/includes/*.php' ) as $sb_file ) {
+	$sb_src .= file_get_contents( $sb_file );
+}
+// Calls, not mentions: the docblocks talk about both of these.
+ok( 1 === preg_match_all( '/^\\t*register_setting\\(/m', $sb_src ), 'audit: one registered option, so one place this trap exists' );
+ok( 1 === substr_count( $sb_src, '$ok = update_option( ' . "'sendbeam_settings'" ), 'audit: and exactly one update_option() on it, inside the helper' );
+// Five occurrences: four calls and the declaration.
+ok( 4 === substr_count( $sb_src, 'sendbeam_write_settings( $' ) - substr_count( $sb_src, 'function sendbeam_write_settings(' ), 'audit: every programmatic writer goes through that helper' );
+$sb_form = sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => '', 'api_key_remove' => '1' ) );
+ok( '' === $sb_form['api_key'], 'form: and "remove the saved key" still removes it' );
 
 /*
  * A key somebody pasted was minted for whatever they minted it for, and may
@@ -1494,7 +1555,7 @@ sendbeam_flush_cache();
  * disconnected would take those down without warning.
  */
 sb_connect_reset();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_pastedpastedpasted', 'sendbeam_connected_via' => '' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_pastedpastedpasted', 'sendbeam_connected_via' => '' ) );
 $GLOBALS['stub']['remote']       = array();
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{}' );
 $_REQUEST                        = array( '_wpnonce' => 'nonce:sendbeam_disconnect' );
@@ -1506,6 +1567,7 @@ try {
 $_REQUEST = array();
 ok( empty( $GLOBALS['stub']['remote'] ), 'disconnect: a pasted key is not revoked — it is not this site\'s to revoke' );
 ok( '' === sendbeam_settings()['api_key'], 'disconnect: but this site forgets it' );
+ok( '' === sendbeam_settings()['sendbeam_connected_via'], 'disconnect: and stops claiming how it was connected' );
 has( $GLOBALS['stub']['redirect']['url'], 'sendbeam_disconnected=pasted', 'disconnect: and the notice says which of the two happened' );
 
 // wp-config constant wins over the option.
@@ -1670,7 +1732,7 @@ function sb_connect_pending( $state ) {
 
 // A state that is not the one we minted: no request, nothing changed.
 sb_connect_reset();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_existingexistingexisting' ) );
 sb_connect_pending( $sendbeam_good_state );
 $_GET  = array( 'state' => str_repeat( 'b', 43 ), 'grant' => $sendbeam_good_grant );
 $sendbeam_html = sb_connect_run( 'sendbeam_connect_return' );
@@ -1700,7 +1762,7 @@ ok( 'sb_live_existingexistingexisting' === sendbeam_settings()['api_key'], 'conn
 
 // The happy path: the grant is exchanged, server to server, exactly once.
 sb_connect_reset();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting', 'default_form' => $form ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_existingexistingexisting', 'default_form' => $form ) );
 sb_connect_pending( $sendbeam_good_state );
 $GLOBALS['stub']['remote_reply'] = array(
 	'response' => array( 'code' => 200 ),
@@ -1765,7 +1827,7 @@ foreach ( array(
 	500 => array( 'not json at all', 'refused' ),
 ) as $sendbeam_code => $sendbeam_case ) {
 	sb_connect_reset();
-	update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting' ) );
+	sb_seed_settings( array( 'api_key' => 'sb_live_existingexistingexisting' ) );
 	sb_connect_pending( $sendbeam_good_state );
 	$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => $sendbeam_code ), 'body' => $sendbeam_case[0] );
 	$_GET                            = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
@@ -1781,7 +1843,7 @@ foreach ( array(
 
 // The server could not be reached at all.
 sb_connect_reset();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_existingexistingexisting' ) );
 sb_connect_pending( $sendbeam_good_state );
 $GLOBALS['stub']['remote_reply'] = new WP_Error( 'http_request_failed', 'cURL error 28' );
 $_GET                            = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
@@ -1791,7 +1853,7 @@ ok( 'sb_live_existingexistingexisting' === sendbeam_settings()['api_key'], 'conn
 
 // Something that is not a key must never be written to the option.
 sb_connect_reset();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_existingexistingexisting' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_existingexistingexisting' ) );
 sb_connect_pending( $sendbeam_good_state );
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{"api_key":"nope nope <script>","workspace":{"name":"X"}}' );
 $_GET                            = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
@@ -1856,7 +1918,7 @@ function sb_v2_exchange( $body, $settings = array() ) {
 	global $sendbeam_good_state, $sendbeam_good_grant;
 	sb_connect_reset();
 	sendbeam_connect_forget_status();
-	update_option( 'sendbeam_settings', $settings );
+	sb_seed_settings( $settings );
 	sb_connect_pending( $sendbeam_good_state );
 	$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => $body );
 	$_GET                            = array( 'state' => $sendbeam_good_state, 'grant' => $sendbeam_good_grant );
@@ -1970,7 +2032,7 @@ ok( ! sendbeam_connect_moved_workspace( array( 'sendbeam_connect_workspace_id' =
 // ── /api/v1/connect/status ─────────────────────────────────────────────
 sb_connect_reset();
 sendbeam_connect_forget_status();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_statusstatusstatus' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_statusstatusstatus' ) );
 $GLOBALS['stub']['remote_reply'] = array(
 	'response' => array( 'code' => 200 ),
 	'body'     => json_encode(
@@ -2009,7 +2071,7 @@ ok( array() === sendbeam_connect_normalise_status( 'not json' )['domain']['recor
 // A rejected key is reported, cached, and never crashes a template.
 sb_connect_reset();
 sendbeam_connect_forget_status();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_revokedrevokedrevoked' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_revokedrevokedrevoked' ) );
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 401 ), 'body' => '{"error":"unauthorised"}' );
 $st = sendbeam_connect_status();
 ok( ! $st['ok'] && '' !== $st['error'], 'status: a rejected key is reported in plain words' );
@@ -2091,7 +2153,7 @@ ok( 'Your plan allows one sending domain.' === sendbeam_connect_normalise_status
  */
 function sb_step_details( $status, $settings = null ) {
 	$GLOBALS['stub']['caps']['manage_options'] = true;
-	update_option( 'sendbeam_settings', null === $settings ? array( 'api_key' => 'sb_live_connectedconnectedxx', 'sendbeam_connected_via' => 'connect', 'sendbeam_connect_granted' => 'forms,transactional:send,domain' ) : $settings );
+	sb_seed_settings( null === $settings ? array( 'api_key' => 'sb_live_connectedconnectedxx', 'sendbeam_connected_via' => 'connect', 'sendbeam_connect_granted' => 'forms,transactional:send,domain' ) : $settings );
 	set_transient( 'sendbeam_connection', array( 'state' => '' === (string) ( sendbeam_settings()['api_key'] ) ? 'none' : 'ok', 'message' => '', 'count' => 1 ) );
 	sendbeam_connect_cache_status( sendbeam_connect_normalise_status( $status ) );
 	$out = array();
@@ -2147,7 +2209,7 @@ $sb_dom = sb_step_details( array( 'domain' => array( 'name' => 'mail.brand.co.uk
 has( $sb_dom['domain'], 'mail.brand.co.uk is verified', 'domain state: the domain shown is the one SendBeam reported' );
 lacks( $sb_dom['domain'], 'example-site.test', 'domain state: the step never derives the host from site_url' );
 unset( $GLOBALS['stub']['site_url'] );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 sendbeam_connect_forget_status();
 delete_transient( 'sendbeam_connection' );
 
@@ -2156,14 +2218,14 @@ delete_transient( 'sendbeam_connection' );
 // and connect again, which is a frightening thing to tell someone whose site
 // is working. A link starts the same flow with the boxes already ticked.
 sb_connect_reset();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_connectedconnectedxx', 'sendbeam_connect_granted' => 'forms,contacts:write' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_connectedconnectedxx', 'sendbeam_connect_granted' => 'forms,contacts:write' ) );
 $sb_all = sendbeam_connect_start_url( true );
 has( $sb_all, 'action=sendbeam_connect_start', 'reconnect: the link starts the ordinary Connect flow' );
 has( $sb_all, 'nonce:sendbeam_connect_start', 'reconnect: the link carries the same nonce the panel does' );
 has( rawurldecode( $sb_all ), 'forms,contacts:write,transactional:send,ecommerce,domain', 'reconnect: with more permissions preselects every scope' );
 $sb_same = sendbeam_connect_start_url();
 has( rawurldecode( $sb_same ), 'sendbeam_scopes=forms,contacts:write', 'reconnect: a plain Reconnect asks for what the key already has' );
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_pastedpastedpasted' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_pastedpastedpasted' ) );
 has( rawurldecode( sendbeam_connect_start_url() ), 'ecommerce', 'reconnect: a key that recorded no permissions falls back to asking for all of them' );
 
 // The link's csv reaches the consent page as the panel's checkboxes would.
@@ -2179,12 +2241,12 @@ parse_str( (string) wp_parse_url( (string) $GLOBALS['stub']['redirect']['url'], 
 ok( 'forms,domain' === ( $sb_rq['scopes'] ?? '' ), 'reconnect: the link\'s scopes are cleaned exactly as the panel\'s are' );
 ok( 0 === get_transient( 'sendbeam_connect_7' )['popup'], 'reconnect: a link is not a pop-up, so the return page offers a way back' );
 sb_connect_reset();
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 // ── A slow SendBeam must not be a slow wp-admin ────────────────────────
 sb_connect_reset();
 sendbeam_connect_forget_status();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_statusstatusstatus' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_statusstatusstatus' ) );
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( false ) );
 $sb_first = sendbeam_connect_status();
 ok( 4 === $GLOBALS['stub']['remote'][0]['args']['timeout'], 'status: a screen render waits four seconds, not the shared ten' );
@@ -2219,14 +2281,14 @@ lacks( $sb_key_a, 'sb_live_', 'status: the key is hashed, not used — a transie
 
 // Pasting a different key takes the old key's answer with it.
 sb_connect_reset();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_aaaaaaaaaaaaaaaaaaaa' ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_aaaaaaaaaaaaaaaaaaaa' ) );
 set_transient( $sb_key_a, sendbeam_connect_empty_status(), 60 );
-update_option( 'sendbeam_settings', sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => 'sb_live_bbbbbbbbbbbbbbbbbbbb' ) ) );
+sb_seed_settings( sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => 'sb_live_bbbbbbbbbbbbbbbbbbbb' ) ) );
 ok( false === get_transient( $sb_key_a ), 'status: changing the key deletes what the old one had cached' );
 
 sb_connect_reset();
 sendbeam_connect_forget_status();
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 // ── Check now ──────────────────────────────────────────────────────────
 /** Drive an admin-post handler that ends in a redirect. */
@@ -2243,9 +2305,7 @@ function sb_run_admin_post( $fn ) {
 function sb_deferred_site() {
 	sb_connect_reset();
 	sendbeam_connect_forget_status();
-	update_option(
-		'sendbeam_settings',
-		array(
+	sb_seed_settings( array(
 			'api_key'                  => 'sb_live_connectedconnectedxx',
 			'sendbeam_connected_via'   => 'connect',
 			'sendbeam_connect_granted' => 'forms,transactional:send,domain',
@@ -2287,7 +2347,7 @@ ok( 'hello@harbourlane.co.uk' === $v2['mail_from_email'], 'check: the workspace 
 // Site email switched off by hand is a decision. A later check must not undo it.
 sb_deferred_site();
 $off = sendbeam_sanitize_settings( array( '_tab' => 'mail' ) );
-update_option( 'sendbeam_settings', $off );
+sb_seed_settings( $off );
 ok( empty( $off['sendbeam_mail_deferred'] ), 'check: turning site email off by hand cancels the held-back switch-on' );
 $_POST                           = array( '_wpnonce' => 'nonce:sendbeam_domain_check' );
 $_REQUEST                        = $_POST;
@@ -2342,7 +2402,7 @@ ok( ! empty( sendbeam_settings()['mail_enabled'] ), 'switch on: site email is on
 sb_deferred_site();
 $noscope = sendbeam_settings();
 $noscope['sendbeam_connect_granted'] = 'forms';
-update_option( 'sendbeam_settings', $noscope );
+sb_seed_settings( $noscope );
 $_POST    = array( '_wpnonce' => 'nonce:sendbeam_mail_switch_on' );
 $_REQUEST = $_POST;
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
@@ -2362,9 +2422,7 @@ ok( empty( $GLOBALS['stub']['remote'] ), 'switch on: a key without the permissio
  */
 function sb_connected_site() {
 	sb_connect_reset();
-	update_option(
-		'sendbeam_settings',
-		array(
+	sb_seed_settings( array(
 			'api_key'                    => SENDBEAM_API_KEY,
 			'sendbeam_connected_via'     => 'connect',
 			'sendbeam_connect_workspace' => 'Harbour Lane',
@@ -2412,7 +2470,7 @@ has( $url, 'sendbeam_disconnected=ok', 'disconnect: a key SendBeam already rejec
 sb_connected_site();
 $const_site            = sendbeam_settings();
 $const_site['api_key'] = 'sb_live_storedbutnotusedxxx';
-update_option( 'sendbeam_settings', $const_site );
+sb_seed_settings( $const_site );
 $GLOBALS['stub']['remote'] = array();
 $url = sb_run_admin_post( 'sendbeam_connect_disconnect' );
 ok( empty( $GLOBALS['stub']['remote'] ), 'disconnect: a key from wp-config.php is never revoked by this button' );
@@ -2466,7 +2524,7 @@ ok( 'orders@harbourlane.co.uk' === $sb_after['mail_from_email'] && 'Orders' === 
 
 // Saving the Site email tab by hand is the owner taking those settings back.
 sb_v2_exchange( sb_v2_body( array( 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ) ) ) );
-update_option( 'sendbeam_settings', sendbeam_sanitize_settings( array( '_tab' => 'mail', 'mail_enabled' => '1', 'mail_from_name' => 'Harbour Lane', 'mail_from_email' => 'hello@harbourlane.co.uk' ) ) );
+sb_seed_settings( sendbeam_sanitize_settings( array( '_tab' => 'mail', 'mail_enabled' => '1', 'mail_from_name' => 'Harbour Lane', 'mail_from_email' => 'hello@harbourlane.co.uk' ) ) );
 $sb_filled = sendbeam_settings()['sendbeam_connect_filled'];
 ok( ! in_array( 'mail_from_email', $sb_filled, true ) && ! in_array( 'mail_enabled', $sb_filled, true ), 'filled: saving Site email by hand takes those settings off Connect\'s list' );
 ok( in_array( 'default_form', $sb_filled, true ), 'filled: saving one tab does not release the settings on another' );
@@ -2480,11 +2538,11 @@ ok( 'hello@harbourlane.co.uk' === $sb_after['mail_from_email'], 'disconnect: and
 
 // A key pasted over the top of a connection leaves nothing of Connect's behind.
 sb_v2_exchange( sb_v2_body() );
-update_option( 'sendbeam_settings', sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => 'sb_live_pastedoverthetopxxxx' ) ) );
+sb_seed_settings( sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => 'sb_live_pastedoverthetopxxxx' ) ) );
 ok( array() === sendbeam_settings()['sendbeam_connect_filled'], 'filled: a key changed by hand ends Connect\'s claim on anything' );
 
 sb_connect_reset();
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 // ── The hourly re-check ────────────────────────────────────────────────
 // Records almost never spread while somebody is sitting in wp-admin: they are
@@ -2508,9 +2566,7 @@ ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: nothing
 function sb_recheck_site( $verified ) {
 	sb_connect_reset();
 	sendbeam_connect_forget_status();
-	update_option(
-		'sendbeam_settings',
-		array(
+	sb_seed_settings( array(
 			'api_key'                  => 'sb_live_connectedconnectedxx',
 			'sendbeam_connected_via'   => 'connect',
 			'sendbeam_connect_granted' => 'forms,transactional:send,domain',
@@ -2576,7 +2632,7 @@ ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: deactiv
 ok( in_array( 'sendbeam_on_deactivate', $GLOBALS['stub']['deactivation'], true ), 'recheck: and WordPress is told to call that on deactivation' );
 
 sb_connect_reset();
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 $GLOBALS['stub']['cron'] = array();
 
 // ── Where a form can actually be ───────────────────────────────────────
@@ -2595,7 +2651,7 @@ function sb_placement( $db, $options = array() ) {
 	foreach ( $options as $name => $value ) {
 		update_option( $name, $value );
 	}
-	update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_connectedconnectedxx', 'default_form' => $GLOBALS['form'] ) );
+	sb_seed_settings( array( 'api_key' => 'sb_live_connectedconnectedxx', 'default_form' => $GLOBALS['form'] ) );
 	update_option( 'sendbeam_popups', array() );
 	$GLOBALS['stub']['db'] = $db;
 	$sb_was_wpdb           = $GLOBALS['wpdb'];
@@ -2647,7 +2703,7 @@ ok( '' === $sb_where, 'placed: a site with the form nowhere is not ticked off' )
 
 // No list of six will ever be seven, so the owner gets the last word.
 sb_connect_reset();
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_connectedconnectedxx', 'default_form' => $form ) );
+sb_seed_settings( array( 'api_key' => 'sb_live_connectedconnectedxx', 'default_form' => $form ) );
 delete_option( 'sendbeam_form_placed' );
 delete_transient( 'sendbeam_form_placed' );
 $_GET     = array( '_wpnonce' => 'nonce:sendbeam_form_placed' );
@@ -2675,7 +2731,7 @@ ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'placed: the capability 
 sb_connect_reset();
 delete_option( 'sendbeam_form_placed' );
 delete_transient( 'sendbeam_form_placed' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 $GLOBALS['stub']['db'] = array();
 
 // ── A blocked pop-up ───────────────────────────────────────────────────
@@ -2737,7 +2793,7 @@ function sb_overview( $settings, $status, $get = array(), $forms = array() ) {
 	$GLOBALS['stub']['current_user']           = array( 'email' => 'admin@example-site.test' );
 	$GLOBALS['stub']['remote']                 = array();
 	$_GET                                      = $get;
-	update_option( 'sendbeam_settings', $settings );
+	sb_seed_settings( $settings );
 	set_transient( 'sendbeam_connection', array( 'state' => '' === (string) ( $settings['api_key'] ?? '' ) ? 'none' : 'ok', 'message' => '', 'count' => 1 ) );
 	set_transient( 'sendbeam_remote_forms', $forms );
 	set_transient( 'sendbeam_remote_lists', array() );
@@ -2929,7 +2985,7 @@ delete_transient( 'sendbeam_connection' );
 delete_transient( 'sendbeam_remote_forms' );
 delete_transient( 'sendbeam_remote_lists' );
 delete_transient( 'sendbeam_subscriber_count' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 /* ─────────────────────────── The admin menu ────────────────────────────
  * SendBeam lived under Settings → SendBeam with seven invisible tabs. Every
@@ -3189,7 +3245,7 @@ $GLOBALS['stub']['remote_reply'] = array(
 	),
 );
 sendbeam_flush_cache();
-update_option( 'sendbeam_settings', array_merge( sendbeam_settings(), array( 'api_key' => 'sb_live_listtablekey1', 'default_form' => $form, 'contact_form' => '' ) ) );
+sb_seed_settings( array_merge( sendbeam_settings(), array( 'api_key' => 'sb_live_listtablekey1', 'default_form' => $form, 'contact_form' => '' ) ) );
 
 $forms_table = new SendBeam_Forms_Table();
 $html        = sb_render_table( $forms_table );
@@ -3415,11 +3471,11 @@ lacks( $sendbeam_admin_js, 'tr.hidden', 'design: nor hides a settings row after 
 has( $sendbeam_admin_js, 'classList.toggle( "is-hidden"', 'design: the switch moves a class the server already set' );
 
 // The server's half of that: a row that does not apply yet arrives hidden.
-update_option( 'sendbeam_settings', array( 'mail_enabled' => 0 ) );
+sb_seed_settings( array( 'mail_enabled' => 0 ) );
 has( sendbeam_when_mail_class(), 'is-hidden', 'design: with site email off the detail rows arrive hidden' );
-update_option( 'sendbeam_settings', array( 'mail_enabled' => 1 ) );
+sb_seed_settings( array( 'mail_enabled' => 1 ) );
 lacks( sendbeam_when_mail_class(), 'is-hidden', 'design: and with it on they arrive shown' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 has( $sendbeam_css, '@media (max-width:340px){', 'design: the workspace figures only stack on something narrower than a phone' );
 has( $sendbeam_css, '.sb-stats .sb-fig{font-size:24px}', 'design: with the figure tightened so the row is one compact band' );
@@ -3493,7 +3549,7 @@ $sb_sender_status = sendbeam_connect_normalise_status(
 
 /** Classify the From address a given settings array would send with. */
 function sb_sender( $settings, $status ) {
-	update_option( 'sendbeam_settings', $settings );
+	sb_seed_settings( $settings );
 	return sendbeam_effective_sender( $status );
 }
 
@@ -3561,7 +3617,7 @@ ok( false === strpos( $ov, '1 step left' ) || false !== strpos( $ov, 'step' ), '
 $_GET     = array( '_wpnonce' => 'nonce:sendbeam_mail_own_domain' );
 $_REQUEST = $_GET;
 sendbeam_connect_cache_status( sendbeam_connect_normalise_status( $sb_shared_body ) );
-update_option( 'sendbeam_settings', $sb_shared );
+sb_seed_settings( $sb_shared );
 set_transient( 'sendbeam_connection', array( 'state' => 'ok', 'message' => '', 'count' => 1 ) );
 try {
 	sendbeam_handle_mail_own_domain();
@@ -3590,9 +3646,7 @@ has( $ov, 'SendBeam refuses these messages', 'overview: and says what happens to
 has( $ov, 'needs-attention', 'overview: and the step is not ticked' );
 
 // ── The deferred switch-on must not park a site on the shared address ───
-update_option(
-	'sendbeam_settings',
-	array(
+sb_seed_settings( array(
 		'api_key'                  => 'sb_live_deferreddeferredxx',
 		'sendbeam_connect_granted' => 'forms,transactional:send,domain',
 		'sendbeam_mail_deferred'   => 1,
@@ -3606,9 +3660,7 @@ ok( 1 === (int) $sb_after['mail_enabled'], 'deferred switch-on: site email comes
 ok( 'hello@harbourlane.co.uk' === $sb_after['mail_from_email'], 'deferred switch-on: on the verified domain, not on SendBeam\'s shared address' );
 
 // And a shared address Connect wrote earlier is corrected when the domain lands.
-update_option(
-	'sendbeam_settings',
-	array(
+sb_seed_settings( array(
 		'api_key'                       => 'sb_live_deferreddeferredxx',
 		'sendbeam_connect_granted'      => 'forms,transactional:send,domain',
 		'sendbeam_mail_deferred'        => 1,
@@ -3621,9 +3673,7 @@ sendbeam_connect_enable_mail( sendbeam_connect_normalise_status( $sb_shared_body
 ok( 'hello@harbourlane.co.uk' === sendbeam_settings()['mail_from_email'], 'deferred switch-on: a shared address Connect wrote is corrected once the domain verifies' );
 
 // An address the OWNER typed is never overruled, whatever the domain does.
-update_option(
-	'sendbeam_settings',
-	array(
+sb_seed_settings( array(
 		'api_key'                  => 'sb_live_deferreddeferredxx',
 		'sendbeam_connect_granted' => 'forms,transactional:send,domain',
 		'sendbeam_mail_deferred'   => 1,
@@ -3636,7 +3686,7 @@ sendbeam_connect_enable_mail( sendbeam_connect_normalise_status( $sb_shared_body
 ok( 'ws-f7485df7@post.sendbeam.io' === sendbeam_settings()['mail_from_email'], 'deferred switch-on: an address the owner typed is left exactly as they typed it' );
 
 delete_option( 'sendbeam_form_placed' );
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 sendbeam_flush_cache();
 sendbeam_connect_forget_status();
 
@@ -3936,13 +3986,13 @@ ok( 3 === sendbeam_mail_log_clear(), 'clear: takes the rest' );
 ok( 0 === count( sb_log() ), 'clear: and leaves an empty table' );
 
 // ── Retention ──────────────────────────────────────────────────────────
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 ok( 30 === sendbeam_mail_log_days(), 'retention: thirty days out of the box' );
 foreach ( array( 7, 30, 90, 0 ) as $sb_days ) {
-	update_option( 'sendbeam_settings', array( 'mail_log_days' => $sb_days ) );
+	sb_seed_settings( array( 'mail_log_days' => $sb_days ) );
 	ok( $sb_days === sendbeam_mail_log_days(), "retention: $sb_days is a choice" );
 }
-update_option( 'sendbeam_settings', array( 'mail_log_days' => 4000 ) );
+sb_seed_settings( array( 'mail_log_days' => 4000 ) );
 ok( 30 === sendbeam_mail_log_days(), 'retention: a number nobody offered falls back to thirty, not to for ever' );
 $sb_clean = sendbeam_sanitize_settings( array( '_tab' => 'mail', 'mail_log_days' => '90' ) );
 ok( 90 === $sb_clean['mail_log_days'], 'retention: the form saves a choice it recognises' );
@@ -3951,13 +4001,13 @@ ok( 30 === $sb_clean['mail_log_days'], 'retention: and refuses one it does not' 
 
 // ── Pruning ────────────────────────────────────────────────────────────
 sb_log_reset();
-update_option( 'sendbeam_settings', array( 'mail_log_days' => 7 ) );
+sb_seed_settings( array( 'mail_log_days' => 7 ) );
 sendbeam_mail_log_insert( 'old@t.test', 'Old', 'sent', '', '', time() - ( 30 * DAY_IN_SECONDS ) );
 sendbeam_mail_log_insert( 'new@t.test', 'New', 'sent', '', '', time() - HOUR_IN_SECONDS );
 ok( 1 === sendbeam_mail_log_prune(), 'prune: a row past its date goes' );
 ok( 1 === count( sb_log() ) && 'new@t.test' === sb_log()[0]['to_addr'], 'prune: and the one inside it stays' );
 
-update_option( 'sendbeam_settings', array( 'mail_log_days' => 0 ) );
+sb_seed_settings( array( 'mail_log_days' => 0 ) );
 sendbeam_mail_log_insert( 'ancient@t.test', 'Ancient', 'sent', '', '', time() - ( 900 * DAY_IN_SECONDS ) );
 ok( 0 === sendbeam_mail_log_prune(), 'prune: "for ever" keeps a nine-hundred-day-old row' );
 ok( 2 === count( sb_log() ), 'prune: whatever its date' );
@@ -4072,7 +4122,7 @@ has( $sb_uninstall, "'sendbeam_db_version'", 'uninstall: and the version that sa
 has( $sb_uninstall, "'sendbeam_mail_log'", 'uninstall: with the old option swept too, for a site that never upgraded past it' );
 
 sb_log_reset();
-update_option( 'sendbeam_settings', array() );
+sb_seed_settings( array() );
 
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor

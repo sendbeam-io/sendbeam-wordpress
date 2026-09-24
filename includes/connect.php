@@ -603,7 +603,7 @@ function sendbeam_connect_store_key( $api_key, $workspace, $data = array() ) {
 
 	$clean['sendbeam_connect_filled'] = array_values( array_unique( $filled ) );
 
-	update_option( 'sendbeam_settings', $clean );
+	sendbeam_write_settings( $clean );
 	sendbeam_flush_cache();
 	sendbeam_connect_cache_status( $status );
 	sendbeam_connect_schedule_recheck( $status );
@@ -780,7 +780,7 @@ function sendbeam_connect_disconnect() {
 	// under that key, and a site that has just let go of it can no longer
 	// name the transient it wrote.
 	sendbeam_connect_forget_status();
-	update_option( 'sendbeam_settings', $settings );
+	sendbeam_write_settings( $settings );
 
 	sendbeam_flush_cache();
 	sendbeam_connect_unschedule_recheck();

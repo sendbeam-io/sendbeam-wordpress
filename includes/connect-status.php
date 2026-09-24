@@ -594,7 +594,7 @@ function sendbeam_connect_enable_mail( $status ) {
 	}
 	$settings['sendbeam_connect_filled'] = array_values( array_unique( $filled ) );
 
-	update_option( 'sendbeam_settings', $settings );
+	sendbeam_write_settings( $settings );
 }
 
 /**
@@ -742,7 +742,7 @@ function sendbeam_handle_mail_own_domain() {
 	$filled[]                            = 'mail_from_email';
 	$settings['sendbeam_connect_filled'] = array_values( array_unique( $filled ) );
 
-	update_option( 'sendbeam_settings', $settings );
+	sendbeam_write_settings( $settings );
 
 	wp_safe_redirect( add_query_arg( 'sendbeam_sender', 'own', sendbeam_tab_url( 'overview' ) ) );
 	exit;

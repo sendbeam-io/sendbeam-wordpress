@@ -33,7 +33,33 @@ function sanitize_text_field( $s ) { return trim( strip_tags( (string) $s ) ); }
 function sanitize_key( $s ) { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $s ) ); }
 function wp_unslash( $s ) { return is_array( $s ) ? array_map( 'wp_unslash', $s ) : stripslashes( (string) $s ); }
 function get_option( $k, $default = false ) { return isset( $GLOBALS['stub']['options'][ $k ] ) ? $GLOBALS['stub']['options'][ $k ] : $default; }
-function update_option( $k, $v ) { $GLOBALS['stub']['options'][ $k ] = $v; }
+/**
+ * Options, and the sanitise callback WordPress runs on the way in.
+ *
+ * `register_setting()` hangs a callback on `sanitize_option_{$option}` and
+ * `update_option()` applies it — so every write to a registered option goes
+ * through it, including the ones a plugin makes on its own behalf. The stub
+ * did not, which is precisely why Disconnect could write an empty API key,
+ * have the form's "a blank field keeps the saved key" rule put the old one
+ * back, and pass every test while leaving the site connected.
+ *
+ * Fixtures that only want to put a value in place use sb_seed_settings().
+ */
+function update_option( $k, $v ) {
+	if ( isset( $GLOBALS['stub']['sanitize'][ $k ] ) && is_callable( $GLOBALS['stub']['sanitize'][ $k ] ) ) {
+		$v = call_user_func( $GLOBALS['stub']['sanitize'][ $k ], $v );
+	}
+	$GLOBALS['stub']['options'][ $k ] = $v;
+}
+function register_setting( $group, $option, $args = array() ) {
+	if ( is_array( $args ) && ! empty( $args['sanitize_callback'] ) ) {
+		$GLOBALS['stub']['sanitize'][ $option ] = $args['sanitize_callback'];
+	}
+}
+function add_settings_section( $id, $title, $cb, $page, $args = array() ) {}
+function add_settings_field( $id, $title, $cb, $page, $section = 'default', $args = array() ) {}
+/** Put a value straight into the store, the way a fixture means to. */
+function sb_seed_settings( $value ) { $GLOBALS['stub']['options']['sendbeam_settings'] = $value; }
 function delete_option( $k ) { unset( $GLOBALS['stub']['options'][ $k ] ); }
 function add_settings_error( $s, $c, $m ) { $GLOBALS['stub']['errors'][] = $m; }
 function shortcode_atts( $pairs, $atts, $tag = '' ) { $atts = (array) $atts; $out = array(); foreach ( $pairs as $k => $v ) { $out[ $k ] = array_key_exists( $k, $atts ) ? $atts[ $k ] : $v; } return $out; }

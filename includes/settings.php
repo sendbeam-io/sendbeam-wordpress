@@ -158,6 +158,76 @@ function sendbeam_when_mail_class() {
 }
 
 /**
+ * Write settings the plugin worked out for itself, not settings somebody typed.
+ *
+ * `register_setting()` hangs `sendbeam_sanitize_settings()` on
+ * `sanitize_option_sendbeam_settings`, which means **every**
+ * `update_option( 'sendbeam_settings', … )` goes through the form's rules —
+ * including the ones this plugin makes on its own behalf. Those rules are
+ * written for a posted form, and three of them are actively wrong for a
+ * programmatic write:
+ *
+ *   - "A blank key field keeps the saved key" is right for a password field
+ *     somebody left alone, and exactly wrong for Disconnect, which clears the
+ *     key on purpose. Disconnect wrote an empty key, the sanitiser put the
+ *     old one back, and the site stayed connected. That is the bug the owner
+ *     hit, twice.
+ *   - A posted form names its tab, so only that tab's keys are touched. A
+ *     programmatic array names none, so every key is treated as posted — and
+ *     the rule that releases `mail_enabled`, `mail_from_name` and
+ *     `mail_from_email` from `sendbeam_connect_filled` fired on every write,
+ *     quietly undoing what Connect had just recorded.
+ *   - `mail_enabled` is re-derived from "is the box in $input", which is the
+ *     right reading of an unchecked checkbox and the wrong reading of an
+ *     array a caller simply did not mention it in.
+ *
+ * So programmatic paths come through here instead. The array is already what
+ * the plugin means; it is written as-is, with the one piece of housekeeping
+ * the sanitiser does that still applies — a key that changed invalidates
+ * everything cached under the old one.
+ *
+ * @param array $settings The complete settings array to store.
+ * @return bool Whether anything changed.
+ */
+function sendbeam_write_settings( $settings ) {
+	$before = sendbeam_settings();
+
+	sendbeam_settings_writing( true );
+	$ok = update_option( 'sendbeam_settings', $settings );
+	sendbeam_settings_writing( false );
+
+	// The cached answers belong to the key that fetched them, and that key is
+	// on its way out. Named explicitly, because a site that has just let go
+	// of a key can no longer work out the transient it wrote.
+	$after = (string) sendbeam_settings()['api_key'];
+	if ( (string) $before['api_key'] !== $after ) {
+		sendbeam_connect_forget_status( (string) $before['api_key'] );
+		sendbeam_flush_cache();
+	}
+
+	return $ok;
+}
+
+/**
+ * Is a programmatic write in progress?
+ *
+ * A flag rather than remove_filter()/add_filter() around the update: the
+ * sanitiser is registered by `register_setting()` at a priority this file
+ * does not own, and putting a filter back the way it was found is a much
+ * easier thing to get subtly wrong than reading one boolean.
+ *
+ * @param bool|null $set True or false to set it, null to read it.
+ * @return bool
+ */
+function sendbeam_settings_writing( $set = null ) {
+	static $writing = false;
+	if ( null !== $set ) {
+		$writing = (bool) $set;
+	}
+	return $writing;
+}
+
+/**
  * Clean everything the form posts. Unknown keys are dropped.
  *
  * @param mixed $input Raw POST value.
@@ -170,6 +240,16 @@ function sendbeam_sanitize_settings( $input ) {
 
 	if ( ! is_array( $input ) ) {
 		return $out;
+	}
+
+	/*
+	 * A write the plugin made for itself. It is already what the plugin
+	 * means — see sendbeam_write_settings() for why running the form's rules
+	 * over it does the wrong thing three different ways.
+	 */
+	if ( sendbeam_settings_writing() ) {
+		unset( $input['_tab'] );
+		return $input;
 	}
 
 	// Each tab posts only its own fields. Starting from the saved values and
