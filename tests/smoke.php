@@ -1890,6 +1890,34 @@ $ov = sb_overview( $sb_connected, $sb_verified );
 lacks( $ov, 'Reconnect with more permissions', 'overview: a step with nothing missing does not offer it' );
 has( $ov, '>Reconnect<', 'overview: the connected card offers a plain Reconnect beside Disconnect' );
 
+// ── Back from the registrar ────────────────────────────────────────────
+// Automatic DNS used to end on SendBeam's own sending settings: a reasonable
+// place to finish if you started there, and the wrong one entirely when you
+// started in a wp-admin checklist and expected to come back and see the step
+// ticked.
+$ov = sb_overview( $sb_connected, $sb_unverified );
+has( $ov, 'return_to=' . rawurlencode( 'https://www.example-site.test/wp-admin/options-general.php?page=sendbeam&tab=overview' ), 'automatic DNS: the one-click link tells SendBeam where to send the owner back to' );
+has( $ov, 'https://sendbeam.io/dc/1?return_to=', 'automatic DNS: and is otherwise the link SendBeam sent' );
+
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
+sendbeam_connect_forget_status();
+$ov = sb_overview( $sb_connected, $sb_unverified, array( 'sb_dc' => 'done' ) );
+has( $ov, 'Your registrar added the records. Checking now', 'automatic DNS: coming back says what happened' );
+$sb_posts = array_filter( $GLOBALS['stub']['remote'], function ( $r ) { return 'POST' === $r['method']; } );
+ok( 1 === count( $sb_posts ), 'automatic DNS: coming back spends exactly one check' );
+ok( ! empty( sendbeam_settings()['mail_enabled'] ), 'automatic DNS: a domain that verifies finishes the held-back switch-on' );
+
+sendbeam_connect_forget_status();
+$ov = sb_overview( $sb_connected, $sb_unverified, array( 'sb_dc' => 'error', 'sb_dc_reason' => 'state_mismatch' ) );
+has( $ov, 'Your registrar could not add the records (state mismatch)', 'automatic DNS: a refusal says why, in SendBeam\'s own reason' );
+has( $ov, 'Add them by hand below', 'automatic DNS: and points at the records that are right there' );
+ok( empty( array_filter( $GLOBALS['stub']['remote'], function ( $r ) { return 'POST' === $r['method']; } ) ), 'automatic DNS: a refusal spends no check' );
+
+$ov = sb_overview( $sb_connected, $sb_unverified, array( 'sb_dc' => '<script>alert(1)</script>' ) );
+lacks( $ov, 'alert(1)', 'automatic DNS: the flag is one of two values, not a message to print' );
+lacks( $ov, 'Checking now', 'automatic DNS: and anything else is ignored' );
+has( sendbeam_connect_admin_js(), 'sb_dc', 'automatic DNS: the flag is taken off the address bar once it has been read' );
+
 // A key pinned in wp-config.php beats anything stored here, so connecting
 // would mint a real key, save it, and never use it.
 $ov = sb_overview( array(), array() );

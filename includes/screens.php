@@ -42,7 +42,19 @@ function sendbeam_screen_overview() {
 	// is one subscriber, and adding the lists up counted them three times.
 	$subscribers = sendbeam_subscriber_count();
 	$connected   = sendbeam_is_connected();
-	$status      = $connected ? sendbeam_connect_status() : sendbeam_connect_empty_status();
+
+	/*
+	 * Straight back from the registrar. The records were written a second
+	 * ago, so this is the one page load that has a reason to ask SendBeam to
+	 * look again rather than read the minute-old cache — and if that check
+	 * verifies the domain, it finishes the held-back switch-on exactly as
+	 * pressing Check now would.
+	 */
+	$returned = sendbeam_overview_dns_return();
+	$status   = $connected ? sendbeam_connect_status( 'done' === $returned ) : sendbeam_connect_empty_status();
+	if ( $connected && 'done' === $returned ) {
+		sendbeam_connect_finish_deferred( $status );
+	}
 
 	sendbeam_overview_notices();
 
@@ -112,7 +124,23 @@ function sendbeam_overview_notices() {
 	$mail   = isset( $_GET['sendbeam_mail'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_mail'] ) ) : '';
 	$placed = isset( $_GET['sendbeam_form'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_form'] ) ) : '';
 	$gone   = isset( $_GET['sendbeam_disconnected'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_disconnected'] ) ) : '';
+	$reason = isset( $_GET['sb_dc_reason'] ) ? sanitize_key( wp_unslash( $_GET['sb_dc_reason'] ) ) : '';
 	// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+	// Back from the registrar. Not in the table below because the failure
+	// carries SendBeam's own reason code, and the table is fixed sentences.
+	$returned = sendbeam_overview_dns_return();
+	if ( 'done' === $returned ) {
+		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Your registrar added the records. Checking now…', 'sendbeam' ) . '</p>';
+	} elseif ( 'error' === $returned ) {
+		echo '<p class="sb-msg sb-msg--bad">' . esc_html(
+			sprintf(
+				/* translators: %s: SendBeam's reason the registrar refused, e.g. "state mismatch" */
+				__( 'Your registrar could not add the records (%s). Add them by hand below.', 'sendbeam' ),
+				'' !== $reason ? str_replace( '_', ' ', substr( $reason, 0, 60 ) ) : __( 'no reason given', 'sendbeam' )
+			)
+		) . '</p>';
+	}
 
 	$messages = array(
 		'domain' => array(
@@ -150,6 +178,22 @@ function sendbeam_overview_notices() {
 		list( $tone, $text ) = $messages[ $group ][ $value ];
 		echo '<p class="sb-msg sb-msg--' . esc_attr( $tone ) . '">' . esc_html( $text ) . '</p>';
 	}
+}
+
+/**
+ * Did this page load arrive back from the registrar, and how did it go?
+ *
+ * The two values come from a redirect SendBeam issued, and the only thing
+ * read out of them is which of two sentences to print — and, for `done`,
+ * whether to spend one check. The script strips both from the address bar
+ * afterwards so a refresh does not check again.
+ *
+ * @return string 'done', 'error', or empty.
+ */
+function sendbeam_overview_dns_return() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a two-value flag on a redirect from the registrar; it chooses a sentence and one read-only check.
+	$value = isset( $_GET['sb_dc'] ) ? sanitize_key( wp_unslash( $_GET['sb_dc'] ) ) : '';
+	return in_array( $value, array( 'done', 'error' ), true ) ? $value : '';
 }
 
 /**
@@ -277,7 +321,7 @@ function sendbeam_overview_domain_panel( $status, $connected ) {
 	if ( ! $verified && '' !== $domain['domain_connect_url'] ) {
 		printf(
 			'<a class="sb-btn sb-btn--small sb-btn--ghost" href="%s" target="_blank" rel="noopener">%s</a>',
-			esc_url( $domain['domain_connect_url'] ),
+			esc_url( sendbeam_domain_connect_url( $domain['domain_connect_url'] ) ),
 			esc_html__( 'Set up DNS automatically', 'sendbeam' )
 		);
 	}
@@ -342,6 +386,22 @@ function sendbeam_domain_records_table( $records ) {
 		echo '</tr>';
 	}
 	echo '</tbody></table></div>';
+}
+
+/**
+ * The one-click DNS link, told where to send the owner afterwards.
+ *
+ * Without this the journey ends on SendBeam's own sending settings — which is
+ * a reasonable place for it to end if you started there, and the wrong one
+ * entirely when you started in wp-admin, pressed a button in a checklist, and
+ * expected to come back and see the step ticked. SendBeam honours the return
+ * address only when it belongs to a site one of its own keys was issued to.
+ *
+ * @param string $url The registrar link SendBeam sent.
+ * @return string
+ */
+function sendbeam_domain_connect_url( $url ) {
+	return add_query_arg( 'return_to', rawurlencode( sendbeam_tab_url( 'overview' ) ), $url );
 }
 
 /**

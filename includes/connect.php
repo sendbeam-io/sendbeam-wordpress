@@ -901,6 +901,22 @@ function sendbeam_connect_admin_js() {
 				}
 			} );
 		}
+		/*
+		 * Coming back from a registrar leaves sb_dc in the address bar, and
+		 * sb_dc=done spends a check. A refresh, or a bookmark, would spend
+		 * another one and print "Checking now…" over a page that is not,
+		 * so the flag is taken off the URL the moment it has been read.
+		 */
+		if ( window.history && history.replaceState && window.URL ) {
+			try {
+				var here = new URL( window.location.href );
+				if ( here.searchParams.has( "sb_dc" ) ) {
+					here.searchParams.delete( "sb_dc" );
+					here.searchParams.delete( "sb_dc_reason" );
+					history.replaceState( null, "", here.toString() );
+				}
+			} catch ( err ) {}
+		}
 		window.addEventListener( "message", function ( e ) {
 			if ( e.origin !== origin || ! e.data || "connected" !== e.data.sendbeam ) { return; }
 			window.location.reload();

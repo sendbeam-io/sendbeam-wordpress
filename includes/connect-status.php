@@ -475,15 +475,7 @@ function sendbeam_handle_domain_check() {
 	} elseif ( '' === $status['domain']['name'] ) {
 		$note = 'nodomain';
 	} elseif ( $status['domain']['verified'] ) {
-		$note     = 'verified';
-		$settings = sendbeam_settings();
-		if ( ! empty( $settings['sendbeam_mail_deferred'] )
-			&& empty( $settings['mail_enabled'] )
-			&& sendbeam_connect_granted( 'transactional:send' ) ) {
-			sendbeam_connect_enable_mail( $status );
-			$note = 'verified_mail';
-		}
-		sendbeam_connect_unschedule_recheck();
+		$note = sendbeam_connect_finish_deferred( $status ) ? 'verified_mail' : 'verified';
 	} else {
 		$note = 'pending';
 	}
@@ -634,12 +626,36 @@ function sendbeam_connect_run_recheck() {
 		return;
 	}
 
-	$settings = sendbeam_settings();
-	if ( ! empty( $settings['sendbeam_mail_deferred'] )
-		&& empty( $settings['mail_enabled'] )
-		&& sendbeam_connect_granted( 'transactional:send' ) ) {
-		sendbeam_connect_enable_mail( $status );
+	sendbeam_connect_finish_deferred( $status );
+}
+
+/**
+ * A domain has verified: finish what consent started, and stop asking.
+ *
+ * Three things reach this point — the **Check now** button, the hourly
+ * re-check, and coming back from a registrar that set the DNS up for you —
+ * and all three mean exactly the same thing to a site whose email is waiting
+ * on the domain. Switching it on is finishing a job the owner already said
+ * yes to; it is not the same as switching on something they turned off, which
+ * is why `sendbeam_mail_deferred` has to still be set.
+ *
+ * @param array $status A fresh status.
+ * @return bool Whether site email was switched on as a result.
+ */
+function sendbeam_connect_finish_deferred( $status ) {
+	if ( empty( $status['domain']['verified'] ) ) {
+		return false;
 	}
 
 	sendbeam_connect_unschedule_recheck();
+
+	$settings = sendbeam_settings();
+	if ( empty( $settings['sendbeam_mail_deferred'] )
+		|| ! empty( $settings['mail_enabled'] )
+		|| ! sendbeam_connect_granted( 'transactional:send' ) ) {
+		return false;
+	}
+
+	sendbeam_connect_enable_mail( $status );
+	return true;
 }
