@@ -1944,6 +1944,8 @@ has( sendbeam_connect_admin_js(), 'sb_dc', 'automatic DNS: the flag is taken off
 $ov = sb_overview( array(), array() );
 has( $ov, 'SENDBEAM_API_KEY in wp-config.php', 'overview: a site with the key pinned in wp-config is told where its key is' );
 lacks( $ov, 'Connect SendBeam', 'overview: and is not offered a button that would store a key nothing uses' );
+lacks( $ov, 'I already have an API key', 'overview: nor a paste field whose key wp-config.php would overrule' );
+lacks( $ov, 'sendbeam_settings[api_key]', 'overview: the paste field itself is gone, not merely folded away' );
 $ov = sb_overview( $sb_connected, $sb_verified );
 has( $ov, 'Disconnect will not revoke it', 'overview: the connected card says the live key is the pinned one' );
 

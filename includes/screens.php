@@ -515,8 +515,16 @@ function sendbeam_overview_mail_panel( $status, $connected ) {
  *
  * Open by default would make the screen look like it still wants a key
  * copied across, which is the friction Connect exists to remove.
+ *
+ * On a site whose key is pinned in wp-config.php there is nothing to paste:
+ * a key saved here would lose to the constant on every request. The panel
+ * above has already said where the live key is, so this simply goes away
+ * rather than inviting somebody to store a second one.
  */
 function sendbeam_connect_paste_disclosure() {
+	if ( sendbeam_key_in_config() ) {
+		return;
+	}
 	echo '<details class="sb-paste" style="margin-top:14px">';
 	echo '<summary>' . esc_html__( 'I already have an API key', 'sendbeam' ) . '</summary>';
 	echo '<div style="margin-top:10px">';
