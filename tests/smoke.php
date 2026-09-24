@@ -1992,7 +1992,8 @@ has( $ov, 'https://sendbeam.io/dc/1?return_to=', 'automatic DNS: and is otherwis
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
 sendbeam_connect_forget_status();
 $ov = sb_overview( $sb_connected, $sb_unverified, array( 'sb_dc' => 'done' ) );
-has( $ov, 'Your registrar added the records. Checking now', 'automatic DNS: coming back says what happened' );
+has( $ov, 'Your registrar added the records. Checked just now.', 'automatic DNS: coming back says what happened, in the tense it happened in' );
+has( $ov, 'harbourlane.co.uk is verified', 'automatic DNS: and the step underneath is already showing what the check found' );
 $sb_posts = array_filter( $GLOBALS['stub']['remote'], function ( $r ) { return 'POST' === $r['method']; } );
 ok( 1 === count( $sb_posts ), 'automatic DNS: coming back spends exactly one check' );
 ok( ! empty( sendbeam_settings()['mail_enabled'] ), 'automatic DNS: a domain that verifies finishes the held-back switch-on' );
@@ -2005,7 +2006,7 @@ ok( empty( array_filter( $GLOBALS['stub']['remote'], function ( $r ) { return 'P
 
 $ov = sb_overview( $sb_connected, $sb_unverified, array( 'sb_dc' => '<script>alert(1)</script>' ) );
 lacks( $ov, 'alert(1)', 'automatic DNS: the flag is one of two values, not a message to print' );
-lacks( $ov, 'Checking now', 'automatic DNS: and anything else is ignored' );
+lacks( $ov, 'Checked just now', 'automatic DNS: and anything else is ignored' );
 has( sendbeam_connect_admin_js(), 'sb_dc', 'automatic DNS: the flag is taken off the address bar once it has been read' );
 
 // A key pinned in wp-config.php beats anything stored here, so connecting

@@ -960,8 +960,8 @@ function sendbeam_connect_admin_js() {
 		/*
 		 * Coming back from a registrar leaves sb_dc in the address bar, and
 		 * sb_dc=done spends a check. A refresh, or a bookmark, would spend
-		 * another one and print "Checking now…" over a page that is not,
-		 * so the flag is taken off the URL the moment it has been read.
+		 * another one and say the records were checked just now when they
+		 * were not, so the flag comes off the URL the moment it is read.
 		 */
 		if ( window.history && history.replaceState && window.URL ) {
 			try {

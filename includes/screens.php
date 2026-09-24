@@ -131,7 +131,11 @@ function sendbeam_overview_notices() {
 	// carries SendBeam's own reason code, and the table is fixed sentences.
 	$returned = sendbeam_overview_dns_return();
 	if ( 'done' === $returned ) {
-		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Your registrar added the records. Checking now…', 'sendbeam' ) . '</p>';
+		// Past tense on purpose: the check ran at the top of this render, so
+		// by the time anybody reads this the step underneath is already
+		// showing what it found. "Checking now…" promised a page that was
+		// about to change and then never changed.
+		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Your registrar added the records. Checked just now.', 'sendbeam' ) . '</p>';
 	} elseif ( 'error' === $returned ) {
 		echo '<p class="sb-msg sb-msg--bad">' . esc_html(
 			sprintf(
