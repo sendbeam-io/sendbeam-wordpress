@@ -32,7 +32,7 @@ function sendbeam_form_close() {
 /* -------------------------------------------------------------- Overview */
 
 /**
- * Overview tab: how far through set-up the site is, what the workspace holds, and the API key.
+ * Overview: how far through set-up the site is, and what the workspace holds.
  */
 function sendbeam_screen_overview() {
 	$forms = sendbeam_remote_forms();
@@ -55,8 +55,6 @@ function sendbeam_screen_overview() {
 	if ( $connected && 'done' === $returned ) {
 		sendbeam_connect_finish_deferred( $status );
 	}
-
-	sendbeam_overview_notices();
 
 	echo '<div class="sb-grid">';
 
@@ -96,79 +94,6 @@ function sendbeam_screen_overview() {
 	sendbeam_card_close();
 
 	echo '</div>';
-}
-
-/**
- * Whatever the last button did, said in one line at the top of the screen.
- *
- * Every one of these arrives as a query argument on a redirect this plugin
- * issued itself, so the only thing read out of the URL is which of a fixed
- * list of sentences to print.
- */
-function sendbeam_overview_notices() {
-	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- notice text only, chosen from a fixed list, set by our own redirect.
-	$domain = isset( $_GET['sendbeam_domain'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_domain'] ) ) : '';
-	$mail   = isset( $_GET['sendbeam_mail'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_mail'] ) ) : '';
-	$placed = isset( $_GET['sendbeam_form'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_form'] ) ) : '';
-	$gone   = isset( $_GET['sendbeam_disconnected'] ) ? sanitize_key( wp_unslash( $_GET['sendbeam_disconnected'] ) ) : '';
-	$reason = isset( $_GET['sb_dc_reason'] ) ? sanitize_key( wp_unslash( $_GET['sb_dc_reason'] ) ) : '';
-	// phpcs:enable WordPress.Security.NonceVerification.Recommended
-
-	// Back from the registrar. Not in the table below because the failure
-	// carries SendBeam's own reason code, and the table is fixed sentences.
-	$returned = sendbeam_overview_dns_return();
-	if ( 'done' === $returned ) {
-		// Past tense on purpose: the check ran at the top of this render, so
-		// by the time anybody reads this the step underneath is already
-		// showing what it found. "Checking now…" promised a page that was
-		// about to change and then never changed.
-		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Your registrar added the records. Checked just now.', 'sendbeam' ) . '</p>';
-	} elseif ( 'error' === $returned ) {
-		echo '<p class="sb-msg sb-msg--bad">' . esc_html(
-			sprintf(
-				/* translators: %s: SendBeam's reason the registrar refused, e.g. "state mismatch" */
-				__( 'Your registrar could not add the records (%s). Add them by hand below.', 'sendbeam' ),
-				'' !== $reason ? str_replace( '_', ' ', substr( $reason, 0, 60 ) ) : __( 'no reason given', 'sendbeam' )
-			)
-		) . '</p>';
-	}
-
-	$messages = array(
-		'domain' => array(
-			'verified'      => array( 'ok', __( 'Verified. SendBeam can now send email as your domain.', 'sendbeam' ) ),
-			'verified_mail' => array( 'ok', __( 'Verified, and this site\'s email has been switched on — it was waiting on exactly this. Send yourself a test below.', 'sendbeam' ) ),
-			'pending'       => array( 'warn', __( 'Not verified yet. DNS changes can take anything from a few minutes to a day to spread; the records are below, unchanged.', 'sendbeam' ) ),
-			'nodomain'      => array( 'warn', __( 'There is no sending domain on this workspace yet. Add one under Sending in SendBeam.', 'sendbeam' ) ),
-			'unreachable'   => array( 'bad', __( 'Could not ask SendBeam to check just now. Nothing was changed.', 'sendbeam' ) ),
-		),
-		'form'   => array(
-			'placed'   => array( 'ok', __( 'Noted — the form step is ticked. Say so again if you take the form off the site.', 'sendbeam' ) ),
-			'unplaced' => array( 'ok', __( 'The form step will look for itself again.', 'sendbeam' ) ),
-		),
-		'mail'   => array(
-			'on'         => array( 'ok', __( 'Site email is on. Password resets, receipts and notifications now go out through SendBeam.', 'sendbeam' ) ),
-			'noscope'    => array( 'bad', __( 'This site\'s key was not given permission to send your site\'s email, so it was not switched on. Reconnect and tick that box.', 'sendbeam' ) ),
-			'unverified' => array( 'bad', __( 'The sending domain is not verified, so site email was not switched on. Finish step 2 first.', 'sendbeam' ) ),
-		),
-		'gone'   => array(
-			'ok'          => array( 'ok', __( 'Disconnected. The key was revoked in SendBeam.', 'sendbeam' ) ),
-			'unreachable' => array( 'warn', __( 'Disconnected, but this server could not reach SendBeam; revoke it under Settings → API keys.', 'sendbeam' ) ),
-			'constant'    => array( 'warn', __( 'Disconnected here, and nothing was revoked: this site sends with the key defined as SENDBEAM_API_KEY in wp-config.php, which is not the one this button issued. Remove it there, and revoke it under Settings → API keys.', 'sendbeam' ) ),
-		),
-	);
-
-	foreach ( array(
-		'domain' => $domain,
-		'form'   => $placed,
-		'mail'   => $mail,
-		'gone'   => $gone,
-	) as $group => $value ) {
-		if ( '' === $value || ! isset( $messages[ $group ][ $value ] ) ) {
-			continue;
-		}
-		list( $tone, $text ) = $messages[ $group ][ $value ];
-		echo '<p class="sb-msg sb-msg--' . esc_attr( $tone ) . '">' . esc_html( $text ) . '</p>';
-	}
 }
 
 /**
@@ -273,11 +198,14 @@ function sendbeam_domain_panel( $status, $standalone = false ) {
 	$state    = sendbeam_connect_domain_state( $status );
 
 	/*
-	 * No domain, so no records and nothing to check — the step's own sentence
-	 * has already said why. What it cannot do is hand over the page where the
-	 * owner fixes it, so that is all this panel is in that case.
+	 * No domain, so no records and nothing to check. On the Overview the
+	 * step's own sentence has already said why; standing on its own, the
+	 * panel has to say it itself.
 	 */
 	if ( '' === $domain['name'] ) {
+		if ( $standalone ) {
+			echo '<p>' . esc_html( sendbeam_domain_sentence( '', false ) ) . '</p>';
+		}
 		if ( in_array( $state, array( 'no_site', 'not_found', 'managed_host' ), true ) ) {
 			echo '<div class="sb-step__panel"><div class="sb-actions">';
 			printf(
@@ -292,23 +220,30 @@ function sendbeam_domain_panel( $status, $standalone = false ) {
 
 	echo '<div class="sb-step__panel">';
 
-	if ( $verified ) {
-		echo '<p class="sb-verified"><span class="sb-tick" aria-hidden="true">&#10003;</span> ';
-		printf(
-			/* translators: %s: the sending domain */
-			esc_html__( 'Verified — %s', 'sendbeam' ),
-			esc_html( $domain['name'] )
-		);
-		echo '</p>';
+	if ( $standalone ) {
+		echo '<p style="margin-top:0">' . esc_html__( 'Proving that this domain is yours is what lets SendBeam send as you. It is also what keeps the mail out of spam folders: a mailbox provider that can check who sent a message treats it very differently from one it cannot.', 'sendbeam' ) . '</p>';
 	}
 
+	// The aggregate verdict, in the three states a site owner needs to tell
+	// apart: done, waiting for DNS, and nothing found at all.
+	sendbeam_domain_state_pill( $domain, $verified );
+
 	if ( $domain['records'] ) {
-		if ( $verified ) {
+		$hidden = $verified;
+		if ( $hidden ) {
 			echo '<details class="sb-paste"><summary>' . esc_html__( 'The records SendBeam is using', 'sendbeam' ) . '</summary><div style="margin-top:10px">';
+		} else {
+			echo '<ol class="sb-numbered"><li>';
+			echo '<p style="margin-top:0">' . esc_html__( 'Add these records to the DNS for this domain, wherever you bought it. Every value copies when you click it.', 'sendbeam' ) . '</p>';
 		}
+
 		sendbeam_domain_records_table( $domain['records'] );
-		if ( $verified ) {
+
+		if ( $hidden ) {
 			echo '</div></details>';
+		} else {
+			echo '</li><li>';
+			echo '<p style="margin-top:0">' . esc_html__( 'Then press Check now. DNS changes can take up to 24 hours to spread, so it is normal for the first check to find nothing.', 'sendbeam' ) . '</p>';
 		}
 	} elseif ( ! $verified ) {
 		echo '<p class="sb-note">' . esc_html__( 'SendBeam has not sent the DNS records for this domain. Open Sending in SendBeam to see them.', 'sendbeam' ) . '</p>';
@@ -319,7 +254,8 @@ function sendbeam_domain_panel( $status, $standalone = false ) {
 	wp_nonce_field( 'sendbeam_domain_check' );
 	echo '<input type="hidden" name="action" value="sendbeam_domain_check" />';
 	printf(
-		'<button type="submit" class="sb-btn sb-btn--small">%s</button>',
+		'<button type="submit" class="sb-btn sb-btn--small%1$s">%2$s</button>',
+		esc_attr( $verified ? '' : ' sb-btn--primary' ),
 		esc_html( $verified ? __( 'Check again', 'sendbeam' ) : __( 'Check now', 'sendbeam' ) )
 	);
 	echo '</form>';
@@ -332,6 +268,10 @@ function sendbeam_domain_panel( $status, $standalone = false ) {
 		);
 	}
 	echo '</div>';
+
+	if ( $domain['records'] && ! $verified ) {
+		echo '</li></ol>';
+	}
 
 	if ( ! $verified && '' !== $domain['domain_connect_url'] ) {
 		echo '<p class="sb-note">' . esc_html__( 'Your registrar supports one-click set-up: that button signs you in there and adds the records for you. It opens in a new tab.', 'sendbeam' ) . '</p>';
@@ -351,6 +291,61 @@ function sendbeam_domain_panel( $status, $standalone = false ) {
 }
 
 /**
+ * Where the domain has got to, in one line.
+ *
+ * Three states, because those are the three a site owner acts differently on:
+ * verified is finished, pending means the records are out there and DNS has
+ * not caught up, and not found means nothing has been added yet. "Pending"
+ * and "not found" look identical without something that says which — and the
+ * second one is the one where somebody still has work to do.
+ *
+ * @param array $domain   The domain from the status body.
+ * @param bool  $verified Whether SendBeam has seen the records.
+ */
+function sendbeam_domain_state_pill( $domain, $verified ) {
+	if ( $verified ) {
+		echo '<p class="sb-verified"><span class="sb-tick" aria-hidden="true">&#10003;</span> ';
+		printf(
+			/* translators: %s: the sending domain */
+			esc_html__( 'Verified — %s', 'sendbeam' ),
+			esc_html( $domain['name'] )
+		);
+		echo '</p>';
+		return;
+	}
+
+	$found = 0;
+	foreach ( (array) $domain['records'] as $record ) {
+		if ( ! empty( $record['found'] ) ) {
+			++$found;
+		}
+	}
+
+	if ( $found > 0 ) {
+		echo '<p class="sb-state-line"><span class="sb-state sb-state--amber">' . esc_html__( 'Pending', 'sendbeam' ) . '</span> ';
+		echo esc_html(
+			sprintf(
+				/* translators: 1: records found, 2: records wanted, 3: the sending domain */
+				__( '%1$d of %2$d records are live for %3$s. DNS changes can take up to 24 hours to spread.', 'sendbeam' ),
+				$found,
+				count( (array) $domain['records'] ),
+				$domain['name']
+			)
+		) . '</p>';
+		return;
+	}
+
+	echo '<p class="sb-state-line"><span class="sb-state sb-state--ink">' . esc_html__( 'Not found', 'sendbeam' ) . '</span> ';
+	echo esc_html(
+		sprintf(
+			/* translators: %s: the sending domain */
+			__( 'Nothing has been found in the DNS for %s yet.', 'sendbeam' ),
+			$domain['name']
+		)
+	) . '</p>';
+}
+
+/**
  * The DNS records, one row each, every value one click from the clipboard.
  *
  * Every record is a CNAME under sendbeam.io, so there is no priority to enter
@@ -363,35 +358,55 @@ function sendbeam_domain_panel( $status, $standalone = false ) {
  * @param array<int,array{type:string,name:string,value:string,found:?bool}> $records Records.
  */
 function sendbeam_domain_records_table( $records ) {
-	echo '<div class="sb-scroll"><table class="sb-table sb-dns"><thead><tr>';
-	echo '<th>' . esc_html__( 'Type', 'sendbeam' ) . '</th>';
-	echo '<th>' . esc_html__( 'Name', 'sendbeam' ) . '</th>';
-	echo '<th>' . esc_html__( 'Value', 'sendbeam' ) . '</th>';
-	echo '<th>' . esc_html__( 'Found', 'sendbeam' ) . '</th>';
-	echo '<th><span class="screen-reader-text">' . esc_html__( 'Copy', 'sendbeam' ) . '</span></th>';
+	echo '<div class="sb-scroll"><table class="widefat striped sb-dns"><thead><tr>';
+	echo '<th scope="col">' . esc_html__( 'Type', 'sendbeam' ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Host', 'sendbeam' ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Value', 'sendbeam' ) . '</th>';
+	echo '<th scope="col">' . esc_html__( 'Found', 'sendbeam' ) . '</th>';
 	echo '</tr></thead><tbody>';
-	foreach ( $records as $record ) {
+
+	foreach ( $records as $i => $record ) {
+		$host = '' !== $record['name'] ? $record['name'] : '@';
 		echo '<tr>';
 		echo '<td class="sb-mono">' . esc_html( $record['type'] ) . '</td>';
-		echo '<td><code>' . esc_html( '' !== $record['name'] ? $record['name'] : '@' ) . '</code></td>';
-		echo '<td><code class="sb-dns__value">' . esc_html( $record['value'] ) . '</code></td>';
+		/* translators: %s: a DNS record type, e.g. CNAME */
+		$host_label = sprintf( __( 'Host for the %s record', 'sendbeam' ), $record['type'] );
+		/* translators: %s: a DNS record type, e.g. CNAME */
+		$value_label = sprintf( __( 'Value for the %s record', 'sendbeam' ), $record['type'] );
+		echo '<td>' . sendbeam_copy_field( $host, $host_label, 'sb-dns-host-' . (int) $i ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- every value is escaped inside sendbeam_copy_field().
+		echo '<td class="sb-dns__value">' . sendbeam_copy_field( $record['value'], $value_label, 'sb-dns-value-' . (int) $i ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
 		echo '<td class="sb-dns__found">' . sendbeam_record_verdict( isset( $record['found'] ) ? $record['found'] : null ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped inside sendbeam_record_verdict().
-		printf(
-			'<td><button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-copy" data-copy="%1$s" data-done="%2$s" aria-label="%3$s">%4$s</button></td>',
-			esc_attr( $record['value'] ),
-			esc_attr__( 'Copied', 'sendbeam' ),
-			esc_attr(
-				sprintf(
-					/* translators: %s: a DNS record type, e.g. TXT */
-					__( 'Copy the %s record value', 'sendbeam' ),
-					$record['type']
-				)
-			),
-			esc_html__( 'Copy', 'sendbeam' )
-		);
 		echo '</tr>';
 	}
 	echo '</tbody></table></div>';
+	echo '<p class="sb-note">' . esc_html__( 'Click any value to copy it. Your registrar may add the domain to the host for you — if it does, enter only the part shown here.', 'sendbeam' ) . '</p>';
+}
+
+/**
+ * A value somebody has to retype into a registrar, made not-retypeable.
+ *
+ * A read-only input rather than a `<code>` block: it selects on focus, it
+ * scrolls rather than wrapping a 200-character key across four lines, and it
+ * is reachable with a keyboard. Clicking it copies; the label says so, and
+ * the confirmation replaces the label rather than appearing somewhere else on
+ * the page.
+ *
+ * @param string $value The thing to copy.
+ * @param string $label What it is, for screen readers.
+ * @param string $id    A unique id for the field.
+ * @return string Escaped HTML.
+ */
+function sendbeam_copy_field( $value, $label, $id ) {
+	return sprintf(
+		'<label class="screen-reader-text" for="%1$s">%2$s</label>' .
+		'<input type="text" class="sb-copy-field sb-copy" id="%1$s" value="%3$s" readonly ' .
+		'data-copy="%3$s" data-done="%4$s" title="%5$s" spellcheck="false" />',
+		esc_attr( $id ),
+		esc_html( $label ),
+		esc_attr( $value ),
+		esc_attr__( 'Copied', 'sendbeam' ),
+		esc_attr__( 'Click to copy', 'sendbeam' )
+	);
 }
 
 /**
@@ -524,7 +539,7 @@ function sendbeam_overview_mail_panel( $status, $connected ) {
 	echo '<p class="sb-note">' . esc_html(
 		sprintf(
 			/* translators: %s: the From address site email will use */
-			__( 'Email will be sent as %s. You can change that on the Site email tab.', 'sendbeam' ),
+			__( 'Email will be sent as %s. You can change that under Site email.', 'sendbeam' ),
 			'' !== $status['sender']['from_email'] ? $status['sender']['from_email'] : __( 'your workspace sender', 'sendbeam' )
 		)
 	) . '</p>';
@@ -697,7 +712,7 @@ function sendbeam_stat( $label, $value ) {
 /* ----------------------------------------------------------------- Forms */
 
 /**
- * Forms tab: the default forms, how embedded forms look, and every form in the workspace.
+ * Forms: the default forms, how embedded forms look, and every form in the workspace.
  */
 function sendbeam_screen_forms() {
 	sendbeam_card_open( __( 'Defaults', 'sendbeam' ), __( 'Used when a block or shortcode does not name a form.', 'sendbeam' ) );
@@ -768,7 +783,7 @@ function sendbeam_screen_forms() {
 /* -------------------------------------------------------------- Audience */
 
 /**
- * Audience tab: the workspace's lists, and where to ask people to subscribe.
+ * Audience: the workspace's lists, and where to ask people to subscribe.
  */
 function sendbeam_screen_audience() {
 	$lists = sendbeam_lists();
@@ -799,11 +814,6 @@ function sendbeam_screen_form_plugins( $lists ) {
 	);
 
 	echo '<div id="sendbeam-form-plugins">';
-
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice only.
-	if ( isset( $_GET['sendbeam_bridges_saved'] ) ) {
-		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Saved.', 'sendbeam' ) . '</p>';
-	}
 
 	sendbeam_card_open( __( 'Form plugins', 'sendbeam' ) );
 	echo '<p style="margin-top:0">' . esc_html__( 'Send the people who fill in forms built with another plugin to SendBeam. Each form is switched on where that plugin keeps its settings, and sends someone only when they ticked the consent field you name — or every submission, when you mark the form as a signup form.', 'sendbeam' ) . '</p>';
@@ -913,17 +923,12 @@ function sendbeam_screen_fluentforms( $lists ) {
 function sendbeam_screen_sync( $lists ) {
 	$sync = sendbeam_sync_settings();
 
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice only.
-	if ( isset( $_GET['sendbeam_sync_saved'] ) ) {
-		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Saved.', 'sendbeam' ) . '</p>';
-	}
-
 	sendbeam_card_open( __( 'Collect subscribers elsewhere on the site', 'sendbeam' ) );
 
 	echo '<p style="margin-top:0">' . esc_html__( 'Adds an opt-in tick box to things people already do here. Nobody is subscribed without ticking it, and the box is never pre-ticked.', 'sendbeam' ) . '</p>';
 
 	if ( null === $lists || ! $lists ) {
-		echo '<p class="sb-msg sb-msg--warn">' . esc_html__( 'This needs at least one list, read with a key that has the Lists (read) permission. Add one on the Overview tab.', 'sendbeam' ) . '</p>';
+		echo '<p class="sb-msg sb-msg--warn">' . esc_html__( 'This needs at least one list, read with a key that has the Lists (read) permission. Connect this site under Settings, or add one in SendBeam.', 'sendbeam' ) . '</p>';
 		sendbeam_card_close();
 		return;
 	}
@@ -1001,15 +1006,6 @@ function sendbeam_screen_sync( $lists ) {
  */
 function sendbeam_screen_popup() {
 	$rules = sendbeam_popups();
-
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice text only.
-	if ( isset( $_GET['sendbeam_saved'] ) ) {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$n = (int) $_GET['sendbeam_saved'];
-		echo '<p class="sb-msg sb-msg--ok">' . esc_html(
-			sprintf( /* translators: %d: number of pop-ups */ _n( '%d pop-up saved.', '%d pop-ups saved.', $n, 'sendbeam' ), $n )
-		) . '</p>';
-	}
 
 	sendbeam_card_open( __( 'Pop-ups', 'sendbeam' ), __( 'First match wins, top to bottom.', 'sendbeam' ) );
 
@@ -1182,7 +1178,7 @@ function sendbeam_popup_row( $i, $rule ) {
 /* ------------------------------------------------------------ Site email */
 
 /**
- * Site email tab: the wp_mail() relay, a test send, and what recently went out.
+ * Site email: the wp_mail() relay, a test send, and the log of what went out.
  */
 function sendbeam_screen_mail() {
 	sendbeam_card_open( __( 'Site email', 'sendbeam' ) );
@@ -1191,30 +1187,123 @@ function sendbeam_screen_mail() {
 	sendbeam_form_close();
 	sendbeam_card_close();
 
-	sendbeam_card_open( __( 'Test', 'sendbeam' ) );
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice text only, set by our own redirect.
-	if ( isset( $_GET['sendbeam_test'] ) ) {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$ok = 'ok' === $_GET['sendbeam_test'];
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$note = isset( $_GET['sendbeam_note'] ) ? rawurldecode( sanitize_text_field( wp_unslash( $_GET['sendbeam_note'] ) ) ) : '';
-		echo '<p class="sb-msg ' . ( $ok ? 'sb-msg--ok' : 'sb-msg--bad' ) . '">' . esc_html( $note ) . '</p>';
-	}
-	?>
-	<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
-		<input type="hidden" name="action" value="sendbeam_test_mail" />
-		<?php wp_nonce_field( 'sendbeam_test_mail' ); ?>
-		<p><?php echo esc_html( sprintf( /* translators: %s: email address */ __( 'Sends a short email to %s through SendBeam, using the settings above.', 'sendbeam' ), wp_get_current_user()->user_email ) ); ?></p>
-		<button type="submit" class="sb-btn"><?php esc_html_e( 'Send a test email', 'sendbeam' ); ?></button>
-	</form>
-	<?php
-	sendbeam_card_close();
+	sendbeam_test_mail_card();
 
 	sendbeam_list_card(
 		__( 'Email log', 'sendbeam' ),
 		__( 'The last few messages this site handed to SendBeam, and what became of each.', 'sendbeam' ),
 		__( 'Search the log', 'sendbeam' )
 	);
+}
+
+/**
+ * Send a test email, and say what happened without leaving the page.
+ *
+ * The result replaces the form rather than appearing as a notice above it,
+ * because a diagnostic is not an announcement: somebody who has just pressed
+ * "Send a test email" is reading the space the button was in. A failure gets
+ * three sentences — what went wrong, what it means, what to do — and a block
+ * of detail they can copy into a support email in one click.
+ */
+function sendbeam_test_mail_card() {
+	$result = sendbeam_take_test_result();
+
+	sendbeam_card_open( __( 'Send a test email', 'sendbeam' ) );
+	echo '<div id="sendbeam-test">';
+
+	if ( is_array( $result ) && ! empty( $result['ok'] ) ) {
+		sendbeam_test_mail_success( $result );
+		echo '</div>';
+		sendbeam_card_close();
+		return;
+	}
+	if ( is_array( $result ) ) {
+		sendbeam_test_mail_failure( $result );
+		echo '</div>';
+		sendbeam_card_close();
+		return;
+	}
+
+	sendbeam_test_mail_form( __( 'Send a test email', 'sendbeam' ) );
+	echo '</div>';
+	sendbeam_card_close();
+}
+
+/**
+ * The form: who it goes to, and one button.
+ *
+ * @param string $label Button text.
+ */
+function sendbeam_test_mail_form( $label ) {
+	$to = (string) wp_get_current_user()->user_email;
+	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	echo '<input type="hidden" name="action" value="sendbeam_test_mail" />';
+	wp_nonce_field( 'sendbeam_test_mail' );
+	echo '<p class="sb-field"><span class="sb-label">' . esc_html__( 'Send to', 'sendbeam' ) . '</span>';
+	printf(
+		'<input type="email" class="regular-text" value="%s" readonly aria-describedby="sendbeam-test-who" /></p>',
+		esc_attr( $to )
+	);
+	echo '<p class="sb-note" id="sendbeam-test-who">' . esc_html__( 'Your own WordPress address. Changing it here would prove something about a different inbox.', 'sendbeam' ) . '</p>';
+	printf( '<p><button type="submit" class="sb-btn sb-btn--primary">%s</button></p>', esc_html( $label ) );
+	echo '</form>';
+}
+
+/**
+ * It worked.
+ *
+ * @param array $result From the handler.
+ */
+function sendbeam_test_mail_success( $result ) {
+	echo '<div class="sb-result sb-result--ok">';
+	echo '<p class="sb-result__title"><span class="sb-tick" aria-hidden="true">&#10003;</span> ' . esc_html__( 'Sent', 'sendbeam' ) . '</p>';
+	echo '<p>' . esc_html(
+		sprintf(
+			/* translators: %s: email address */
+			__( 'Sent to %s — open your inbox to see it.', 'sendbeam' ),
+			(string) $result['to']
+		)
+	) . '</p>';
+	echo '<p class="sb-note">' . esc_html__( 'The message names the sending domain, the From address and the workspace it went through, so it is worth keeping. If it is not there in a minute, look in the spam folder — and then in the log below, which says whether SendBeam accepted it.', 'sendbeam' ) . '</p>';
+	echo '</div>';
+	sendbeam_test_mail_form( __( 'Send another', 'sendbeam' ) );
+}
+
+/**
+ * It did not.
+ *
+ * @param array $result From the handler.
+ */
+function sendbeam_test_mail_failure( $result ) {
+	echo '<div class="sb-result sb-result--bad">';
+	echo '<p class="sb-result__title">' . esc_html( (string) $result['title'] ) . '</p>';
+	echo '<p><strong>' . esc_html__( 'What it means', 'sendbeam' ) . '</strong><br />' . esc_html( (string) $result['means'] ) . '</p>';
+	echo '<p><strong>' . esc_html__( 'What to do', 'sendbeam' ) . '</strong><br />' . esc_html( (string) $result['do'] ) . '</p>';
+
+	if ( ! empty( $result['error'] ) ) {
+		echo '<p class="sb-note">' . esc_html(
+			sprintf(
+				/* translators: %s: the raw error SendBeam returned */
+				__( 'SendBeam said: %s', 'sendbeam' ),
+				(string) $result['error']
+			)
+		) . '</p>';
+	}
+
+	if ( ! empty( $result['bundle'] ) ) {
+		echo '<details class="sb-paste"><summary>' . esc_html__( 'Details for support', 'sendbeam' ) . '</summary>';
+		echo '<p class="sb-note">' . esc_html__( 'Taken at the moment this send failed, so it describes that attempt and not this page.', 'sendbeam' ) . '</p>';
+		echo '<pre class="sb-bundle">' . esc_html( (string) $result['bundle'] ) . '</pre>';
+		printf(
+			'<p><button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-copy" data-copy="%1$s" data-done="%2$s">%3$s</button></p>',
+			esc_attr( (string) $result['bundle'] ),
+			esc_attr__( 'Copied', 'sendbeam' ),
+			esc_html__( 'Copy these details', 'sendbeam' )
+		);
+		echo '</details>';
+	}
+	echo '</div>';
+	sendbeam_test_mail_form( __( 'Try again', 'sendbeam' ) );
 }
 
 /**
@@ -1263,15 +1352,10 @@ function sendbeam_list_card( $title, $note, $search ) {
 
 /**
  * E-commerce events tab: the three toggles, the abandoned-cart window, and
- * a log of recent attempts — the same shape as the Audience tab's sync log.
+ * a log of recent attempts — the same shape as the Audience screen's sync log.
  */
 function sendbeam_screen_ecommerce() {
 	$settings = sendbeam_ecommerce_settings();
-
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- notice only.
-	if ( isset( $_GET['sendbeam_ecommerce_saved'] ) ) {
-		echo '<p class="sb-msg sb-msg--ok">' . esc_html__( 'Saved.', 'sendbeam' ) . '</p>';
-	}
 
 	sendbeam_card_open(
 		__( 'Cart Abandoned, Product Viewed, Order Placed', 'sendbeam' ),
@@ -1491,9 +1575,74 @@ function sendbeam_doc_snippet( $code, $what ) {
 }
 
 /**
- * Help: the documentation, the shortcodes, and what each permission is for.
+ * Help: the documentation, the state of this site, and who to ask.
  */
 function sendbeam_screen_help() {
+	sendbeam_help_documentation_card();
+	sendbeam_help_status_card();
+	sendbeam_help_support_card();
+	sendbeam_help_shortcodes_card();
+	sendbeam_help_permissions_card();
+	sendbeam_help_developers_card();
+}
+
+/**
+ * What this site is doing, in one block somebody can hand to support.
+ *
+ * The same values Site Health reports, because a person who has a problem
+ * should not have to know that Site Health exists, or find the SendBeam
+ * section inside it, before they can describe their site.
+ */
+function sendbeam_help_status_card() {
+	$report = sendbeam_status_report();
+
+	sendbeam_card_open( __( 'System status', 'sendbeam' ), __( 'Nothing here is secret.', 'sendbeam' ) );
+	echo '<p style="margin-top:0">' . esc_html__( 'What this site holds about its SendBeam connection. The API key is reported only as where it is kept and its last four characters, so this is safe to paste into an email.', 'sendbeam' ) . '</p>';
+	echo '<pre class="sb-bundle">' . esc_html( $report ) . '</pre>';
+	printf(
+		'<p><button type="button" class="sb-btn sb-copy" data-copy="%1$s" data-done="%2$s">%3$s</button> ' .
+		'<a class="sb-btn sb-btn--ghost" href="%4$s">%5$s</a></p>',
+		esc_attr( $report ),
+		esc_attr__( 'Copied', 'sendbeam' ),
+		esc_html__( 'Copy for support', 'sendbeam' ),
+		esc_url( admin_url( 'site-health.php?tab=debug' ) ),
+		esc_html__( 'Open Site Health', 'sendbeam' )
+	);
+	sendbeam_card_close();
+}
+
+/**
+ * Who to ask, and where.
+ */
+function sendbeam_help_support_card() {
+	sendbeam_card_open( __( 'Support', 'sendbeam' ) );
+	echo '<p style="margin-top:0">' . esc_html__( 'A real person reads these. Paste the system status above into whichever you use — it answers the first four questions anybody would ask.', 'sendbeam' ) . '</p>';
+	echo '<ul class="sb-bullets">';
+	printf(
+		'<li><a href="mailto:%1$s">%1$s</a> — %2$s</li>',
+		'hello@sendbeam.io',
+		esc_html__( 'anything about your account, your sending domain or a message that did not arrive', 'sendbeam' )
+	);
+	printf(
+		'<li><a href="%1$s" target="_blank" rel="noopener">%2$s</a> — %3$s</li>',
+		esc_url( 'https://wordpress.org/support/plugin/sendbeam/' ),
+		esc_html__( 'the WordPress.org support forum', 'sendbeam' ),
+		esc_html__( 'for questions about the plugin itself, in public, where the next person with the same question can find the answer', 'sendbeam' )
+	);
+	printf(
+		'<li><a href="%1$s" target="_blank" rel="noopener">%2$s</a> — %3$s</li>',
+		esc_url( 'https://github.com/sendbeam-io/sendbeam-wordpress/issues' ),
+		esc_html__( 'GitHub issues', 'sendbeam' ),
+		esc_html__( 'for a bug with a reproduction, or a feature request', 'sendbeam' )
+	);
+	echo '</ul>';
+	sendbeam_card_close();
+}
+
+/**
+ * The documentation links.
+ */
+function sendbeam_help_documentation_card() {
 	sendbeam_card_open( __( 'Documentation', 'sendbeam' ) );
 	echo '<div class="sb-doc">';
 	echo '<p>' . esc_html__( 'The essentials are below. The full documentation is kept with SendBeam itself, so it stays current with the product rather than with whichever version of this plugin you happen to have installed.', 'sendbeam' ) . '</p>';
@@ -1526,24 +1675,34 @@ function sendbeam_screen_help() {
 		esc_html__( 'Cart Abandoned, Product Viewed and Order Placed, plus the Shopify webhook.', 'sendbeam' )
 	);
 	sendbeam_card_close();
+}
 
+/**
+ * The four shortcodes.
+ */
+function sendbeam_help_shortcodes_card() {
 	sendbeam_card_open( __( 'Shortcodes', 'sendbeam' ), __( 'Anywhere shortcodes work: a block, a widget, a page builder.', 'sendbeam' ) );
 	echo '<div class="sb-doc">';
 	sendbeam_doc_snippet( '[sendbeam_form]', __( 'The default signup form', 'sendbeam' ) );
 	sendbeam_doc_snippet( '[sendbeam_form id="8f3c1a2e-…"]', __( 'Any form, as often as you like', 'sendbeam' ) );
-	sendbeam_doc_snippet( '[sendbeam_contact]', __( 'The contact form chosen on the Forms tab', 'sendbeam' ) );
+	sendbeam_doc_snippet( '[sendbeam_contact]', __( 'The contact form chosen under Forms', 'sendbeam' ) );
 	sendbeam_doc_snippet( '[sendbeam_popup_button label="Subscribe"]', __( 'A button that opens a pop-up', 'sendbeam' ) );
 	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'A height attribute works on all of them, but you rarely want one: an embedded form measures itself and the frame follows.', 'sendbeam' ) . '</p>';
 	echo '</div>';
 	sendbeam_card_close();
+}
 
+/**
+ * What each API key permission is for.
+ */
+function sendbeam_help_permissions_card() {
 	sendbeam_card_open( __( 'API key permissions', 'sendbeam' ), __( 'Only what you use.', 'sendbeam' ) );
 	echo '<div class="sb-doc">';
 	echo '<p>' . esc_html__( 'Placing a form or a pop-up needs no key at all. Everything else asks for one thing:', 'sendbeam' ) . '</p>';
-	echo '<table class="sb-table"><thead><tr><th>' . esc_html__( 'Permission', 'sendbeam' ) . '</th><th>' . esc_html__( 'Needed for', 'sendbeam' ) . '</th></tr></thead><tbody>';
+	echo '<div class="sb-scroll"><table class="sb-table"><thead><tr><th>' . esc_html__( 'Permission', 'sendbeam' ) . '</th><th>' . esc_html__( 'Needed for', 'sendbeam' ) . '</th></tr></thead><tbody>';
 	foreach ( array(
 		'forms:read'                                 => __( 'Listing your forms here and in the block', 'sendbeam' ),
-		'lists:read'                                 => __( 'The Audience tab and its counts', 'sendbeam' ),
+		'lists:read'                                 => __( 'The Audience screen and its counts', 'sendbeam' ),
 		'contacts:read, contacts:write, lists:write' => __( 'The opt-in box at registration, comments or checkout, and forms from Contact Form 7, Elementor Pro, WPForms, Gravity Forms and Fluent Forms', 'sendbeam' ),
 		'tags:read, tags:write'                      => __( 'A form plugin form that adds a tag', 'sendbeam' ),
 		'transactional:send'                         => __( 'Site email', 'sendbeam' ),
@@ -1551,14 +1710,19 @@ function sendbeam_screen_help() {
 	) as $perm => $why ) {
 		printf( '<tr><td><code>%s</code></td><td>%s</td></tr>', esc_html( $perm ), esc_html( $why ) );
 	}
-	echo '</tbody></table>';
+	echo '</tbody></table></div>';
 	printf(
 		'<p class="sb-note" style="margin-top:12px">%s</p>',
 		esc_html__( 'Give each site its own key so one can be revoked without disturbing the others. Defining SENDBEAM_API_KEY in wp-config.php keeps the key out of the database entirely.', 'sendbeam' )
 	);
 	echo '</div>';
 	sendbeam_card_close();
+}
 
+/**
+ * The two hooks and where the source is.
+ */
+function sendbeam_help_developers_card() {
 	sendbeam_card_open( __( 'For developers', 'sendbeam' ) );
 	echo '<div class="sb-doc">';
 	echo '<p>' . esc_html__( 'A page can react to a submission, and a self-hosted SendBeam can be pointed at with a filter.', 'sendbeam' ) . '</p>';

@@ -224,7 +224,7 @@ function sendbeam_sync_on_checkout( $order_id ) {
  * @param string        $first_name First name.
  * @param string        $last_name  Last name.
  * @param string        $source     Where they came from.
- * @param string[]|null $lists      Lists to join; null means the lists chosen on the Audience tab.
+ * @param string[]|null $lists      Lists to join; null means the lists chosen under Audience.
  * @param string        $tag        A tag to add, by name; empty for none.
  * @return bool
  */

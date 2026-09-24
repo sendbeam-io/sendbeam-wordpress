@@ -20,7 +20,6 @@ defined( 'ABSPATH' ) || exit;
 
 register_activation_hook( SENDBEAM_FILE, 'sendbeam_on_activate' );
 register_deactivation_hook( SENDBEAM_FILE, 'sendbeam_on_deactivate' );
-add_action( 'admin_notices', 'sendbeam_setup_notice' );
 add_action( 'admin_post_sendbeam_dismiss_setup', 'sendbeam_dismiss_setup' );
 add_action( 'admin_post_sendbeam_form_placed', 'sendbeam_handle_form_placed' );
 
@@ -442,39 +441,47 @@ function sendbeam_setup_steps() {
 }
 
 /**
- * The one notice.
+ * The one notice, on the Dashboard, for a site that has not been set up.
+ *
+ * The Dashboard and nowhere else. A plugin that puts its own nag on every
+ * screen of every other plugin is the top one-star complaint in this whole
+ * category, and the activation redirect has already offered the wizard once
+ * to the person who installed this.
+ *
+ * It removes itself three ways: the site gets connected, the wizard is
+ * finished, or the person dismisses it — and the dismissal is per user, in
+ * user meta, so it stays dismissed.
  */
 function sendbeam_setup_notice() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
 
-	if ( sendbeam_is_our_screen() ) {
-		return; // They are already here.
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || 'dashboard' !== $screen->id ) {
+		return;
 	}
 
 	if ( get_user_meta( get_current_user_id(), 'sendbeam_setup_dismissed', true ) ) {
 		return;
 	}
 
-	if ( sendbeam_is_connected() ) {
+	if ( sendbeam_wizard_done() || sendbeam_is_connected() ) {
 		return; // Resolved: the notice removes itself.
 	}
 
-	$settings_url = sendbeam_page_url( 'sendbeam' );
-	$dismiss_url  = wp_nonce_url( admin_url( 'admin-post.php?action=sendbeam_dismiss_setup' ), 'sendbeam_dismiss_setup' );
-	?>
-	<div class="notice notice-info is-dismissible">
-		<p>
-			<strong><?php esc_html_e( 'SendBeam is installed.', 'sendbeam' ); ?></strong>
-			<?php esc_html_e( 'Connect your account in one click and the plugin will list your forms for you, so you never have to copy a key or an ID by hand.', 'sendbeam' ); ?>
-		</p>
-		<p>
-			<a href="<?php echo esc_url( $settings_url ); ?>" class="button button-primary"><?php esc_html_e( 'Set up SendBeam', 'sendbeam' ); ?></a>
-			<a href="<?php echo esc_url( $dismiss_url ); ?>" class="button-link" style="margin-left:.75rem"><?php esc_html_e( 'Not now', 'sendbeam' ); ?></a>
-		</p>
-	</div>
-	<?php
+	$setup   = sendbeam_wizard_url( sendbeam_wizard_current_step() );
+	$dismiss = wp_nonce_url( admin_url( 'admin-post.php?action=sendbeam_dismiss_setup' ), 'sendbeam_dismiss_setup' );
+
+	$message = '<strong>' . esc_html__( 'SendBeam is installed.', 'sendbeam' ) . '</strong> '
+		. esc_html__( 'Connect your account in one click and the plugin will list your forms for you, so you never have to copy a key or an ID by hand.', 'sendbeam' )
+		. '</p><p>'
+		. '<a href="' . esc_url( $setup ) . '" class="button button-primary">' . esc_html__( 'Set up SendBeam', 'sendbeam' ) . '</a> '
+		. '<a href="' . esc_url( $dismiss ) . '" class="button-link">' . esc_html__( 'Not now', 'sendbeam' ) . '</a>';
+
+	// Core button classes, deliberately: inside a core notice, a brand-styled
+	// button is the thing that looks out of place.
+	sendbeam_notice( $message, 'info' );
 }
 
 /**

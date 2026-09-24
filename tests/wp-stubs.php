@@ -141,7 +141,10 @@ function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function is_email( $e ) { return (bool) filter_var( $e, FILTER_VALIDATE_EMAIL ); }
 function sanitize_email( $e ) { return trim( (string) $e ); }
 function checked( $a, $b = true, $echo = true ) { return $a == $b ? ' checked="checked"' : ''; }
-function get_bloginfo( $k ) { return isset( $GLOBALS['stub']['bloginfo'][ $k ] ) ? $GLOBALS['stub']['bloginfo'][ $k ] : 'Example Site'; }
+function get_bloginfo( $k ) {
+	if ( isset( $GLOBALS['stub']['bloginfo'][ $k ] ) ) { return $GLOBALS['stub']['bloginfo'][ $k ]; }
+	return 'version' === $k ? '6.7.1' : 'Example Site';
+}
 function selected( $a, $b, $echo = true ) { return $a == $b ? ' selected="selected"' : ''; }
 
 // ── Connect ─────────────────────────────────────────────────────────────
@@ -431,3 +434,9 @@ function add_screen_option( $option, $args = array() ) { $GLOBALS['stub']['scree
 function delete_user_meta( $user_id, $key, $value = '' ) { unset( $GLOBALS['stub']['usermeta'][ $user_id ][ $key ] ); return true; }
 function __return_false() { return false; }
 function __return_true() { return true; }
+function wp_kses_post( $data ) { return $data; }
+function wp_list_pluck_stub( $rows, $field ) {
+	$out = array();
+	foreach ( $rows as $row ) { $out[] = $row[ $field ]; }
+	return $out;
+}

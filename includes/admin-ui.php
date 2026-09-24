@@ -113,6 +113,40 @@ function sendbeam_render_tabs( $tabs, $current, $slug, $label ) {
 }
 
 /**
+ * One admin notice, in core's own markup.
+ *
+ * `wp_admin_notice()` arrived in WordPress 6.4 and this plugin supports 6.1,
+ * so the fallback is not decoration: it is what a third of sites would see.
+ * Both paths emit the same classes, because the point of using core's notice
+ * is that it looks and behaves like every other notice on the screen —
+ * including being dismissible by core's own script.
+ *
+ * @param string $message     The sentence. Already-escaped HTML.
+ * @param string $type        info, success, warning or error.
+ * @param bool   $dismissible Whether core's dismiss button is offered.
+ */
+function sendbeam_notice( $message, $type = 'info', $dismissible = true ) {
+	$args = array(
+		'type'               => $type,
+		'dismissible'        => $dismissible,
+		'additional_classes' => array( 'sendbeam-notice' ),
+		'paragraph_wrap'     => true,
+	);
+
+	if ( function_exists( 'wp_admin_notice' ) ) {
+		wp_admin_notice( $message, $args );
+		return;
+	}
+
+	printf(
+		'<div class="notice notice-%1$s sendbeam-notice%2$s"><p>%3$s</p></div>',
+		esc_attr( $type ),
+		$dismissible ? ' is-dismissible' : '',
+		wp_kses_post( $message )
+	);
+}
+
+/**
  * Open a card.
  *
  * @param string $title Card heading.

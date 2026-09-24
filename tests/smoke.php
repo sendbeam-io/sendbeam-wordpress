@@ -642,6 +642,307 @@ delete_transient( 'sendbeam_remote_lists' );
 delete_transient( 'sendbeam_subscriber_count' );
 update_option( 'sendbeam_settings', array() );
 
+/* ───────────────────────────── The surfaces ────────────────────────────
+ * The sending domain, the test email, Site Health and the notices — the four
+ * places a site owner finds out what is actually going on.
+ */
+$GLOBALS['stub']['caps']['manage_options'] = true;
+$GLOBALS['stub']['user_id']                = 7;
+$GLOBALS['stub']['current_user']           = array( 'email' => 'admin@example-site.test' );
+
+// ── The sending domain, in MailPoet's shape ─────────────────────────────
+function sb_domain_panel( $records, $verified, $standalone = false ) {
+	$status = sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array(
+				'name'       => 'harbourlane.co.uk',
+				'verified'   => $verified,
+				'records'    => $records,
+				'checked_at' => '2026-09-23T15:04:05Z',
+			),
+		)
+	);
+	ob_start();
+	sendbeam_domain_panel( $status, $standalone );
+	return ob_get_clean();
+}
+
+$sb_records_none = array(
+	array( 'type' => 'CNAME', 'name' => 'sb1._domainkey', 'value' => 'sb1.dkim.sendbeam.io', 'found' => false ),
+	array( 'type' => 'CNAME', 'name' => 'sb2._domainkey', 'value' => 'sb2.dkim.sendbeam.io', 'found' => false ),
+);
+$sb_records_some = $sb_records_none;
+$sb_records_some[0]['found'] = true;
+
+$panel = sb_domain_panel( $sb_records_none, false, true );
+has( $panel, 'class="widefat striped sb-dns"', 'domain: the records sit in a core widefat striped table' );
+has( $panel, '<th scope="col">Type</th>', 'domain: Type is a column' );
+has( $panel, '<th scope="col">Host</th>', 'domain: Host is a column — the word registrars use' );
+has( $panel, '<th scope="col">Value</th>', 'domain: Value is a column' );
+has( $panel, '<th scope="col">Found</th>', 'domain: and the check\'s verdict per row' );
+lacks( $panel, 'Priority', 'domain: every record is a CNAME, so nothing asks for a priority' );
+has( $panel, 'class="sb-copy-field sb-copy"', 'domain: each value is a field that copies when it is clicked' );
+has( $panel, 'readonly', 'domain: and cannot be edited into something wrong' );
+has( $panel, 'title="Click to copy"', 'domain: the field says what clicking it does' );
+has( $panel, 'data-done="Copied"', 'domain: and what it did' );
+has( $panel, 'sb1.dkim.sendbeam.io', 'domain: the value a registrar needs is on the screen' );
+has( $panel, 'screen-reader-text', 'domain: every copy field is labelled for a screen reader' );
+has( $panel, 'up to 24 hours', 'domain: the panel says DNS is slow before somebody decides it is broken' );
+has( $panel, 'sb-numbered', 'domain: the two things to do are numbered' );
+has( $panel, 'Check now', 'domain: and the check is right there' );
+has( $panel, 'Proving that this domain is yours', 'domain: standing on its own, the panel says why any of this matters' );
+
+// Three states, and the middle one is the one nobody else distinguishes.
+has( sb_domain_panel( $sb_records_none, false ), '>Not found<', 'domain: nothing found yet says Not found' );
+has( sb_domain_panel( $sb_records_none, false ), 'Nothing has been found in the DNS', 'domain: and says it in words' );
+has( sb_domain_panel( $sb_records_some, false ), '>Pending<', 'domain: some records live says Pending' );
+has( sb_domain_panel( $sb_records_some, false ), '1 of 2 records are live', 'domain: and says how far through it is' );
+has( sb_domain_panel( $sb_records_some, true ), 'Verified — harbourlane.co.uk', 'domain: verified says so, and names the domain' );
+has( sb_domain_panel( $sb_records_some, true ), 'Check again', 'domain: a verified domain can still be re-checked' );
+lacks( sb_domain_panel( $sb_records_some, true ), 'sb-numbered', 'domain: a verified domain is not given a list of things to do' );
+
+// ── The test email ──────────────────────────────────────────────────────
+update_option(
+	'sendbeam_settings',
+	array(
+		'api_key'         => 'sb_live_testmailtestmailxx',
+		'mail_enabled'    => 1,
+		'mail_from_name'  => 'Harbour Lane Roasters',
+		'mail_from_email' => 'hello@harbourlane.co.uk',
+	)
+);
+set_transient( 'sendbeam_connection', array( 'state' => 'ok', 'message' => '', 'count' => 1 ) );
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => $sb_records_some ),
+			'sender'    => array( 'from_name' => 'Harbour Lane Roasters', 'from_email' => 'hello@harbourlane.co.uk' ),
+		)
+	)
+);
+
+$facts = sendbeam_mail_facts();
+$mail_html = sendbeam_test_mail_html( $facts );
+$mail_text = sendbeam_test_mail_text( $facts );
+has( $mail_html, '<!doctype html>', 'test email: it is a real HTML document' );
+has( $mail_html, '<table', 'test email: laid out in tables, which is the only layout email clients agree on' );
+has( $mail_html, 'width="600"', 'test email: 600px, the width every client renders' );
+has( $mail_html, '@media only screen and (max-width:620px)', 'test email: and it collapses on a phone' );
+has( $mail_html, 'Your site can send email through SendBeam', 'test email: the verdict is the first thing in it' );
+has( $mail_html, '#3B7D46', 'test email: with a green tick, not a wall of text' );
+has( $mail_html, 'hello@harbourlane.co.uk', 'test email: it names the From address the site actually used' );
+has( $mail_html, 'Harbour Lane Roasters', 'test email: and the From name' );
+has( $mail_html, 'harbourlane.co.uk — verified', 'test email: and whether the sending domain is verified' );
+has( $mail_html, 'Harbour Lane', 'test email: and the workspace it went through' );
+has( $mail_html, 'SendBeam ' . SENDBEAM_VERSION, 'test email: and which version of the plugin sent it' );
+has( $mail_html, 'Example Site', 'test email: and which site' );
+has( $mail_html, 'What happens now', 'test email: it says what this changes' );
+has( $mail_html, 'password resets', 'test email: and names the email that will now go this way' );
+has( $mail_html, 'page=sendbeam-mail', 'test email: the one link is the email log' );
+has( $mail_html, 'Open the email log', 'test email: and it says so' );
+lacks( $mail_html, '<img', 'test email: no images, so nothing is blocked and nothing tracks an open' );
+lacks( $mail_html, 'Upgrade', 'test email: no upsell' );
+
+has( $mail_text, 'Your site can send email through SendBeam', 'test email: the plain-text alternative says the same thing' );
+has( $mail_text, 'hello@harbourlane.co.uk', 'test email: and carries the same facts' );
+has( $mail_text, 'page=sendbeam-mail', 'test email: and the same link' );
+lacks( $mail_text, '<', 'test email: the plain-text alternative has no markup in it' );
+
+/** Press the button and take the result the screen would render. */
+function sb_send_test() {
+	$_REQUEST = array( '_wpnonce' => 'nonce:sendbeam_test_mail' );
+	try {
+		sendbeam_handle_test_mail();
+	} catch ( SendBeamStubExit $e ) {
+		unset( $e );
+	}
+	$_REQUEST = array();
+	return sendbeam_take_test_result();
+}
+
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{"ok":true}' );
+$GLOBALS['stub']['remote']       = array();
+$sent = sb_send_test();
+ok( ! empty( $sent['ok'] ), 'test email: a 200 is a success' );
+$sent_body = json_decode( $GLOBALS['stub']['remote'][0]['args']['body'], true );
+ok( isset( $sent_body['html'] ), 'test email: the HTML half is sent' );
+ok( isset( $sent_body['text'] ), 'test email: and so is the plain-text half' );
+has( $sent_body['subject'], 'Test email from Example Site via SendBeam', 'test email: the subject names the site' );
+
+ob_start();
+sendbeam_test_mail_success( $sent );
+$card = ob_get_clean();
+has( $card, 'sb-result--ok', 'test email: success renders a success card' );
+has( $card, 'Sent to admin@example-site.test — open your inbox to see it.', 'test email: which says where it went and what to do next' );
+has( $card, 'Send another', 'test email: and offers to do it again' );
+
+// A failure explains itself, and hands over everything support would ask for.
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 403 ), 'body' => '{"error":"domain not verified"}' );
+$failed = sb_send_test();
+ok( empty( $failed['ok'] ), 'test email: a 403 is a failure' );
+ok( ! empty( $failed['bundle'] ), 'test email: and the bundle is captured at the moment it failed' );
+ob_start();
+sendbeam_test_mail_failure( $failed );
+$card = ob_get_clean();
+has( $card, 'sb-result--bad', 'test email: failure renders a failure card' );
+has( $card, 'SendBeam would not send that message', 'test email: with a title in plain words' );
+has( $card, 'What it means', 'test email: it says what the failure means' );
+has( $card, 'not given permission to send this site', 'test email: and the meaning matches the status code' );
+has( $card, 'What to do', 'test email: it says what to do about it' );
+has( $card, 'Settings → Sending domain', 'test email: and the advice matches the status code too' );
+has( $card, 'SendBeam said: domain not verified', 'test email: the raw error is kept, not swallowed' );
+has( $card, 'Details for support', 'test email: the bundle is there' );
+has( $card, 'sb-copy', 'test email: one click from the clipboard' );
+has( $card, 'Copy these details', 'test email: and says so' );
+has( $card, 'WordPress 6.7.1', 'test email bundle: the WordPress version' );
+has( $card, 'PHP ' . PHP_VERSION, 'test email bundle: the PHP version' );
+has( $card, 'SendBeam ' . SENDBEAM_VERSION, 'test email bundle: the plugin version' );
+has( $card, 'Key: stored in options', 'test email bundle: where the key lives, never the key' );
+has( $card, 'harbourlane.co.uk — verified', 'test email bundle: the sending domain and its state' );
+has( $card, 'HTTP: 403', 'test email bundle: the status code that came back' );
+has( $card, 'Error: domain not verified', 'test email bundle: and the raw error' );
+lacks( $card, 'sb_live_testmailtestmailxx', 'test email bundle: the API key is never in it' );
+has( $card, 'Try again', 'test email: and the form comes back' );
+
+// The result is read once, so a refresh does not replay it.
+ok( null === sendbeam_take_test_result(), 'test email: the result is taken once, so refreshing does not show it again' );
+
+// A server that never answered is a different sentence from a refusal.
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 0 ), 'body' => '' );
+$failed = sb_send_test();
+has( $failed['means'], 'could not reach sendbeam.io at all', 'test email: a request that never landed says so' );
+has( $failed['do'], 'outbound HTTPS', 'test email: and points at the thing that usually blocks it' );
+
+// Site email off is not a send that failed.
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_testmailtestmailxx', 'mail_enabled' => 0 ) );
+$failed = sb_send_test();
+has( $failed['title'], 'Site email is not switched on yet', 'test email: nothing is sent when the relay is off, and the card says so' );
+has( $failed['do'], 'Tick "Send this site', 'test email: and says how to switch it on' );
+
+// ── Site Health ─────────────────────────────────────────────────────────
+$sendbeam_tests = sendbeam_site_status_tests( array() );
+foreach ( array( 'sendbeam-key', 'sendbeam-domain', 'sendbeam-mail' ) as $sendbeam_t ) {
+	ok( isset( $sendbeam_tests['direct'][ $sendbeam_t ] ), "site health: $sendbeam_t is registered" );
+	ok( is_callable( $sendbeam_tests['direct'][ $sendbeam_t ]['test'] ), "site health: $sendbeam_t has a callable test" );
+}
+
+update_option( 'sendbeam_settings', array() );
+sendbeam_flush_cache();
+sendbeam_connect_forget_status();
+$r = sendbeam_test_key();
+ok( 'recommended' === $r['status'], 'site health: no key is a recommendation, not a failure — the plugin is simply not in use' );
+has( $r['label'], 'SendBeam is not connected', 'site health: and says so' );
+
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_healthhealthhealth' ) );
+set_transient( 'sendbeam_connection', array( 'state' => 'rejected', 'message' => 'nope' ) );
+$r = sendbeam_test_key();
+ok( 'critical' === $r['status'], 'site health: a rejected key is critical — things have stopped working' );
+set_transient( 'sendbeam_connection', array( 'state' => 'unreachable', 'message' => 'cURL error 28' ) );
+$r = sendbeam_test_key();
+ok( 'recommended' === $r['status'], 'site health: an unreachable SendBeam is a recommendation, not a fault in the site' );
+has( $r['description'], 'cURL error 28', 'site health: and it quotes what the server actually reported' );
+set_transient( 'sendbeam_connection', array( 'state' => 'ok', 'message' => '', 'count' => 1 ) );
+$r = sendbeam_test_key();
+ok( 'good' === $r['status'], 'site health: a working key is good' );
+
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => false, 'records' => $sb_records_none ),
+		)
+	)
+);
+$r = sendbeam_test_domain();
+ok( 'recommended' === $r['status'], 'site health: an unverified domain is a recommendation' );
+has( $r['actions'], 'tab=domain', 'site health: and links straight at the records' );
+
+// The one that matters: the relay on behind a domain nothing has proved.
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_healthhealthhealth', 'mail_enabled' => 1 ) );
+$r = sendbeam_test_mail_relay();
+ok( 'critical' === $r['status'], 'site health: site email on with an unverified domain is critical' );
+has( $r['label'], 'unverified domain', 'site health: and names the problem' );
+
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => $sb_records_some ),
+		)
+	)
+);
+$r = sendbeam_test_mail_relay();
+ok( 'good' === $r['status'], 'site health: site email on behind a verified domain is good' );
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_healthhealthhealth', 'mail_enabled' => 0 ) );
+$r = sendbeam_test_mail_relay();
+ok( 'good' === $r['status'], 'site health: site email off is not a fault — it is optional' );
+
+// The debug section, and the same thing as one pasteable block.
+$info = sendbeam_debug_information( array() );
+ok( isset( $info['sendbeam'] ), 'site health: there is a SendBeam section in the debug info' );
+$labels = wp_list_pluck_stub( $info['sendbeam']['fields'], 'label' );
+foreach ( array( 'Plugin version', 'API key', 'Connection state', 'Sending domain', 'Site email', 'WordPress cron' ) as $sendbeam_f ) {
+	ok( in_array( $sendbeam_f, $labels, true ), "site health: the debug info reports $sendbeam_f" );
+}
+$report = sendbeam_status_report();
+has( $report, 'SendBeam ' . SENDBEAM_VERSION, 'system status: the report names the plugin version' );
+has( $report, 'WordPress 6.7.1', 'system status: and the WordPress version' );
+lacks( $report, 'sb_live_healthhealthhealth', 'system status: and never the key itself' );
+has( $report, 'Stored in the options table (…alth)', 'system status: only where the key lives and how it ends' );
+
+// ── Notices ─────────────────────────────────────────────────────────────
+/** Capture what admin_notices prints on a given screen with a given query. */
+function sb_notices( $screen, $get ) {
+	$GLOBALS['stub']['screen'] = $screen;
+	$_GET                      = $get;
+	ob_start();
+	sendbeam_admin_notices();
+	$out  = ob_get_clean();
+	$_GET = array();
+	return $out;
+}
+
+has( sb_notices( 'toplevel_page_sendbeam', array( 'sendbeam_mail' => 'on' ) ), 'Site email is on', 'notices: a SendBeam screen shows the plugin\'s messages' );
+has( sb_notices( 'toplevel_page_sendbeam', array( 'sendbeam_mail' => 'on' ) ), 'notice-success', 'notices: in core\'s own classes' );
+has( sb_notices( 'toplevel_page_sendbeam', array( 'sendbeam_mail' => 'on' ) ), 'is-dismissible', 'notices: and every one can be closed' );
+has( sb_notices( 'sendbeam_page_sendbeam-popups', array( 'sendbeam_saved' => '3' ) ), '3 pop-ups saved', 'notices: a count is printed as a count' );
+has( sb_notices( 'sendbeam_page_sendbeam-audience', array( 'sendbeam_sync_saved' => '1' ) ), 'Saved.', 'notices: a save on another SendBeam screen is reported there' );
+ok( '' === sb_notices( 'plugins', array( 'sendbeam_mail' => 'on' ) ), 'notices: nothing is printed on the Plugins screen' );
+ok( '' === sb_notices( 'edit-post', array( 'sendbeam_saved' => '3' ) ), 'notices: nor on the posts list' );
+ok( '' === sb_notices( 'woocommerce_page_wc-settings', array( 'sendbeam_domain' => 'verified' ) ), 'notices: nor on another plugin\'s settings screen' );
+ok( '' === sb_notices( 'toplevel_page_sendbeam', array( 'sendbeam_mail' => 'nonsense-from-the-url' ) ), 'notices: a value nobody set prints nothing' );
+lacks( sb_notices( 'toplevel_page_sendbeam', array( 'sendbeam_mail' => '<script>alert(1)</script>' ) ), 'alert(1)', 'notices: a notice name from the URL is not a message to print' );
+
+// The one exception: the Dashboard, once, for a site nobody has set up.
+delete_option( 'sendbeam_setup_done' );
+update_option( 'sendbeam_settings', array() );
+sendbeam_flush_cache();
+$GLOBALS['stub']['usermeta'][7]['sendbeam_setup_dismissed'] = '';
+unset( $GLOBALS['stub']['usermeta'][7]['sendbeam_setup_dismissed'] );
+$dash = sb_notices( 'dashboard', array() );
+has( $dash, 'SendBeam is installed', 'notices: the Dashboard carries the one setup notice' );
+has( $dash, 'page=sendbeam-setup', 'notices: and it opens the wizard' );
+has( $dash, 'is-dismissible', 'notices: and it can be dismissed' );
+has( $dash, 'button button-primary', 'notices: inside a core notice the buttons are core\'s, which is where they belong' );
+
+update_user_meta( 7, 'sendbeam_setup_dismissed', 1 );
+ok( '' === sb_notices( 'dashboard', array() ), 'notices: dismissing the setup notice is remembered, per user' );
+delete_user_meta( 7, 'sendbeam_setup_dismissed' );
+
+update_option( 'sendbeam_setup_done', 1 );
+ok( '' === sb_notices( 'dashboard', array() ), 'notices: and finishing the wizard removes it without anybody dismissing anything' );
+delete_option( 'sendbeam_setup_done' );
+
+ok( '' === sb_notices( 'edit-page', array() ), 'notices: the setup notice is on the Dashboard and nowhere else' );
+ok( '' === sb_notices( 'plugins', array() ), 'notices: not even on the Plugins screen' );
+
+update_option( 'sendbeam_settings', array() );
+sendbeam_flush_cache();
+$GLOBALS['stub']['remote_reply'] = null;
+unset( $GLOBALS['stub']['screen'] );
+
 /* ─────────────────────────── The setup wizard ──────────────────────────
  * One redirect, once, guarded three ways, into a page that can be left from
  * every step. The guards are the whole of the argument for doing this at all:
@@ -2047,7 +2348,14 @@ function sb_overview( $settings, $status, $get = array(), $forms = array() ) {
 	set_transient( 'sendbeam_remote_lists', array() );
 	set_transient( 'sendbeam_subscriber_count', 0 );
 	sendbeam_connect_cache_status( sendbeam_connect_normalise_status( $status ) );
+
+	// What a browser gets on this screen: the notices WordPress prints above
+	// the page, and then the page. The plugin's messages moved out of the
+	// middle of each screen's markup and into core's notice component, so a
+	// test that looked only at the screen would stop seeing them.
+	$GLOBALS['stub']['screen'] = 'toplevel_page_sendbeam';
 	ob_start();
+	sendbeam_admin_notices();
 	sendbeam_screen_overview();
 	return ob_get_clean();
 }

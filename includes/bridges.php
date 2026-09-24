@@ -315,7 +315,7 @@ function sendbeam_bridge_settings() {
 
 add_action( 'admin_post_sendbeam_save_bridges', 'sendbeam_handle_save_bridges' );
 
-/** Save the Fluent Forms settings from the Audience tab. */
+/** Save the Fluent Forms settings from the Audience screen. */
 function sendbeam_handle_save_bridges() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );

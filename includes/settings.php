@@ -684,7 +684,25 @@ function sendbeam_admin_assets( $hook ) {
 			var btn = e.target.closest( ".sb-copy" );
 			if ( ! btn ) { return; }
 			var text = btn.getAttribute( "data-copy" ), done = btn.getAttribute( "data-done" ) || "Copied";
+			var isField = "INPUT" === btn.tagName;
 			function flash() {
+				/*
+				 * A DNS value is a read-only input, not a button: it has no
+				 * text to swap, and selecting what was copied is the
+				 * confirmation people expect from a field. The tooltip and a
+				 * class carry the word for everyone else.
+				 */
+				if ( isField ) {
+					try { btn.select(); } catch ( err ) {}
+					var wasTitle = btn.getAttribute( "title" );
+					btn.setAttribute( "title", done );
+					btn.classList.add( "is-copied" );
+					setTimeout( function () {
+						btn.classList.remove( "is-copied" );
+						if ( wasTitle ) { btn.setAttribute( "title", wasTitle ); }
+					}, 1400 );
+					return;
+				}
 				var was = btn.textContent;
 				btn.textContent = done;
 				setTimeout( function () { btn.textContent = was; }, 1400 );

@@ -297,6 +297,182 @@ function sendbeam_pre_wp_mail( $short_circuit, $atts ) {
 }
 
 /**
+ * What the site owner should know about the connection, at the moment of asking.
+ *
+ * Gathered once and used twice: it is the body of the test email, and — when
+ * the send fails — the bundle the failure card offers to copy. Collecting it
+ * at failure time rather than at render time is the whole point: a support
+ * request that describes the state of the site half an hour later describes a
+ * different site.
+ *
+ * @return array<string,string>
+ */
+function sendbeam_mail_facts() {
+	$settings = sendbeam_settings();
+	$status   = sendbeam_is_connected() ? sendbeam_connect_status() : sendbeam_connect_empty_status();
+	$domain   = $status['domain'];
+
+	$domain_line = __( 'None set up', 'sendbeam' );
+	if ( '' !== $domain['name'] ) {
+		$domain_line = $domain['name'] . ' — ' . ( $domain['verified'] ? __( 'verified', 'sendbeam' ) : __( 'not verified yet', 'sendbeam' ) );
+	} elseif ( '' !== (string) $status['domain_state'] ) {
+		$domain_line = sprintf(
+			/* translators: %s: a SendBeam domain state, e.g. not_granted */
+			__( 'None set up (%s)', 'sendbeam' ),
+			(string) $status['domain_state']
+		);
+	}
+
+	$from_email = '' !== (string) $settings['mail_from_email'] ? (string) $settings['mail_from_email'] : (string) $status['sender']['from_email'];
+	$from_name  = '' !== (string) $settings['mail_from_name'] ? (string) $settings['mail_from_name'] : (string) $status['sender']['from_name'];
+
+	return array(
+		__( 'Site', 'sendbeam' )           => get_bloginfo( 'name' ) . ' — ' . home_url(),
+		__( 'From name', 'sendbeam' )      => '' !== $from_name ? $from_name : __( 'the workspace sender', 'sendbeam' ),
+		__( 'From address', 'sendbeam' )   => '' !== $from_email ? $from_email : __( 'the workspace sender', 'sendbeam' ),
+		__( 'Sending domain', 'sendbeam' ) => $domain_line,
+		__( 'Workspace', 'sendbeam' )      => '' !== (string) $status['workspace']['name'] ? (string) $status['workspace']['name'] : __( 'not reported', 'sendbeam' ),
+		__( 'Sent', 'sendbeam' )           => wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ) ),
+		__( 'Plugin', 'sendbeam' )         => 'SendBeam ' . SENDBEAM_VERSION,
+	);
+}
+
+/**
+ * The test email itself: one screenful a site owner can keep.
+ *
+ * Table-based and inline-styled, because that is still the only HTML an email
+ * client can be relied on to render, and with a plain-text alternative that
+ * says the same things — a test email that only exists as HTML proves less
+ * than one that proves both halves arrived.
+ *
+ * No images: the three-square mark is three table cells with a background
+ * colour, which needs no remote request, survives an image-blocking client
+ * and cannot be used to tell whether the message was opened.
+ *
+ * @param array $facts Rows from sendbeam_mail_facts().
+ * @return string
+ */
+function sendbeam_test_mail_html( $facts ) {
+	$body = 'margin:0;padding:0;background:#EDEBE6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#121212;';
+	$cell = 'padding:24px 28px;';
+
+	$rows = '';
+	foreach ( $facts as $label => $value ) {
+		$rows .= '<tr>'
+			. '<td style="padding:8px 0;border-bottom:1px solid #e2e0db;font-size:13px;color:#5c5c5c;white-space:nowrap;vertical-align:top;">' . esc_html( $label ) . '</td>'
+			. '<td style="padding:8px 0 8px 18px;border-bottom:1px solid #e2e0db;font-size:13px;color:#121212;vertical-align:top;word-break:break-word;">' . esc_html( $value ) . '</td>'
+			. '</tr>';
+	}
+
+	$log_url = sendbeam_page_url( 'sendbeam-mail' );
+
+	$html = '<!doctype html><html><head><meta charset="utf-8" />'
+		. '<meta name="viewport" content="width=device-width" />'
+		. '<title>' . esc_html__( 'SendBeam test email', 'sendbeam' ) . '</title>'
+		. '<style>@media only screen and (max-width:620px){.sb-container{width:100%!important}.sb-pad{padding:20px!important}}</style>'
+		. '</head><body style="' . esc_attr( $body ) . '">'
+		. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#EDEBE6;"><tr><td align="center" style="padding:24px 12px;">'
+		. '<table role="presentation" class="sb-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#ffffff;border:1px solid #121212;">'
+
+		// The mark, on the ink band, as three coloured cells.
+		. '<tr><td class="sb-pad" style="' . esc_attr( $cell ) . 'background:#121212;">'
+		. '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+		. '<td width="14" height="14" style="background:#E2442A;font-size:0;line-height:0;">&nbsp;</td>'
+		. '<td width="6" style="font-size:0;line-height:0;">&nbsp;</td>'
+		. '<td width="14" height="14" style="background:#1F3FBF;font-size:0;line-height:0;">&nbsp;</td>'
+		. '<td width="6" style="font-size:0;line-height:0;">&nbsp;</td>'
+		. '<td width="14" height="14" style="background:#3B7D46;font-size:0;line-height:0;">&nbsp;</td>'
+		. '<td style="padding-left:14px;color:#EDEBE6;font-size:17px;font-weight:700;">SendBeam</td>'
+		. '</tr></table></td></tr>'
+
+		// The verdict.
+		. '<tr><td class="sb-pad" style="' . esc_attr( $cell ) . 'padding-bottom:4px;">'
+		. '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+		. '<td width="26" height="26" align="center" style="background:#3B7D46;color:#ffffff;font-size:15px;line-height:26px;">&#10003;</td>'
+		. '<td style="padding-left:12px;font-size:19px;font-weight:700;">' . esc_html__( 'Your site can send email through SendBeam', 'sendbeam' ) . '</td>'
+		. '</tr></table>'
+		. '<p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#121212;">'
+		. esc_html__( 'This message was sent by your WordPress site, through SendBeam, using the settings below. Nothing else needs doing.', 'sendbeam' )
+		. '</p></td></tr>'
+
+		// The facts.
+		. '<tr><td class="sb-pad" style="' . esc_attr( $cell ) . 'padding-top:14px;padding-bottom:14px;">'
+		. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' . $rows . '</table>'
+		. '</td></tr>'
+
+		// What happens now.
+		. '<tr><td class="sb-pad" style="' . esc_attr( $cell ) . 'padding-top:6px;background:#EDEBE6;border-top:1px solid #121212;">'
+		. '<p style="margin:0 0 8px;font-size:15px;font-weight:700;">' . esc_html__( 'What happens now', 'sendbeam' ) . '</p>'
+		. '<p style="margin:0 0 8px;font-size:14px;line-height:1.5;">'
+		. esc_html__( 'Every email this site already sends goes out this way from now on: order confirmations, password resets, and comment and form notifications.', 'sendbeam' )
+		. '</p>'
+		. '<p style="margin:0 0 16px;font-size:14px;line-height:1.5;">'
+		. esc_html__( 'Each one is recorded in the email log in wp-admin, with whether it was sent, fell back to the server\'s own mailer, or failed.', 'sendbeam' )
+		. '</p>'
+		. '<p style="margin:0;"><a href="' . esc_url( $log_url ) . '" style="display:inline-block;padding:11px 18px;background:#2271b1;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">'
+		. esc_html__( 'Open the email log', 'sendbeam' ) . '</a></p>'
+		. '</td></tr>'
+
+		. '</table></td></tr></table></body></html>';
+
+	return $html;
+}
+
+/**
+ * The same thing in words, for a client that will not render the HTML.
+ *
+ * @param array $facts Rows from sendbeam_mail_facts().
+ * @return string
+ */
+function sendbeam_test_mail_text( $facts ) {
+	$lines = array(
+		__( 'Your site can send email through SendBeam', 'sendbeam' ),
+		'',
+		__( 'This message was sent by your WordPress site, through SendBeam, using the settings below. Nothing else needs doing.', 'sendbeam' ),
+		'',
+	);
+	foreach ( $facts as $label => $value ) {
+		$lines[] = $label . ': ' . $value;
+	}
+	$lines[] = '';
+	$lines[] = __( 'What happens now', 'sendbeam' );
+	$lines[] = __( 'Every email this site already sends goes out this way from now on: order confirmations, password resets, and comment and form notifications.', 'sendbeam' );
+	$lines[] = __( 'Each one is recorded in the email log in wp-admin, with whether it was sent, fell back to the server\'s own mailer, or failed.', 'sendbeam' );
+	$lines[] = '';
+	$lines[] = __( 'Open the email log:', 'sendbeam' ) . ' ' . sendbeam_page_url( 'sendbeam-mail' );
+
+	return implode( "\n", $lines );
+}
+
+/**
+ * Everything somebody would be asked for in a support reply, in one block.
+ *
+ * Captured at the moment of failure, with the raw error, so that the person
+ * pasting it into an email is describing the send that went wrong rather than
+ * the state of the site whenever they got round to writing.
+ *
+ * @param string $error The raw error from the API.
+ * @param int    $status HTTP status, or 0 when the request never landed.
+ * @return string
+ */
+function sendbeam_mail_error_bundle( $error, $status = 0 ) {
+	$lines = array(
+		'SendBeam ' . SENDBEAM_VERSION,
+		'WordPress ' . get_bloginfo( 'version' ),
+		'PHP ' . PHP_VERSION,
+		'Site: ' . home_url(),
+		'Key: ' . ( '' === sendbeam_api_key() ? 'none' : ( sendbeam_key_in_config() ? 'wp-config.php constant' : 'stored in options' ) ),
+	);
+	foreach ( sendbeam_mail_facts() as $label => $value ) {
+		$lines[] = $label . ': ' . $value;
+	}
+	$lines[] = 'HTTP: ' . ( $status ? (int) $status : 'no response' );
+	$lines[] = 'Error: ' . $error;
+
+	return implode( "\n", $lines );
+}
+
+/**
  * "Send a test email" on the settings page.
  */
 function sendbeam_handle_test_mail() {
@@ -304,30 +480,141 @@ function sendbeam_handle_test_mail() {
 		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
 	}
 	check_admin_referer( 'sendbeam_test_mail' );
-	$user = wp_get_current_user();
-	$ok   = false;
+
+	$user  = wp_get_current_user();
+	$to    = (string) $user->user_email;
+	$facts = sendbeam_mail_facts();
+
 	if ( ! sendbeam_mail_enabled() ) {
-		$note = __( 'Turn on "Send this site\'s email through SendBeam" and save an API key first.', 'sendbeam' );
-	} else {
-		$result = sendbeam_api_send(
-			array(
-				'to'      => $user->user_email,
-				'subject' => sprintf( /* translators: %s: site name */ __( 'Test email from %s via SendBeam', 'sendbeam' ), get_bloginfo( 'name' ) ),
-				'text'    => __( "This is a test email from your WordPress site, sent through SendBeam.\n\nIf you can read this, order confirmations, password resets and every other email this site sends will go out the same way.", 'sendbeam' ),
-			)
+		$outcome = array(
+			'ok'     => false,
+			'title'  => __( 'Site email is not switched on yet', 'sendbeam' ),
+			'means'  => __( 'Nothing was sent, because this site is still handing its email to the web server\'s own mailer.', 'sendbeam' ),
+			'do'     => __( 'Tick "Send this site\'s email through SendBeam" above, save, and try again. It needs a working API key with the "Send site email" permission.', 'sendbeam' ),
+			'to'     => $to,
+			'bundle' => sendbeam_mail_error_bundle( 'site email is switched off', 0 ),
+			'at'     => time(),
 		);
-		$ok     = $result['ok'];
-		$note   = $ok ? sprintf( /* translators: %s: email address */ __( 'Sent to %s.', 'sendbeam' ), $user->user_email ) : $result['error'];
-		sendbeam_mail_log( $user->user_email, 'Test email', $ok ? 'sent' : 'failed', $ok ? '' : $result['error'] );
+		sendbeam_finish_test_mail( $outcome );
 	}
-	wp_safe_redirect(
-		add_query_arg(
-			array(
-				'sendbeam_test' => $ok ? 'ok' : 'error',
-				'sendbeam_note' => rawurlencode( $note ),
-			),
-			sendbeam_tab_url( 'mail' )
+
+	$result = sendbeam_api_send(
+		array(
+			'to'      => $to,
+			'subject' => sprintf( /* translators: %s: site name */ __( 'Test email from %s via SendBeam', 'sendbeam' ), get_bloginfo( 'name' ) ),
+			'html'    => sendbeam_test_mail_html( $facts ),
+			'text'    => sendbeam_test_mail_text( $facts ),
 		)
 	);
+
+	sendbeam_mail_log( $to, __( 'Test email', 'sendbeam' ), $result['ok'] ? 'sent' : 'failed', $result['ok'] ? '' : $result['error'] );
+
+	if ( $result['ok'] ) {
+		sendbeam_finish_test_mail(
+			array(
+				'ok' => true,
+				'to' => $to,
+				'at' => time(),
+			)
+		);
+	}
+
+	sendbeam_finish_test_mail(
+		array(
+			'ok'     => false,
+			'title'  => __( 'SendBeam would not send that message', 'sendbeam' ),
+			'means'  => sendbeam_test_mail_means( $result ),
+			'do'     => sendbeam_test_mail_advice( $result ),
+			'to'     => $to,
+			'error'  => $result['error'],
+			'status' => (int) $result['status'],
+			// Captured now, with the answer still in hand: half an hour later
+			// this site may be in a different state entirely.
+			'bundle' => sendbeam_mail_error_bundle( $result['error'], (int) $result['status'] ),
+			'at'     => time(),
+		)
+	);
+}
+
+/**
+ * What a refusal means, in the site owner's terms rather than the API's.
+ *
+ * @param array $result From sendbeam_api_send().
+ * @return string
+ */
+function sendbeam_test_mail_means( $result ) {
+	$status = (int) $result['status'];
+	if ( 0 === $status ) {
+		return __( 'This server could not reach sendbeam.io at all, so SendBeam never saw the message.', 'sendbeam' );
+	}
+	if ( 401 === $status ) {
+		return __( 'SendBeam did not accept this site\'s API key.', 'sendbeam' );
+	}
+	if ( 403 === $status ) {
+		return __( 'The key works, but it was not given permission to send this site\'s email, or the From address is not on a verified domain.', 'sendbeam' );
+	}
+	if ( 429 === $status ) {
+		return __( 'SendBeam is rate-limiting this site, or the workspace has reached its sending limit.', 'sendbeam' );
+	}
+	if ( $status >= 500 ) {
+		return __( 'SendBeam accepted the request and then failed on it. That is an error at SendBeam\'s end, not at yours.', 'sendbeam' );
+	}
+	return __( 'SendBeam refused the message. The reason it gave is below.', 'sendbeam' );
+}
+
+/**
+ * What to do about it.
+ *
+ * @param array $result From sendbeam_api_send().
+ * @return string
+ */
+function sendbeam_test_mail_advice( $result ) {
+	$status = (int) $result['status'];
+	if ( 0 === $status ) {
+		return __( 'Check that this server can make outbound HTTPS requests. A firewall, a proxy or a host that blocks outbound traffic will stop this and nothing else on the site will look wrong.', 'sendbeam' );
+	}
+	if ( 401 === $status ) {
+		return __( 'Reconnect this site under Settings → Connection, or paste a fresh key under Settings → Advanced.', 'sendbeam' );
+	}
+	if ( 403 === $status ) {
+		return __( 'Check the sending domain is verified under Settings → Sending domain, and that the From address above is on it. If the key is missing the permission, reconnect and tick "Send the site\'s own email".', 'sendbeam' );
+	}
+	if ( 429 === $status ) {
+		return __( 'Wait a few minutes and try again. If it keeps happening, check the workspace\'s plan and usage in SendBeam.', 'sendbeam' );
+	}
+	if ( $status >= 500 ) {
+		return __( 'Try again in a few minutes. If it persists, send the details below to hello@sendbeam.io.', 'sendbeam' );
+	}
+	return __( 'Copy the details below and send them to hello@sendbeam.io — they say exactly what this site asked for and what came back.', 'sendbeam' );
+}
+
+/**
+ * Park the result where the screen can render it, and go back there.
+ *
+ * A transient rather than a query argument, because the failure card carries a
+ * raw error, a version list and a domain state — none of which belongs in an
+ * address bar, a server log or somebody's browser history. It is keyed to the
+ * person who pressed the button and read exactly once.
+ *
+ * @param array $outcome What happened.
+ */
+function sendbeam_finish_test_mail( $outcome ) {
+	set_transient( 'sendbeam_test_result_' . get_current_user_id(), $outcome, 5 * MINUTE_IN_SECONDS );
+	wp_safe_redirect( sendbeam_tab_url( 'mail' ) . '#sendbeam-test' );
 	exit;
+}
+
+/**
+ * The result of the last test send, once.
+ *
+ * @return array|null
+ */
+function sendbeam_take_test_result() {
+	$key    = 'sendbeam_test_result_' . get_current_user_id();
+	$result = get_transient( $key );
+	if ( ! is_array( $result ) ) {
+		return null;
+	}
+	delete_transient( $key );
+	return $result;
 }
