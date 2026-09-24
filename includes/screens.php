@@ -64,33 +64,11 @@ function sendbeam_screen_overview() {
 		sendbeam_connect_finish_deferred( $status );
 	}
 
+	sendbeam_overview_connection_card( $status, $connected );
+
 	echo '<div class="sb-grid">';
 
-	sendbeam_card_open( __( 'Setup', 'sendbeam' ) );
-	echo '<ol class="sb-steps">';
-	foreach ( sendbeam_setup_steps() as $i => $step ) {
-		printf(
-			'<li class="%1$s"><span class="sb-num" aria-hidden="true">%2$s</span><div class="sb-step">',
-			$step['done'] ? 'is-done' : '',
-			$step['done'] ? '&#10003;' : (int) ( $i + 1 )
-		);
-
-		// The connect step is not a link to a field any more when there is
-		// nothing connected: it is the thing itself, done here, in one button.
-		$linked = ! ( 'connect' === $step['key'] && ! $connected );
-		if ( $linked ) {
-			printf( '<strong><a href="%1$s">%2$s</a></strong>', esc_url( $step['target'] ), esc_html( $step['label'] ) );
-		} else {
-			printf( '<strong>%s</strong>', esc_html( $step['label'] ) );
-		}
-		printf( '<span class="sb-step__note">%s</span>', esc_html( $step['detail'] ) );
-
-		sendbeam_overview_step_panel( $step, $status, $connected );
-
-		echo '</div></li>';
-	}
-	echo '</ol>';
-	sendbeam_card_close();
+	sendbeam_overview_setup_card( $status, $connected );
 
 	sendbeam_card_open( __( 'This workspace', 'sendbeam' ) );
 	echo '<div class="sb-grid" style="gap:14px">';
@@ -99,9 +77,112 @@ function sendbeam_screen_overview() {
 	sendbeam_stat( __( 'Subscribers', 'sendbeam' ), $subscribers );
 	echo '</div>';
 	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'Subscribers counts people, not list memberships — someone on three lists is one subscriber. Figures come from your SendBeam workspace and are cached for five minutes.', 'sendbeam' ) . '</p>';
+	printf(
+		'<p style="margin-top:14px"><a class="sb-btn sb-btn--ghost" href="%s" target="_blank" rel="noopener">%s</a></p>',
+		esc_url( sendbeam_app_url() ),
+		esc_html__( 'Open SendBeam', 'sendbeam' )
+	);
 	sendbeam_card_close();
 
 	echo '</div>';
+}
+
+/**
+ * The connection, at the top, where somebody arriving looks first.
+ *
+ * It used to live inside step 1 of the checklist, which meant that on a
+ * finished site — the state most sites are in most of the time — the one
+ * question the Overview is asked ("what is this connected to?") was answered
+ * by a ticked line with nothing under it.
+ *
+ * @param array $status    Normalised Connect status.
+ * @param bool  $connected Whether the key works.
+ */
+function sendbeam_overview_connection_card( $status, $connected ) {
+	if ( ! $connected ) {
+		sendbeam_card_open( __( 'Connection', 'sendbeam' ), __( 'Not connected yet.', 'sendbeam' ) );
+		sendbeam_connect_panel();
+		sendbeam_connect_paste_disclosure();
+		sendbeam_card_close();
+		return;
+	}
+
+	$sender = (string) $status['sender']['from_email'];
+
+	sendbeam_card_open( __( 'Connection', 'sendbeam' ), '' !== $sender ? sprintf( /* translators: %s: the address SendBeam sends from */ __( 'Sends as %s', 'sendbeam' ), $sender ) : '' );
+	if ( sendbeam_connected_via_connect() ) {
+		sendbeam_connect_connected_panel( $status );
+	} else {
+		sendbeam_connect_pasted_panel( $status );
+	}
+	sendbeam_card_close();
+}
+
+/**
+ * The four-step checklist, and the way to put it away once it is finished.
+ *
+ * A checklist with four ticks on it is furniture. It stays until every step
+ * is done and then offers to go — per user, because one administrator
+ * hiding it should not hide it from the next person who installs something.
+ *
+ * @param array $status    Normalised Connect status.
+ * @param bool  $connected Whether the key works.
+ */
+function sendbeam_overview_setup_card( $status, $connected ) {
+	$steps = sendbeam_setup_steps();
+	$left  = 0;
+	foreach ( $steps as $step ) {
+		if ( empty( $step['done'] ) ) {
+			++$left;
+		}
+	}
+
+	if ( 0 === $left && sendbeam_checklist_hidden() ) {
+		sendbeam_card_open( __( 'Setup', 'sendbeam' ) );
+		echo '<p class="sb-verified" style="margin:0"><span class="sb-tick" aria-hidden="true">&#10003;</span> ' . esc_html__( 'Set up and sending.', 'sendbeam' ) . '</p>';
+		printf(
+			'<p class="sb-note"><a href="%s">%s</a></p>',
+			esc_url( sendbeam_checklist_url( false ) ),
+			esc_html__( 'Show the checklist again', 'sendbeam' )
+		);
+		sendbeam_card_close();
+		return;
+	}
+
+	sendbeam_card_open(
+		__( 'Setup', 'sendbeam' ),
+		$left > 0
+			/* translators: %d: how many setup steps are left */
+			? sprintf( _n( '%d step left', '%d steps left', $left, 'sendbeam' ), $left )
+			: __( 'All done', 'sendbeam' )
+	);
+	echo '<ol class="sb-steps">';
+	foreach ( $steps as $i => $step ) {
+		printf(
+			'<li class="%1$s"><span class="sb-num" aria-hidden="true">%2$s</span><div class="sb-step">',
+			$step['done'] ? 'is-done' : '',
+			$step['done'] ? '&#10003;' : (int) ( $i + 1 )
+		);
+
+		// The connect step links to the card above rather than to a field:
+		// that card is where connecting is actually done now.
+		printf( '<strong><a href="%1$s">%2$s</a></strong>', esc_url( $step['target'] ), esc_html( $step['label'] ) );
+		printf( '<span class="sb-step__note">%s</span>', esc_html( $step['detail'] ) );
+
+		sendbeam_overview_step_panel( $step, $status, $connected );
+
+		echo '</div></li>';
+	}
+	echo '</ol>';
+
+	if ( 0 === $left ) {
+		printf(
+			'<p class="sb-note" style="margin-top:12px"><a href="%s">%s</a></p>',
+			esc_url( sendbeam_checklist_url( true ) ),
+			esc_html__( 'Hide this checklist', 'sendbeam' )
+		);
+	}
+	sendbeam_card_close();
 }
 
 /**
@@ -134,12 +215,9 @@ function sendbeam_overview_dns_return() {
 function sendbeam_overview_step_panel( $step, $status, $connected ) {
 	switch ( $step['key'] ) {
 		case 'connect':
-			if ( ! $connected ) {
-				sendbeam_connect_panel();
-				sendbeam_connect_paste_disclosure();
-			} elseif ( sendbeam_connected_via_connect() ) {
-				sendbeam_connect_connected_panel( $status );
-			}
+			// Nothing: the connection card above the checklist is where this
+			// step is done, and two Connect buttons on one screen is one too
+			// many.
 			break;
 		case 'domain':
 			if ( $connected ) {

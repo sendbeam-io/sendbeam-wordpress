@@ -23,13 +23,30 @@ add_filter( 'set-screen-option', 'sendbeam_set_screen_option', 10, 3 );
 add_action( 'admin_head', 'sendbeam_list_table_columns' );
 
 /**
- * WP_List_Table is not loaded on every admin page; ask for it before use.
+ * Load core's WP_List_Table, and then this plugin's three subclasses.
+ *
+ * Both halves have to happen here rather than at the top of the file.
+ * `WP_List_Table` lives in wp-admin/includes and is not loaded when plugins
+ * are, so a subclass declared at plugin-load time is a fatal error on every
+ * page of the site. Requiring the subclasses only once core's class is in
+ * memory is the whole of the fix — and it is why this is a function a screen
+ * calls rather than three requires in sendbeam.php.
+ *
+ * @return bool Whether the list tables are available.
  */
 function sendbeam_load_list_table() {
 	if ( ! class_exists( 'WP_List_Table' ) && defined( 'ABSPATH' ) && file_exists( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' ) ) {
 		require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 	}
-	return class_exists( 'WP_List_Table' );
+	if ( ! class_exists( 'WP_List_Table' ) ) {
+		return false;
+	}
+	// One class per file, because that is what the WordPress standard asks
+	// for and what the plugin review tooling checks.
+	require_once __DIR__ . '/class-sendbeam-forms-table.php';
+	require_once __DIR__ . '/class-sendbeam-mail-log-table.php';
+	require_once __DIR__ . '/class-sendbeam-lists-table.php';
+	return true;
 }
 
 /**
@@ -113,16 +130,3 @@ function sendbeam_list_table_columns() {
 	}
 	echo '<style>.sendbeam-app .wp-list-table .column-cb{width:2.2em}</style>';
 }
-
-if ( ! class_exists( 'WP_List_Table' ) ) {
-	// The smoke tests load this file without WordPress. Everything below
-	// extends a core class, so without it the require is a parse-time fatal —
-	// and the functions above are the half worth having in that case.
-	return;
-}
-
-// One class per file, because that is what the WordPress standard asks for
-// and what the plugin review tooling checks; this file is the module.
-require_once __DIR__ . '/class-sendbeam-forms-table.php';
-require_once __DIR__ . '/class-sendbeam-mail-log-table.php';
-require_once __DIR__ . '/class-sendbeam-lists-table.php';

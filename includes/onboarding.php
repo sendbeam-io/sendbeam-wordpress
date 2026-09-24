@@ -22,6 +22,7 @@ register_activation_hook( SENDBEAM_FILE, 'sendbeam_on_activate' );
 register_deactivation_hook( SENDBEAM_FILE, 'sendbeam_on_deactivate' );
 add_action( 'admin_post_sendbeam_dismiss_setup', 'sendbeam_dismiss_setup' );
 add_action( 'admin_post_sendbeam_form_placed', 'sendbeam_handle_form_placed' );
+add_action( 'admin_post_sendbeam_hide_checklist', 'sendbeam_handle_hide_checklist' );
 
 /**
  * Remember when we were switched on, so the notice can be new-install-only.
@@ -542,4 +543,56 @@ function sendbeam_form_placed_url( $on = true ) {
 		),
 		'sendbeam_form_placed'
 	);
+}
+
+/**
+ * Has this person put the setup checklist away?
+ *
+ * Per user, in user meta: one administrator deciding they have seen enough of
+ * a checklist should not take it off the screen for the next person who comes
+ * to set something up.
+ *
+ * @return bool
+ */
+function sendbeam_checklist_hidden() {
+	return (bool) get_user_meta( get_current_user_id(), 'sendbeam_checklist_hidden', true );
+}
+
+/**
+ * The URL behind "Hide this checklist", and behind bringing it back.
+ *
+ * @param bool $hide True to put it away.
+ * @return string
+ */
+function sendbeam_checklist_url( $hide = true ) {
+	return wp_nonce_url(
+		add_query_arg(
+			array(
+				'action' => 'sendbeam_hide_checklist',
+				'state'  => $hide ? '1' : '0',
+			),
+			admin_url( 'admin-post.php' )
+		),
+		'sendbeam_hide_checklist'
+	);
+}
+
+/** Put the checklist away, or bring it back. */
+function sendbeam_handle_hide_checklist() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+	}
+	check_admin_referer( 'sendbeam_hide_checklist' );
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- checked immediately above.
+	$hide = ! isset( $_GET['state'] ) || '0' !== sanitize_text_field( wp_unslash( $_GET['state'] ) );
+
+	if ( $hide ) {
+		update_user_meta( get_current_user_id(), 'sendbeam_checklist_hidden', 1 );
+	} else {
+		delete_user_meta( get_current_user_id(), 'sendbeam_checklist_hidden' );
+	}
+
+	wp_safe_redirect( sendbeam_tab_url( 'overview' ) );
+	exit;
 }

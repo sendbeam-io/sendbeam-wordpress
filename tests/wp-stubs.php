@@ -10,8 +10,14 @@ $GLOBALS['stub'] = array( 'remote' => array(), 'remote_reply' => null, 'actions'
 function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
 function plugin_basename( $f ) { return 'sendbeam/sendbeam.php'; }
 function apply_filters( $tag, $value, ...$args ) { return isset( $GLOBALS['stub']['hooks'][ $tag ] ) ? call_user_func( $GLOBALS['stub']['hooks'][ $tag ], $value, ...$args ) : $value; }
-function add_filter( $tag, $fn, $p = 10, $a = 1 ) { $GLOBALS['stub']['hooks'][ $tag ] = $fn; }
-function add_action( $tag, $fn ) { $GLOBALS['stub']['hooks'][ $tag ] = $fn; }
+/**
+ * Hooks. The last callback for a tag wins (which is all the output tests
+ * need), but every callback ever registered is also kept, so a test can ask
+ * the one question WordPress answers with a fatal error: does the function
+ * this hook names actually exist?
+ */
+function add_filter( $tag, $fn, $p = 10, $a = 1 ) { $GLOBALS['stub']['hooks'][ $tag ] = $fn; $GLOBALS['stub']['callbacks'][] = array( $tag, $fn ); }
+function add_action( $tag, $fn, $p = 10, $a = 1 ) { $GLOBALS['stub']['hooks'][ $tag ] = $fn; $GLOBALS['stub']['callbacks'][] = array( $tag, $fn ); }
 function add_shortcode( $tag, $fn ) { $GLOBALS['stub']['shortcodes'][ $tag ] = $fn; }
 function do_shortcode_tag( $tag, $atts = array() ) { return call_user_func( $GLOBALS['stub']['shortcodes'][ $tag ], $atts ); }
 function untrailingslashit( $s ) { return rtrim( $s, '/' ); }

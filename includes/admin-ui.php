@@ -191,7 +191,9 @@ function sendbeam_admin_css() {
 		{font-family:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 
 	/* ── The header band ──────────────────────────────────────────────── */
-	.sb-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+	/* clear, because Screen Options and Help are floated right by core and an
+	   unclear block sits beside them at two-thirds width. */
+	.sb-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;clear:both;
 		padding:18px 22px;background:var(--ink);color:var(--paper)}
 	.sb-head__brand{display:flex;align-items:center;gap:10px;min-width:0}
 	.sb-mark{width:14px;height:14px;background:var(--v);display:inline-block;
@@ -305,9 +307,14 @@ function sendbeam_admin_css() {
 	.sendbeam-app .sb-toggle input[type=checkbox]:checked::before{background:#fff;transform:translateX(16px)}
 	.sendbeam-app .sb-toggle input[type=checkbox]:disabled{opacity:.5;cursor:not-allowed}
 	.sendbeam-app .sb-toggle input[type=checkbox]:focus{outline:2px solid var(--brand);outline-offset:2px;box-shadow:none}
+	.sendbeam-app .sb-toggle .sb-note{display:block;margin-top:2px}
 
 	/* ── Tables ───────────────────────────────────────────────────────── */
-	.sb-scroll{overflow-x:auto;margin:0 0 10px;max-width:100%}
+	/* `contain: inline-size` is what makes the promise of this wrapper true.
+	   Without it a table wider than the screen still widens the page in a
+	   mobile browser — the wrapper scrolls, and the layout viewport grows to
+	   the table anyway, which is the failure this class exists to prevent. */
+	.sb-scroll{overflow-x:auto;margin:0 0 10px;max-width:100%;contain:layout inline-size}
 	.sb-table{width:100%;border-collapse:collapse;border:1px solid var(--ink);background:#fff}
 	.sb-table th{text-align:left;font-size:13px;color:var(--ink);font-weight:600;
 		padding:9px 12px;border-bottom:1px solid var(--ink)}
@@ -380,7 +387,7 @@ function sendbeam_admin_css() {
 	.sb-result p{margin:0 0 10px}
 	.sb-result p:last-child{margin-bottom:0}
 	.sb-bundle{background:var(--paper);border:1px solid var(--rule);padding:12px;margin:10px 0;
-		font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:22em;overflow:auto}
+		font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:34em;overflow:auto}
 	.sb-paste>summary{cursor:pointer;font-size:13px;color:var(--ink-60);padding:4px 0}
 	.sb-paste>summary:hover{color:var(--ink)}
 
@@ -400,8 +407,11 @@ function sendbeam_admin_css() {
 	.sb-scopes{list-style:none;margin:0 0 14px;padding:0}
 	.sb-scopes li{margin:0 0 8px}
 	.sb-scope{align-items:flex-start;line-height:1.45}
+	/* Square corners and an ink border, and then core\'s own checked state
+	   left exactly alone: core fills the box with the admin theme colour and
+	   draws a white tick on it, so forcing the background white made the tick
+	   invisible and every ticked permission read as unticked. */
 	.sb-scope input[type=checkbox]{margin:2px 0 0;flex:0 0 auto;border-color:var(--ink);border-radius:0;min-height:0}
-	.sb-scope input[type=checkbox]:checked{background:#fff}
 	.sb-scope input[type=checkbox]:focus{box-shadow:0 0 0 1px var(--ink)}
 	.sb-scope .sb-note{margin-left:4px}
 	.sb-inline{display:inline-flex;align-items:center;gap:8px;font-size:14px}
@@ -438,6 +448,11 @@ function sendbeam_admin_css() {
 		.sb-rail__step:last-child{border-bottom:0}
 		.sb-wizard__foot .sb-btn{flex:1 1 100%}
 		.sb-doc__row code{flex:1 1 100%}
+		/* A phone gets the records table in full rather than a sideways
+		   scroll: the values live in fields that scroll their own contents
+		   and copy on a tap, so a narrow column loses nothing. */
+		.sb-dns .sb-copy-field,.sb-dns__value .sb-copy-field{min-width:0}
+		.sb-dns th,.sb-dns td{padding-left:6px;padding-right:6px}
 	}
 	';
 }

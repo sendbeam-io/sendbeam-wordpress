@@ -2571,6 +2571,28 @@ foreach ( $sendbeam_expected as $sendbeam_slug => $sendbeam_label ) {
 	ok( 'sendbeam' === $subs[ $sendbeam_slug ]['parent'], "menu: $sendbeam_slug hangs off the SendBeam menu" );
 }
 ok( ! isset( $subs['sendbeam-docs'] ), 'menu: the Docs tab is gone; Help replaced it' );
+
+/*
+ * The wizard is routable but never in the menu. Its parent is options.php
+ * rather than an empty string: an empty parent routes fine and then leaves
+ * WordPress unable to work out the page's title, which is a PHP 8
+ * deprecation in the log and a browser tab reading "— WordPress".
+ */
+/*
+ * Every hook this plugin registers has to name a function that exists.
+ * WordPress answers a hook pointing at a missing function with a fatal error
+ * on the screen it fires on — and a screen is exactly the thing no unit test
+ * was looking at when the menu grew its `load-` hooks.
+ */
+foreach ( $GLOBALS['stub']['callbacks'] as $sendbeam_cb ) {
+	list( $sendbeam_tag, $sendbeam_fn ) = $sendbeam_cb;
+	ok( is_callable( $sendbeam_fn ), 'hooks: ' . ( is_string( $sendbeam_fn ) ? $sendbeam_fn : 'a closure' ) . '() exists for ' . $sendbeam_tag );
+}
+
+ok( isset( $subs['sendbeam-setup'] ), 'menu: the wizard is registered' );
+ok( 'options.php' === $subs['sendbeam-setup']['parent'], 'menu: under a parent that is in no menu, so it is routable but hidden' );
+ok( ! isset( $menu['sendbeam-setup'] ), 'menu: and it is not a top-level menu either' );
+ok( '' !== $subs['sendbeam-setup']['page_title'], 'menu: it has a page title, so the browser tab says what it is' );
 ok( count( $subs ) === count( sendbeam_pages() ), 'menu: every page in the table is registered, and nothing else is' );
 
 // Every page in the table renders, and renders something.
@@ -2698,6 +2720,20 @@ lacks( $sendbeam_links[0], 'options-general.php', 'plugins screen: the Settings 
  */
 $GLOBALS['stub']['caps']['manage_options'] = true;
 $_REQUEST                                  = array();
+
+/*
+ * The classes are not declared until a screen that needs one asks for them.
+ * They extend WP_List_Table, which lives in wp-admin/includes and is NOT
+ * loaded when plugins are — so declaring them at plugin-load time is a fatal
+ * error on every page of a real site. Nothing but loading the plugin inside
+ * WordPress shows that, which is why it is asserted here.
+ */
+ok( ! class_exists( 'SendBeam_Forms_Table', false ), 'list tables: nothing extends WP_List_Table at plugin-load time' );
+ok( sendbeam_load_list_table(), 'list tables: a screen that needs them can load them' );
+ok( class_exists( 'SendBeam_Forms_Table', false ), 'list tables: and then the Forms table exists' );
+ok( class_exists( 'SendBeam_Mail_Log_Table', false ), 'list tables: and the email log' );
+ok( class_exists( 'SendBeam_Lists_Table', false ), 'list tables: and the audience lists' );
+ok( sendbeam_load_list_table(), 'list tables: asking twice is harmless' );
 
 /** Render one list table the way sendbeam_list_card() does. */
 function sb_render_table( $table ) {
@@ -2958,6 +2994,70 @@ ok(
 	'design: every .sb-table in the plugin is inside a .sb-scroll'
 );
 ok( 0 === substr_count( $sendbeam_screens_src, "\tsubmit_button(" ), 'design: no screen renders core\'s submit_button()' );
+
+/* ─────────────────── The Overview: connection and checklist ────────────
+ * The connection used to be answered by a ticked line inside step 1, which
+ * on a finished site — most sites, most of the time — said nothing at all.
+ */
+$GLOBALS['stub']['user_id']                = 7;
+$GLOBALS['stub']['caps']['manage_options'] = true;
+delete_user_meta( 7, 'sendbeam_checklist_hidden' );
+
+// Every step done: connected, verified, a form on the site, site email on.
+$sb_done                 = $sb_connected;
+$sb_done['mail_enabled'] = 1;
+$sb_done['default_form'] = $form;
+update_option( 'sendbeam_form_placed', 1, false );
+
+$ov = sb_overview( $sb_done, $sb_verified );
+has( $ov, '<h2>Connection</h2>', 'overview: the connection is a card of its own, above the checklist' );
+has( $ov, 'Connected to Harbour Lane', 'overview: which names the workspace' );
+has( $ov, 'Sends as', 'overview: and the address this site sends from' );
+has( $ov, 'Reconnect', 'overview: with Reconnect' );
+has( $ov, 'Disconnect', 'overview: and Disconnect' );
+has( $ov, 'Open SendBeam', 'overview: and a way through to SendBeam itself' );
+ok( strpos( $ov, '<h2>Connection</h2>' ) < strpos( $ov, '<h2>Setup</h2>' ), 'overview: the connection comes before the checklist' );
+ok( 1 === substr_count( $ov, 'value="sendbeam_disconnect"' ), 'overview: and there is exactly one Disconnect on the screen' );
+
+// A finished checklist can be put away, and brought back.
+has( $ov, 'All done', 'overview: a finished checklist says so' );
+has( $ov, 'Hide this checklist', 'overview: and offers to go' );
+update_user_meta( 7, 'sendbeam_checklist_hidden', 1 );
+$ov = sb_overview( $sb_done, $sb_verified );
+lacks( $ov, 'Verify your sending domain', 'overview: a hidden checklist is gone' );
+has( $ov, 'Set up and sending.', 'overview: replaced by one line saying so' );
+has( $ov, 'Show the checklist again', 'overview: which can be undone' );
+
+// An unfinished checklist is never hidden, whatever anybody has dismissed.
+$ov = sb_overview( $sb_done, $sb_unverified );
+has( $ov, 'Verify your sending domain', 'overview: an unfinished checklist stays, even for someone who hid a finished one' );
+has( $ov, '1 step left', 'overview: and says how many steps are left' );
+lacks( $ov, 'Hide this checklist', 'overview: with nothing offering to hide it' );
+delete_user_meta( 7, 'sendbeam_checklist_hidden' );
+
+// Hiding it is per user, through a nonced handler.
+$sendbeam_hide = sendbeam_checklist_url( true );
+has( $sendbeam_hide, 'action=sendbeam_hide_checklist', 'overview: hiding the checklist goes through admin-post' );
+has( $sendbeam_hide, '_wpnonce=', 'overview: with a nonce' );
+$_GET     = array( 'state' => '1', '_wpnonce' => 'nonce:sendbeam_hide_checklist' );
+$_REQUEST = $_GET;
+try {
+	sendbeam_handle_hide_checklist();
+} catch ( SendBeamStubExit $e ) {
+	unset( $e );
+}
+ok( sendbeam_checklist_hidden(), 'overview: and it is remembered for that person' );
+$_GET     = array( 'state' => '0', '_wpnonce' => 'nonce:sendbeam_hide_checklist' );
+$_REQUEST = $_GET;
+try {
+	sendbeam_handle_hide_checklist();
+} catch ( SendBeamStubExit $e ) {
+	unset( $e );
+}
+ok( ! sendbeam_checklist_hidden(), 'overview: and can be undone' );
+$_GET     = array();
+$_REQUEST = array();
+delete_option( 'sendbeam_form_placed' );
 
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor

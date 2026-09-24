@@ -126,9 +126,17 @@ function sendbeam_admin_menu() {
 
 	foreach ( $pages as $slug => $page ) {
 		if ( ! empty( $page['hidden'] ) ) {
-			// Registered with no parent: routable, capability-checked and
-			// titled, but absent from the menu.
-			$hook = add_submenu_page( '', $page['title'], $page['menu'], 'manage_options', $slug, 'sendbeam_render_admin_page' );
+			/*
+			 * `options.php` as the parent is the documented way to register a
+			 * routable page that appears in no menu, now that passing null is
+			 * deprecated. An empty string works for the routing and then
+			 * breaks the title: `get_admin_page_parent()` returns '',
+			 * `get_admin_page_title()` takes its no-parent branch, finds
+			 * nothing, and WordPress hands a null to strip_tags() — a
+			 * deprecation notice on PHP 8 and a browser tab that reads
+			 * "— WordPress" with nothing in front of it.
+			 */
+			$hook = add_submenu_page( 'options.php', $page['title'], $page['menu'], 'manage_options', $slug, 'sendbeam_render_admin_page' );
 		} else {
 			$hook = add_submenu_page(
 				SENDBEAM_MENU_SLUG,
@@ -139,7 +147,10 @@ function sendbeam_admin_menu() {
 				'sendbeam_render_admin_page'
 			);
 		}
-		if ( $hook && ! empty( $page['list'] ) ) {
+		if ( ! $hook ) {
+			continue;
+		}
+		if ( ! empty( $page['list'] ) ) {
 			add_action( 'load-' . $hook, 'sendbeam_load_list_screen' );
 		}
 	}
