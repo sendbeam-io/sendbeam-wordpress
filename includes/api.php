@@ -24,9 +24,14 @@ const SENDBEAM_CACHE_TTL   = 300; // 5 minutes.
  * GET a path on the SendBeam API with the saved key.
  *
  * @param string $path Path beginning with a slash, e.g. '/api/v1/forms'.
+ * @param array  $args Optional. `timeout` in seconds. Ten is right for a
+ *                     request somebody pressed a button for; a screen that
+ *                     renders one on every load wants far less, because the
+ *                     alternative is wp-admin sitting there for ten seconds
+ *                     over a panel nobody was reading.
  * @return array{ok:bool,status:int,data:array<mixed>,error:string}
  */
-function sendbeam_api_get( $path ) {
+function sendbeam_api_get( $path, $args = array() ) {
 	$key = sendbeam_api_key();
 	if ( '' === $key ) {
 		return array(
@@ -37,10 +42,12 @@ function sendbeam_api_get( $path ) {
 		);
 	}
 
+	$timeout = isset( $args['timeout'] ) ? max( 1, (int) $args['timeout'] ) : 10;
+
 	$response = wp_remote_get(
 		sendbeam_app_url() . $path,
 		array(
-			'timeout' => 10,
+			'timeout' => $timeout,
 			'headers' => array(
 				'x-api-key' => $key,
 				'Accept'    => 'application/json',
@@ -197,7 +204,7 @@ function sendbeam_flush_cache() {
 	delete_transient( SENDBEAM_CACHE_CONN );
 	// The Connect status belongs to one key: the workspace, the sending
 	// domain and the sender all change with it.
-	delete_transient( 'sendbeam_connect_status' );
+	sendbeam_connect_forget_status();
 	delete_transient( SENDBEAM_CACHE_FORMS );
 	delete_transient( SENDBEAM_CACHE_LISTS );
 	delete_transient( SENDBEAM_CACHE_SUBS );

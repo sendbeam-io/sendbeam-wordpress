@@ -945,7 +945,7 @@ function sb_v2_body( $over = array() ) {
 function sb_v2_exchange( $body, $settings = array() ) {
 	global $sendbeam_good_state, $sendbeam_good_grant;
 	sb_connect_reset();
-	delete_transient( 'sendbeam_connect_status' );
+	sendbeam_connect_forget_status();
 	update_option( 'sendbeam_settings', $settings );
 	sb_connect_pending( $sendbeam_good_state );
 	$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => $body );
@@ -965,7 +965,7 @@ ok( 'forms,contacts:write,transactional:send,domain' === $v2['sendbeam_connect_g
 ok( sendbeam_connect_granted( 'domain' ), 'connect v2: the screen can ask whether a permission was granted' );
 ok( ! sendbeam_connect_granted( 'ecommerce' ), 'connect v2: a permission that was not granted reads false' );
 
-$v2_status = get_transient( 'sendbeam_connect_status' );
+$v2_status = get_transient( sendbeam_connect_status_key() );
 ok( is_array( $v2_status ), 'connect v2: the status is cached for the Overview instead of being fetched again' );
 ok( 'harbourlane.co.uk' === $v2_status['domain']['name'], 'connect v2: the sending domain is cached' );
 ok( 2 === count( $v2_status['domain']['records'] ), 'connect v2: the DNS records are cached' );
@@ -976,9 +976,9 @@ ok( 'Newsletter signup' === $v2_status['default_form']['name'], 'connect v2: the
 // A domain-connect link pointing anywhere but SendBeam is a phishing link
 // wearing the plugin's chrome. It never becomes a button.
 sb_v2_exchange( sb_v2_body( array( 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => false, 'records' => array(), 'domain_connect_url' => 'https://evil.example.com/dns' ) ) ) );
-ok( '' === get_transient( 'sendbeam_connect_status' )['domain']['domain_connect_url'], 'connect v2: a domain-connect link on another host is dropped' );
+ok( '' === get_transient( sendbeam_connect_status_key() )['domain']['domain_connect_url'], 'connect v2: a domain-connect link on another host is dropped' );
 sb_v2_exchange( sb_v2_body( array( 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => false, 'records' => array(), 'domain_connect_url' => 'http://sendbeam.io/dns' ) ) ) );
-ok( '' === get_transient( 'sendbeam_connect_status' )['domain']['domain_connect_url'], 'connect v2: an http domain-connect link is dropped' );
+ok( '' === get_transient( sendbeam_connect_status_key() )['domain']['domain_connect_url'], 'connect v2: an http domain-connect link is dropped' );
 
 // A form ID that is not a form ID never becomes this site's default.
 sb_v2_exchange( sb_v2_body( array( 'default_form' => array( 'id' => 'nonsense', 'name' => 'X' ) ) ) );
@@ -1007,7 +1007,7 @@ ok( 'orders@harbourlane.co.uk' === $v2['mail_from_email'] && 'Orders' === $v2['m
 
 // ── /api/v1/connect/status ─────────────────────────────────────────────
 sb_connect_reset();
-delete_transient( 'sendbeam_connect_status' );
+sendbeam_connect_forget_status();
 update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_statusstatusstatus' ) );
 $GLOBALS['stub']['remote_reply'] = array(
 	'response' => array( 'code' => 200 ),
@@ -1046,7 +1046,7 @@ ok( array() === sendbeam_connect_normalise_status( 'not json' )['domain']['recor
 
 // A rejected key is reported, cached, and never crashes a template.
 sb_connect_reset();
-delete_transient( 'sendbeam_connect_status' );
+sendbeam_connect_forget_status();
 update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_revokedrevokedrevoked' ) );
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 401 ), 'body' => '{"error":"unauthorised"}' );
 $st = sendbeam_connect_status();
@@ -1058,7 +1058,7 @@ ok( 1 === count( $GLOBALS['stub']['remote'] ), 'status: a failure is cached too,
 // A 200 carrying nothing usable is a failure, not an answer: caching it as
 // one would blank the DNS records somebody is halfway through copying.
 sb_connect_reset();
-delete_transient( 'sendbeam_connect_status' );
+sendbeam_connect_forget_status();
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '<html>proxy error</html>' );
 $st = sendbeam_connect_status();
 ok( ! $st['ok'] && '' !== $st['error'], 'status: a 200 that is not JSON is treated as a failure, not as an empty workspace' );
@@ -1219,6 +1219,53 @@ ok( 0 === get_transient( 'sendbeam_connect_7' )['popup'], 'reconnect: a link is 
 sb_connect_reset();
 update_option( 'sendbeam_settings', array() );
 
+// ── A slow SendBeam must not be a slow wp-admin ────────────────────────
+sb_connect_reset();
+sendbeam_connect_forget_status();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_statusstatusstatus' ) );
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( false ) );
+$sb_first = sendbeam_connect_status();
+ok( 4 === $GLOBALS['stub']['remote'][0]['args']['timeout'], 'status: a screen render waits four seconds, not the shared ten' );
+
+// The answer goes stale after a minute, but it is kept far longer than that:
+// when SendBeam cannot be reached, a minute-old copy of the DNS records is
+// enormously better than an empty panel to somebody halfway through copying
+// them into a registrar.
+$sb_kept               = get_transient( sendbeam_connect_status_key() );
+$sb_kept['fetched_at'] = time() - 300;
+set_transient( sendbeam_connect_status_key(), $sb_kept, 60 );
+$GLOBALS['stub']['remote_reply'] = new WP_Error( 'http_request_failed', 'cURL error 28' );
+$sb_stale = sendbeam_connect_status();
+ok( 'harbourlane.co.uk' === $sb_stale['domain']['name'], 'status: a failed request serves the last answer rather than blanking the panel' );
+ok( ! empty( $sb_stale['stale'] ), 'status: and says it is doing so' );
+ok( 'unavailable' === $sb_stale['domain_state'], 'status: the state says SendBeam could not be reached' );
+ok( '' !== $sb_stale['error'], 'status: the failure is still reported' );
+
+// Nothing cached and nothing reachable: empties, and the state that says why.
+sendbeam_connect_forget_status();
+$sb_cold = sendbeam_connect_status();
+ok( '' === $sb_cold['domain']['name'] && empty( $sb_cold['stale'] ), 'status: with nothing cached there is nothing to fall back on' );
+ok( 'unavailable' === $sb_cold['domain_state'], 'status: and the state still says why' );
+
+// One transient per key, so two administrators on different workspaces cannot
+// read each other's sending domain — and the key itself is not the name.
+$sb_key_a = sendbeam_connect_status_key( 'sb_live_aaaaaaaaaaaaaaaaaaaa' );
+$sb_key_b = sendbeam_connect_status_key( 'sb_live_bbbbbbbbbbbbbbbbbbbb' );
+ok( $sb_key_a !== $sb_key_b, 'status: two keys do not share one cached answer' );
+ok( 0 === strpos( $sb_key_a, 'sendbeam_connect_status_' ), 'status: the transient is still swept by prefix on uninstall' );
+lacks( $sb_key_a, 'sb_live_', 'status: the key is hashed, not used — a transient name ends up in backups and logs' );
+
+// Pasting a different key takes the old key's answer with it.
+sb_connect_reset();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_aaaaaaaaaaaaaaaaaaaa' ) );
+set_transient( $sb_key_a, sendbeam_connect_empty_status(), 60 );
+update_option( 'sendbeam_settings', sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => 'sb_live_bbbbbbbbbbbbbbbbbbbb' ) ) );
+ok( false === get_transient( $sb_key_a ), 'status: changing the key deletes what the old one had cached' );
+
+sb_connect_reset();
+sendbeam_connect_forget_status();
+update_option( 'sendbeam_settings', array() );
+
 // ── Check now ──────────────────────────────────────────────────────────
 /** Drive an admin-post handler that ends in a redirect. */
 function sb_run_admin_post( $fn ) {
@@ -1233,7 +1280,7 @@ function sb_run_admin_post( $fn ) {
 /** A connected site with site email approved but held back. */
 function sb_deferred_site() {
 	sb_connect_reset();
-	delete_transient( 'sendbeam_connect_status' );
+	sendbeam_connect_forget_status();
 	update_option(
 		'sendbeam_settings',
 		array(
@@ -1282,7 +1329,7 @@ update_option( 'sendbeam_settings', $off );
 ok( empty( $off['sendbeam_mail_deferred'] ), 'check: turning site email off by hand cancels the held-back switch-on' );
 $_POST                           = array( '_wpnonce' => 'nonce:sendbeam_domain_check' );
 $_REQUEST                        = $_POST;
-delete_transient( 'sendbeam_connect_status' );
+sendbeam_connect_forget_status();
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
 $url = sb_run_admin_post( 'sendbeam_handle_domain_check' );
 has( $url, 'sendbeam_domain=verified', 'check: a verified domain is still reported' );
@@ -1350,7 +1397,7 @@ function sb_connected_site() {
 			'sendbeam_mail_deferred'     => 1,
 		)
 	);
-	set_transient( 'sendbeam_connect_status', sendbeam_connect_empty_status(), 60 );
+	sendbeam_connect_cache_status( sendbeam_connect_empty_status() );
 	$_POST    = array( '_wpnonce' => 'nonce:sendbeam_disconnect' );
 	$_REQUEST = $_POST;
 }
@@ -1367,7 +1414,7 @@ $v2 = sendbeam_settings();
 ok( '' === $v2['api_key'], 'disconnect: the key is forgotten' );
 ok( '' === $v2['sendbeam_connected_via'] && '' === $v2['sendbeam_connect_workspace'], 'disconnect: the Connect marker and workspace name go with it' );
 ok( '' === $v2['sendbeam_connect_granted'] && empty( $v2['sendbeam_mail_deferred'] ), 'disconnect: the permissions and the held-back switch-on are forgotten' );
-ok( false === get_transient( 'sendbeam_connect_status' ), 'disconnect: the cached status is dropped' );
+ok( false === get_transient( sendbeam_connect_status_key() ), 'disconnect: the cached status is dropped' );
 has( $url, 'sendbeam_disconnected=ok', 'disconnect: the notice says the key was revoked' );
 
 // SendBeam unreachable: the site still forgets the key, and says so.
@@ -1722,7 +1769,7 @@ function sb_overview( $settings, $status, $get = array() ) {
 	set_transient( 'sendbeam_remote_forms', array() );
 	set_transient( 'sendbeam_remote_lists', array() );
 	set_transient( 'sendbeam_subscriber_count', 0 );
-	set_transient( 'sendbeam_connect_status', sendbeam_connect_normalise_status( $status ), 60 );
+	sendbeam_connect_cache_status( sendbeam_connect_normalise_status( $status ) );
 	ob_start();
 	sendbeam_screen_overview();
 	return ob_get_clean();
@@ -1841,7 +1888,7 @@ lacks( $ov, 'value="sendbeam_disconnect"', 'overview: nothing offers to disconne
 has( $ov, 'Connect the site first', 'overview: the domain step says to connect first' );
 
 sb_connect_reset();
-delete_transient( 'sendbeam_connect_status' );
+sendbeam_connect_forget_status();
 delete_transient( 'sendbeam_connection' );
 delete_transient( 'sendbeam_remote_forms' );
 delete_transient( 'sendbeam_remote_lists' );

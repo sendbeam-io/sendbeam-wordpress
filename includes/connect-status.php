@@ -61,6 +61,26 @@ add_action( SENDBEAM_RECHECK_HOOK, 'sendbeam_connect_run_recheck' );
 const SENDBEAM_STATUS_TTL = 60;
 
 /**
+ * How long the answer is kept after it stops being fresh.
+ *
+ * A minute is how long it is *trusted*; half a day is how long it is worth
+ * *having*. When sendbeam.io cannot be reached, a minute-old copy of the DNS
+ * records is enormously better than an empty panel — the owner is in the
+ * middle of copying them into a registrar.
+ */
+const SENDBEAM_STATUS_KEEP = 12 * HOUR_IN_SECONDS;
+
+/**
+ * The seconds a screen render will wait for the status.
+ *
+ * The shared ten is right for a button somebody pressed. It is wrong for a
+ * panel drawn on every Overview load: a slow API would hold wp-admin open for
+ * ten seconds over something the owner may not even be looking at. Four is
+ * long enough for a healthy request and short enough not to be noticed.
+ */
+const SENDBEAM_STATUS_TIMEOUT = 4;
+
+/**
  * An empty status: every key present, nothing claimed.
  *
  * Callers index into this without checking, which is the point. A status that
@@ -83,6 +103,9 @@ function sendbeam_connect_empty_status() {
 		// nobody.
 		'domain_state' => '',
 		'domain_note'  => '',
+		// Served from the cache because the request failed, and how old it is.
+		'stale'        => false,
+		'fetched_at'   => 0,
 		'workspace'    => array(
 			'id'   => '',
 			'name' => '',
@@ -311,16 +334,47 @@ function sendbeam_connect_when( $iso ) {
 }
 
 /**
- * Remember a status for a minute.
+ * Where this key's status lives.
+ *
+ * Per key, not per site. Two administrators signed in to different SendBeam
+ * workspaces — one testing, one live — shared a single transient, so for up
+ * to a minute each of them was shown the other's sending domain and told to
+ * put its records into their own DNS. The key is hashed rather than used:
+ * a transient name ends up in the options table, in backups and in logs, and
+ * an API key does not belong in any of them.
+ *
+ * @param string|null $api_key A particular key. Defaults to this site's.
+ * @return string
+ */
+function sendbeam_connect_status_key( $api_key = null ) {
+	$key = null === $api_key ? sendbeam_api_key() : (string) $api_key;
+	return SENDBEAM_CACHE_STATUS . '_' . substr( sha1( $key ), 0, 12 );
+}
+
+/**
+ * Remember a status, and when it was fetched.
+ *
+ * The timestamp is what separates "fresh" from "worth having anyway": the
+ * transient outlives the minute it is trusted for, so a failed request has
+ * something to fall back on.
  *
  * @param array $status Normalised status.
  */
 function sendbeam_connect_cache_status( $status ) {
-	set_transient( SENDBEAM_CACHE_STATUS, $status, SENDBEAM_STATUS_TTL );
+	$status['fetched_at'] = time();
+	set_transient( sendbeam_connect_status_key(), $status, SENDBEAM_STATUS_KEEP );
 }
 
-/** Forget it — after a disconnect, or when the key changes. */
-function sendbeam_connect_forget_status() {
+/**
+ * Forget it — after a disconnect, or when the key changes.
+ *
+ * @param string|null $api_key The key whose answer to forget. Defaults to
+ *                             this site's, which is what every caller but the
+ *                             key-change path wants.
+ */
+function sendbeam_connect_forget_status( $api_key = null ) {
+	delete_transient( sendbeam_connect_status_key( $api_key ) );
+	// Everything cached under the single shared name this replaced.
 	delete_transient( SENDBEAM_CACHE_STATUS );
 }
 
@@ -338,28 +392,40 @@ function sendbeam_connect_status( $check = false ) {
 		return sendbeam_connect_empty_status();
 	}
 
-	if ( ! $check ) {
-		$cached = get_transient( SENDBEAM_CACHE_STATUS );
-		if ( is_array( $cached ) && isset( $cached['domain'] ) ) {
-			return $cached;
-		}
+	$cached = get_transient( sendbeam_connect_status_key() );
+	$cached = is_array( $cached ) && isset( $cached['domain'] ) ? $cached : null;
+
+	if ( ! $check && null !== $cached && ( time() - (int) ( isset( $cached['fetched_at'] ) ? $cached['fetched_at'] : 0 ) ) < SENDBEAM_STATUS_TTL ) {
+		return $cached;
 	}
 
 	$result = $check
 		? sendbeam_api_post( '/api/v1/connect/status', array( 'check_domain' => true ) )
-		: sendbeam_api_get( '/api/v1/connect/status' );
+		: sendbeam_api_get( '/api/v1/connect/status', array( 'timeout' => SENDBEAM_STATUS_TIMEOUT ) );
 
 	if ( ! $result['ok'] ) {
-		$status = sendbeam_connect_empty_status();
 		if ( 429 === $result['status'] ) {
-			$status['error'] = __( 'SendBeam is rate-limiting this site. Wait a few minutes and try again.', 'sendbeam' );
+			$error = __( 'SendBeam is rate-limiting this site. Wait a few minutes and try again.', 'sendbeam' );
 		} elseif ( 401 === $result['status'] || 403 === $result['status'] ) {
-			$status['error'] = __( 'SendBeam would not answer with this site\'s key. Reconnect the site.', 'sendbeam' );
+			$error = __( 'SendBeam would not answer with this site\'s key. Reconnect the site.', 'sendbeam' );
 		} else {
-			$status['error'] = __( 'Could not read this site\'s set-up from SendBeam just now.', 'sendbeam' );
+			$error = __( 'Could not read this site\'s set-up from SendBeam just now.', 'sendbeam' );
 		}
-		// Cached like any other answer: a site whose key has been revoked must
-		// not make a failing request on every single wp-admin page load.
+
+		/*
+		 * An answer that has gone stale still beats no answer. Someone is in
+		 * the middle of copying DNS records into a registrar, and blanking
+		 * the panel because one request timed out takes them away from what
+		 * they were doing for no gain. It is served with the state saying
+		 * plainly that it is old.
+		 *
+		 * Either way it is cached, which is what stops a revoked key making a
+		 * failing request on every wp-admin page load.
+		 */
+		$status                 = ( null !== $cached && ! empty( $cached['ok'] ) ) ? $cached : sendbeam_connect_empty_status();
+		$status['error']        = $error;
+		$status['stale']        = ( null !== $cached && ! empty( $cached['ok'] ) );
+		$status['domain_state'] = 'unavailable';
 		sendbeam_connect_cache_status( $status );
 		return $status;
 	}
@@ -372,8 +438,10 @@ function sendbeam_connect_status( $check = false ) {
 	 * copying.
 	 */
 	if ( empty( $result['data'] ) ) {
-		$status          = sendbeam_connect_empty_status();
-		$status['error'] = __( 'SendBeam answered with nothing this site could read.', 'sendbeam' );
+		$status                 = ( null !== $cached && ! empty( $cached['ok'] ) ) ? $cached : sendbeam_connect_empty_status();
+		$status['error']        = __( 'SendBeam answered with nothing this site could read.', 'sendbeam' );
+		$status['stale']        = ( null !== $cached && ! empty( $cached['ok'] ) );
+		$status['domain_state'] = 'unavailable';
 		sendbeam_connect_cache_status( $status );
 		return $status;
 	}

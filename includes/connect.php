@@ -696,10 +696,14 @@ function sendbeam_connect_disconnect() {
 	$settings['sendbeam_connect_granted']   = '';
 	$settings['sendbeam_connect_filled']    = array();
 	$settings['sendbeam_mail_deferred']     = 0;
+
+	// Before the key is forgotten, not after: the cached answer is filed
+	// under that key, and a site that has just let go of it can no longer
+	// name the transient it wrote.
+	sendbeam_connect_forget_status();
 	update_option( 'sendbeam_settings', $settings );
 
 	sendbeam_flush_cache();
-	sendbeam_connect_forget_status();
 	sendbeam_connect_unschedule_recheck();
 	delete_transient( 'sendbeam_form_placed' );
 

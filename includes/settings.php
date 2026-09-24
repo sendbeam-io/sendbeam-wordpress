@@ -257,6 +257,9 @@ function sendbeam_sanitize_settings( $input ) {
 	// That includes the Connect marker: a key pasted or removed by hand did not
 	// come from the Connect button, and the screen must stop claiming it did.
 	if ( $out['api_key'] !== (string) $saved['api_key'] ) {
+		// Named explicitly, because the cache belongs to the key that wrote
+		// it and that key is on its way out.
+		sendbeam_connect_forget_status( (string) $saved['api_key'] );
 		sendbeam_flush_cache();
 		$out['sendbeam_connected_via']     = '';
 		$out['sendbeam_connect_workspace'] = '';
