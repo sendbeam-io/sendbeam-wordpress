@@ -831,7 +831,8 @@ has( $m['html'], 'on your behalf', 'test email: saying plainly what is happening
 $m = sb_testmail( 'hello@somewhere-else.test' );
 ok( 'other' === $m['kind'], 'test email: an address elsewhere is neither' );
 has( $m['html'], 'somewhere-else.test is not a domain verified in this workspace', 'test email: the From row says so' );
-has( $m['html'], 'SendBeam refuses messages from it', 'test email: and the next step says what happens to those messages' );
+has( $m['html'], 'SendBeam sent this under its own address', 'test email: and the next step says what actually happened to it' );
+lacks( $m['html'], 'refuses messages from it', 'test email: not that SendBeam refused a message the reader is holding' );
 
 /* ── none: nothing to report ── */
 $m = sb_testmail( '' );
@@ -4251,6 +4252,67 @@ ok( '9da94d34-86f8-4fbc-9333-45c0b4c16d6a' === $sb_after['default_form'], 'forms
 // And the guarantee that made the grouping exist in the first place still holds.
 $sb_after = sendbeam_sanitize_settings( array( '_tab' => 'forms_style', 'style_accent' => '#a8452a' ) );
 ok( $sb_before['api_key'] === $sb_after['api_key'], 'forms: saving Appearance does not touch the API key' );
+sb_seed_settings( array() );
+
+// ── #3 The test email must describe the message it is ──────────────────
+// The card said "SendBeam refuses messages from it" in a message SendBeam had
+// just delivered, gave the From address the site asked for rather than the one
+// in the headers, and named the site's own domain as the signer when the DKIM
+// signature was SendBeam's. Everything in it came from what the site wanted
+// and nothing from what happened.
+sb_seed_settings( array( 'api_key' => 'sb_live_substitutedxxxxxxx', 'mail_enabled' => 1, 'mail_from_email' => 'hello@not-verified.test' ) );
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'sender'    => array( 'from_name' => 'Harbour Lane', 'from_email' => 'ws-db645350@mail.sendbeam.io' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ),
+		)
+	)
+);
+$sb_s = sendbeam_effective_sender();
+ok( 'other' === $sb_s['kind'], 'sender: an address on an unverified domain is still classified as other' );
+ok( true === $sb_s['substituted'], 'sender: and the plugin knows SendBeam will not use it' );
+ok( 'ws-db645350@mail.sendbeam.io' === $sb_s['used'], 'sender: the workspace sender is the address that actually goes out' );
+ok( 'mail.sendbeam.io' === $sb_s['signed'], 'sender: and its host is what signs the message, not the one asked for' );
+ok( 'not-verified.test' !== $sb_s['signed'], 'sender: never the domain that took no part in the transaction' );
+
+$sb_rows = sendbeam_mail_facts();
+ok( 'mail.sendbeam.io' === $sb_rows['Signed by'], 'test email: the Signed by row is the real signer' );
+has( $sb_rows['From address'], 'SendBeam sent this as ws-db645350@mail.sendbeam.io', 'test email: the From row names the substitution' );
+
+$sb_next = sendbeam_test_mail_next_step( $sb_s );
+has( $sb_next['text'], 'sent this under its own address', 'test email: the next step describes the substitution' );
+lacks( $sb_next['text'], 'refuses', 'test email: and does not claim a refusal' );
+
+// The address the site asked for IS used once its domain is verified, and
+// then its own domain is the signer.
+sb_seed_settings( array( 'api_key' => 'sb_live_substitutedxxxxxxx', 'mail_enabled' => 1, 'mail_from_email' => 'hello@harbourlane.co.uk' ) );
+$sb_s = sendbeam_effective_sender();
+ok( false === $sb_s['substituted'], 'sender: a verified domain is not substituted' );
+ok( 'hello@harbourlane.co.uk' === $sb_s['used'] && 'harbourlane.co.uk' === $sb_s['signed'], 'sender: and it signs its own mail' );
+
+// A verified domain the site is not using yet: the shared address goes out
+// as asked, so the shared host is the signer and nothing is substituted.
+sb_seed_settings( array( 'api_key' => 'sb_live_substitutedxxxxxxx', 'mail_enabled' => 1, 'mail_from_email' => 'ws-db645350@mail.sendbeam.io' ) );
+$sb_s = sendbeam_effective_sender();
+ok( 'shared' === $sb_s['kind'] && false === $sb_s['substituted'], 'sender: the shared address is used as asked' );
+ok( 'mail.sendbeam.io' === $sb_s['signed'], 'sender: and signs as the shared host' );
+
+// The domain is NOT verified, so even an address on it is substituted.
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'sender'    => array( 'from_name' => 'Harbour Lane', 'from_email' => 'ws-db645350@mail.sendbeam.io' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => false, 'records' => array() ),
+		)
+	)
+);
+sb_seed_settings( array( 'api_key' => 'sb_live_substitutedxxxxxxx', 'mail_enabled' => 1, 'mail_from_email' => 'hello@harbourlane.co.uk' ) );
+$sb_s = sendbeam_effective_sender();
+ok( 'own_domain' === $sb_s['kind'], 'sender: an address on the site\'s own unverified domain is still its own' );
+ok( true === $sb_s['substituted'] && 'mail.sendbeam.io' === $sb_s['signed'], 'sender: but nothing signs for a domain DNS has not proved' );
 sb_seed_settings( array() );
 
 // One version number, five files. 1.6.2 shipped with the block's asset

@@ -384,8 +384,11 @@ function sendbeam_mail_facts( $status = null ) {
 		$rows[ __( 'From name', 'sendbeam' ) ]    = '' !== $from_name ? $from_name : __( 'the workspace sender', 'sendbeam' );
 		$rows[ __( 'From address', 'sendbeam' ) ] = sendbeam_from_address_row( $sender );
 		// So a reader can compare this with the sending-domain row at a
-		// glance: this is the domain that actually authenticated the message.
-		$rows[ __( 'Signed by', 'sendbeam' ) ] = $sender['host'];
+		// glance: this is the domain that actually authenticated the message,
+		// which is not the one the site asked for when SendBeam substituted
+		// its own sender. Telling somebody their domain signed a message it
+		// took no part in is the one thing a test email must never do.
+		$rows[ __( 'Signed by', 'sendbeam' ) ] = '' !== $sender['signed'] ? $sender['signed'] : __( 'not reported', 'sendbeam' );
 	}
 
 	$rows[ __( 'Sending domain', 'sendbeam' ) ] = sendbeam_sending_domain_row( $sender, $domain );
@@ -411,6 +414,15 @@ function sendbeam_from_address_row( $sender ) {
 		return sprintf( __( '%s — SendBeam\'s shared address, not your domain', 'sendbeam' ), $sender['email'] );
 	}
 	if ( 'other' === $sender['kind'] ) {
+		if ( ! empty( $sender['substituted'] ) ) {
+			return sprintf(
+				/* translators: 1: the From address this site asked for, 2: its domain, 3: the address SendBeam used instead */
+				__( '%1$s was asked for, but %2$s is not a domain verified in this workspace, so SendBeam sent this as %3$s', 'sendbeam' ),
+				$sender['email'],
+				$sender['host'],
+				$sender['used']
+			);
+		}
 		return sprintf(
 			/* translators: 1: the From address, 2: its domain */
 			__( '%1$s — %2$s is not a domain verified in this workspace', 'sendbeam' ),
@@ -481,12 +493,20 @@ function sendbeam_test_mail_next_step( $sender, $status = null ) {
 	}
 
 	if ( 'other' === $sender['kind'] ) {
+		/*
+		 * Not "SendBeam refuses messages from it". It does not: it accepts
+		 * them and sends them under the workspace's own address, which is
+		 * what the headers of this very message show. Saying otherwise in a
+		 * message that has just arrived is the plugin contradicting the
+		 * thing the reader is holding.
+		 */
 		return array(
 			'title' => __( 'Next step', 'sendbeam' ),
 			'text'  => sprintf(
-				/* translators: %s: the From address's domain */
-				__( '%s is not a domain this workspace has verified, so SendBeam refuses messages from it. Change the From address to one on your verified sending domain, or verify that domain.', 'sendbeam' ),
-				$sender['host']
+				/* translators: 1: the From address's domain, 2: the address SendBeam used instead */
+				__( '%1$s is not a domain this workspace has verified, so SendBeam sent this under its own address, %2$s, rather than yours. Change the From address to one on your verified sending domain, or verify that domain.', 'sendbeam' ),
+				$sender['host'],
+				'' !== $sender['used'] ? $sender['used'] : __( 'the workspace sender', 'sendbeam' )
 			),
 			'label' => __( 'Open Site email', 'sendbeam' ),
 			'url'   => sendbeam_page_url( 'sendbeam-mail' ),
@@ -902,11 +922,14 @@ function sendbeam_take_test_result() {
  *
  *   own_domain — on the verified sending domain, which is the point of all this
  *   shared     — on SendBeam's own host, which works but is not your domain
- *   other      — somewhere else, which SendBeam refuses
+ *   other      — somewhere else, which SendBeam sends under its own address
  *   none       — nothing to say yet
  *
+ * `kind` is what the site asked for. `used`, `signed` and `substituted`
+ * are what happens to the message — see the note beside them.
+ *
  * @param array|null $status Normalised Connect status, fetched if omitted.
- * @return array{email:string,host:string,kind:string,domain:string,verified:bool}
+ * @return array{email:string,host:string,kind:string,domain:string,verified:bool,used:string,signed:string,substituted:bool}
  */
 function sendbeam_effective_sender( $status = null ) {
 	$settings = sendbeam_settings();
@@ -945,12 +968,35 @@ function sendbeam_effective_sender( $status = null ) {
 		}
 	}
 
+	/*
+	 * What the site asked for is not always what leaves the building.
+	 * SendBeam does not refuse a message whose From sits on a domain the
+	 * workspace has not verified — it accepts it and substitutes the
+	 * workspace's own sender, which is what the received headers of a test
+	 * email show: From ws-…@mail.sendbeam.io, DKIM d=mail.sendbeam.io. So
+	 * the address a reader will see, and the domain that will actually sign
+	 * the message, are worked out here too. The requested address is used
+	 * only when it is on the sending domain SendBeam has verified.
+	 */
+	$workspace = trim( (string) $status['sender']['from_email'] );
+	$as_asked  = ( 'own_domain' === $kind && $verified ) || 'shared' === $kind;
+	$used      = ( $as_asked || '' === $workspace ) ? $email : $workspace;
+	$signed    = '';
+	if ( '' !== $used && false !== strpos( $used, '@' ) ) {
+		$signed = strtolower( trim( substr( strrchr( $used, '@' ), 1 ) ) );
+	}
+
 	return array(
-		'email'    => $email,
-		'host'     => $host,
-		'kind'     => $kind,
-		'domain'   => $domain,
-		'verified' => $verified,
+		'email'       => $email,
+		'host'        => $host,
+		'kind'        => $kind,
+		'domain'      => $domain,
+		'verified'    => $verified,
+		// The address the message actually goes out as, the domain that
+		// signs it, and whether those differ from what was asked for.
+		'used'        => $used,
+		'signed'      => $signed,
+		'substituted' => ( '' !== $used && $used !== $email ),
 	);
 }
 
