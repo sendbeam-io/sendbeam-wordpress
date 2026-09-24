@@ -1409,6 +1409,7 @@ function sendbeam_popup_row( $i, $rule ) {
 						<option value="<?php echo esc_attr( $k ); ?>" <?php selected( $rule['where'], $k ); ?>><?php echo esc_html( $v ); ?></option>
 					<?php endforeach; ?>
 				</select>
+				<span class="sb-note"><?php esc_html_e( 'Never on the cart, checkout or account pages.', 'sendbeam' ); ?></span>
 			</label>
 
 			<label class="sb-when-url" <?php echo 'url' === $rule['where'] ? '' : 'hidden'; ?>>

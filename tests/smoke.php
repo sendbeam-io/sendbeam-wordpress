@@ -4972,3 +4972,66 @@ preg_match( '/^= (\\S+) =$/m', $sendbeam_log, $m3 );
 ok( ( $m3[1] ?? '' ) === $declared, "readme.txt changelog opens with $declared" );
 
 echo "smoke: $pass checks passed\n";
+
+
+// ---------------------------------------------------------------- WooCommerce claims (2026-09-24)
+// The block checkout, order placed only when paid, and no pop-up over the checkout.
+sb_seed_settings( array( 'api_key' => 'sb_live_wooclaims0123456789abcdef' ) );
+update_option( SENDBEAM_ECOMMERCE_OPTION, array( 'order_placed' => 1, 'product_viewed' => 0, 'cart_abandoned' => 0, 'cart_abandoned_window' => 60 ) );
+$sb_reg = array();
+foreach ( $stub['callbacks'] as $pair ) { if ( is_string( $pair[1] ) ) { $sb_reg[] = $pair[0] . '=>' . $pair[1]; } }
+ok( in_array( 'woocommerce_payment_complete=>sendbeam_ecommerce_on_order_paid', $sb_reg, true ), 'order placed: listens to payment complete' );
+ok( in_array( 'woocommerce_order_status_processing=>sendbeam_ecommerce_on_order_paid', $sb_reg, true ), 'order placed: and to an order reaching processing (cash on delivery)' );
+ok( in_array( 'woocommerce_order_status_completed=>sendbeam_ecommerce_on_order_paid', $sb_reg, true ), 'order placed: and to completed' );
+ok( ! in_array( 'woocommerce_checkout_order_processed=>sendbeam_ecommerce_on_order_placed', $sb_reg, true ), 'order placed: no longer fires at checkout, before payment' );
+ok( in_array( 'woocommerce_store_api_checkout_order_processed=>sendbeam_sync_on_block_checkout', $sb_reg, true ), 'block checkout: the opt-in is read from the Store API order' );
+ok( in_array( 'woocommerce_init=>sendbeam_sync_register_block_checkout_field', $sb_reg, true ), 'block checkout: the box is registered once WooCommerce is up' );
+
+$stub['cron'] = array(); $stub['wc_order_meta'] = array(); $stub['wc_saves'] = array();
+$stub['wc_orders'][601] = array( 'email' => 'paid@example.test', 'first_name' => 'Ada', 'last_name' => 'Lovelace', 'total' => 40, 'currency' => 'GBP' );
+sendbeam_ecommerce_on_order_paid( 601 );
+ok( 1 === count( $stub['cron'] ) && 'order_placed' === $stub['cron'][0]['args'][0]['type'], 'order placed: the first paid hook queues one event' );
+ok( ! empty( $stub['wc_order_meta'][601][ SENDBEAM_ORDER_PLACED_META ] ), 'order placed: and records on the order that it went' );
+sendbeam_ecommerce_on_order_paid( 601 );
+sendbeam_ecommerce_on_order_paid( wc_get_order( 601 ) );
+ok( 1 === count( $stub['cron'] ), 'order placed: processing then completed is still ONE event for the order' );
+$stub['cron'] = array();
+sendbeam_ecommerce_on_order_paid( 999 );
+ok( empty( $stub['cron'] ), 'order placed: an order that does not exist sends nothing' );
+
+// The block checkout field: registered only while the source can subscribe anybody.
+$stub['wc_checkout_fields'] = array();
+update_option( 'sendbeam_sync', array( 'woocommerce' => 0, 'registration' => 0, 'comments' => 0, 'lists' => array( 'list-1' ), 'label' => 'Keep me posted' ) );
+sendbeam_sync_register_block_checkout_field();
+ok( empty( $stub['wc_checkout_fields'] ), 'block checkout: no field is registered while the checkout source is off' );
+update_option( 'sendbeam_sync', array( 'woocommerce' => 1, 'registration' => 0, 'comments' => 0, 'lists' => array( 'list-1' ), 'label' => 'Keep me posted' ) );
+sendbeam_sync_register_block_checkout_field();
+ok( 1 === count( $stub['wc_checkout_fields'] ), 'block checkout: one field once it is on' );
+$sb_field = $stub['wc_checkout_fields'][0];
+ok( 'sendbeam/subscribe' === $sb_field['id'] && 'order' === $sb_field['location'] && 'checkbox' === $sb_field['type'] && empty( $sb_field['required'] ), 'block checkout: a checkbox in the order area, not required' );
+ok( 'Keep me posted' === $sb_field['label'], 'block checkout: labelled with the same words as the classic box' );
+ok( ! isset( $sb_field['default'] ) || empty( $sb_field['default'] ), 'block checkout: never pre-ticked' );
+
+// Reading the box back from the order the Store API hands over.
+$stub['remote'] = array(); $stub['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{"id":"c1"}' );
+$stub['wc_order_meta'][701] = array( SENDBEAM_BLOCK_OPTIN_META => '1' );
+sendbeam_sync_on_block_checkout( new WC_Order( array( 'id' => 701, 'email' => 'block@example.test', 'first_name' => 'Grace', 'last_name' => 'Hopper' ) ) );
+ok( count( $stub['remote'] ) >= 1 && false !== strpos( $stub['remote'][0]['url'], '/api/v1/contacts' ), 'block checkout: a ticked box subscribes the customer' );
+$sb_body = json_decode( $stub['remote'][0]['args']['body'], true );
+ok( is_array( $sb_body ) && 'block@example.test' === $sb_body['email'] && 'woocommerce-checkout' === $sb_body['source'], 'block checkout: with the address and the woocommerce-checkout source' );
+$stub['remote'] = array();
+sendbeam_sync_on_block_checkout( new WC_Order( array( 'id' => 702, 'email' => 'quiet@example.test' ) ) );
+ok( empty( $stub['remote'] ), 'block checkout: an unticked box subscribes nobody' );
+sendbeam_sync_on_block_checkout( 702 );
+ok( empty( $stub['remote'] ), 'block checkout: and a bare id (not an order) is ignored rather than fatal' );
+
+// No pop-up over the checkout.
+update_option( 'sendbeam_popups', array( array( 'enabled' => 1, 'form' => '9da94d34-86f8-4fbc-9333-45c0b4c16d6a', 'where' => 'everywhere', 'trigger' => 'timer', 'delay' => 0, 'once' => 'never' ) ) );
+$stub['query'] = array();
+ok( null !== sendbeam_active_popup(), 'pop-ups: an everywhere rule opens on an ordinary page' );
+foreach ( array( 'cart', 'checkout', 'account', 'wc_endpoint' ) as $sb_where ) {
+	$stub['query'] = array( $sb_where => 1 );
+	ok( null === sendbeam_active_popup(), "pop-ups: but never on the $sb_where page, whatever the rule says" );
+}
+$stub['query'] = array();
+has( file_get_contents( __DIR__ . '/../includes/screens.php' ), 'Never on the cart, checkout or account pages.', 'pop-ups: the Show on control says so' );

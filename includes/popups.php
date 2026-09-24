@@ -264,7 +264,27 @@ function sendbeam_live_popups() {
  *
  * @return array<string,mixed>|null
  */
+/**
+ * Pages no pop-up may open on, whatever a rule says. A pop-up over the
+ * checkout puts its overlay on top of Place order, which is the one control
+ * a shop cannot afford to have covered; the cart and the account pages are
+ * the same kind of place. "Every page" means every page but these.
+ *
+ * @return bool
+ */
+function sendbeam_popup_excluded_page() {
+	foreach ( array( 'is_cart', 'is_checkout', 'is_account_page', 'is_wc_endpoint_url' ) as $fn ) {
+		if ( function_exists( $fn ) && call_user_func( $fn ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
 function sendbeam_active_popup() {
+	if ( sendbeam_popup_excluded_page() ) {
+		return null;
+	}
 	foreach ( sendbeam_popups() as $rule ) {
 		if ( sendbeam_popup_matches( $rule ) ) {
 			return $rule;

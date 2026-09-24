@@ -42,6 +42,20 @@ add_action( 'comment_post', 'sendbeam_sync_on_comment', 10, 2 );
 // WooCommerce.
 add_action( 'woocommerce_review_order_before_submit', 'sendbeam_sync_checkout_field' );
 add_action( 'woocommerce_checkout_order_processed', 'sendbeam_sync_on_checkout', 10, 1 );
+/*
+ * The two hooks above belong to the classic, shortcode checkout. The checkout
+ * WooCommerce installs by default is the block one, which renders through the
+ * Store API and fires neither of them — so a new store got no box and no
+ * subscription while the readme promised both. The block checkout takes its
+ * extra fields from a registry instead, and hands the order back on its own
+ * hook once it is processed.
+ */
+add_action( 'woocommerce_init', 'sendbeam_sync_register_block_checkout_field' );
+add_action( 'woocommerce_store_api_checkout_order_processed', 'sendbeam_sync_on_block_checkout', 10, 1 );
+
+/** The block checkout's name for the opt-in box, and the order meta it lands in. */
+const SENDBEAM_BLOCK_OPTIN_FIELD = 'sendbeam/subscribe';
+const SENDBEAM_BLOCK_OPTIN_META  = '_wc_other/sendbeam/subscribe';
 
 /**
  * Defaults.
@@ -142,6 +156,47 @@ function sendbeam_sync_checkout_field() {
  *
  * @return bool
  */
+/**
+ * Register the opt-in box with the block checkout, in the "Order information"
+ * area above Place order, only while the source is switched on and usable —
+ * a field that could not subscribe anybody should not be asked.
+ */
+function sendbeam_sync_register_block_checkout_field() {
+	if ( ! function_exists( 'woocommerce_register_additional_checkout_field' ) || ! sendbeam_sync_active( 'woocommerce' ) ) {
+		return;
+	}
+	woocommerce_register_additional_checkout_field(
+		array(
+			'id'       => SENDBEAM_BLOCK_OPTIN_FIELD,
+			'label'    => sendbeam_sync_label(),
+			'location' => 'order',
+			'type'     => 'checkbox',
+			'required' => false,
+		)
+	);
+}
+
+/**
+ * The block checkout processed an order: subscribe the customer if, and only
+ * if, they ticked the box. The value is read from the order itself, where
+ * WooCommerce stores every additional field, never from the request.
+ *
+ * @param WC_Order $order The order, as the Store API hands it over.
+ */
+function sendbeam_sync_on_block_checkout( $order ) {
+	if ( ! sendbeam_sync_active( 'woocommerce' ) || ! is_object( $order ) || ! method_exists( $order, 'get_meta' ) ) {
+		return;
+	}
+	if ( empty( $order->get_meta( SENDBEAM_BLOCK_OPTIN_META ) ) ) {
+		return;
+	}
+	$email = $order->get_billing_email();
+	if ( ! is_email( $email ) ) {
+		return;
+	}
+	sendbeam_subscribe( $email, $order->get_billing_first_name(), $order->get_billing_last_name(), 'woocommerce-checkout' );
+}
+
 function sendbeam_sync_consented() {
 	// A passenger on a form WordPress or WooCommerce has already validated and
 	// nonce-checked. We read one checkbox and never act on it alone: the caller

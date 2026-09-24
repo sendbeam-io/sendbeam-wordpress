@@ -2,6 +2,10 @@
 
 ## 1.8.3
 
+- WooCommerce's block checkout now gets the opt-in box (registered as an additional checkout field) and fires the order event; both were classic-checkout only.
+- Order placed fires when an order is paid (payment complete, processing or completed), once per order, instead of at checkout before payment.
+- Pop-ups are never shown on the cart, checkout or account pages.
+
 ### The admin experience
 
 - **A top-level menu with a page per section.** SendBeam lived at Settings → SendBeam behind seven tabs that appeared nowhere in the admin menu: to reach the pop-up settings you had to know the plugin was under Settings and then know the tab existed. Sixteen of the eighteen established plugins this was measured against take a top-level menu with their own icon; the one that does not compensates with a full-screen activation wizard, and this plugin had neither. There is now `add_menu_page()` at position 58.9 with the three-square mark as a base64 SVG, eight submenu items (Overview, Forms, Pop-ups, Audience, Site email, E-commerce, Settings, Help) and one router behind all of them. `options-general.php?page=sendbeam` and each of its tabs 301 to the page that replaced it, carrying any notice the old URL held, so every bookmark and every link in an old support reply still lands somewhere useful. The Plugins-screen "Settings" link points at the Settings page rather than at a dashboard.

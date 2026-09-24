@@ -26,9 +26,21 @@ class WC_Order {
 	public function get_billing_last_name() { return isset( $this->data['last_name'] ) ? $this->data['last_name'] : ''; }
 	public function get_total() { return isset( $this->data['total'] ) ? $this->data['total'] : 0; }
 	public function get_currency() { return isset( $this->data['currency'] ) ? $this->data['currency'] : 'USD'; }
+	public function get_id() { return isset( $this->data['id'] ) ? $this->data['id'] : 0; }
+	// Order meta lives in the shared stub store, keyed by order id, so a
+	// second WC_Order for the same id sees what the first one saved.
+	public function get_meta( $key ) { $id = $this->get_id(); return isset( $GLOBALS['stub']['wc_order_meta'][ $id ][ $key ] ) ? $GLOBALS['stub']['wc_order_meta'][ $id ][ $key ] : ''; }
+	public function update_meta_data( $key, $value ) { $this->pending[ $key ] = $value; }
+	public function save() { foreach ( $this->pending as $k => $v ) { $GLOBALS['stub']['wc_order_meta'][ $this->get_id() ][ $k ] = $v; } $this->pending = array(); $GLOBALS['stub']['wc_saves'][] = $this->get_id(); }
+	private $pending = array();
 }
+function is_cart() { return ! empty( $GLOBALS['stub']['query']['cart'] ); }
+function is_checkout() { return ! empty( $GLOBALS['stub']['query']['checkout'] ); }
+function is_account_page() { return ! empty( $GLOBALS['stub']['query']['account'] ); }
+function is_wc_endpoint_url() { return ! empty( $GLOBALS['stub']['query']['wc_endpoint'] ); }
+function woocommerce_register_additional_checkout_field( $options ) { $GLOBALS['stub']['wc_checkout_fields'][] = $options; }
 function wc_get_order( $id ) {
-	return isset( $GLOBALS['stub']['wc_orders'][ $id ] ) ? new WC_Order( $GLOBALS['stub']['wc_orders'][ $id ] ) : false;
+	return isset( $GLOBALS['stub']['wc_orders'][ $id ] ) ? new WC_Order( $GLOBALS['stub']['wc_orders'][ $id ] + array( 'id' => $id ) ) : false;
 }
 
 /**
