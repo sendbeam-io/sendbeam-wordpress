@@ -618,3 +618,133 @@ function sendbeam_take_test_result() {
 	delete_transient( $key );
 	return $result;
 }
+
+/**
+ * One answer to "what does this site actually send as?".
+ *
+ * The Overview was capable of telling a site owner two true things that added
+ * up to a lie: step 2 said the sending domain was verified and that email
+ * "will be sent from your own domain", while the From address in the site's
+ * own settings was still SendBeam's shared one. Both sentences were right.
+ * Together they were wrong, and the owner had no way to see which.
+ *
+ * So there is one function that works out the address the next message would
+ * go out as, and classifies it:
+ *
+ *   own_domain — on the verified sending domain, which is the point of all this
+ *   shared     — on SendBeam's own host, which works but is not your domain
+ *   other      — somewhere else, which SendBeam refuses
+ *   none       — nothing to say yet
+ *
+ * @param array|null $status Normalised Connect status, fetched if omitted.
+ * @return array{email:string,host:string,kind:string,domain:string,verified:bool}
+ */
+function sendbeam_effective_sender( $status = null ) {
+	$settings = sendbeam_settings();
+	if ( ! is_array( $status ) ) {
+		$status = sendbeam_is_connected() ? sendbeam_connect_status() : sendbeam_connect_empty_status();
+	}
+
+	// What sendbeam_build_mail_body() would put in From: this site's own
+	// setting, else the workspace sender it falls back to.
+	$email = trim( (string) $settings['mail_from_email'] );
+	if ( '' === $email ) {
+		$email = trim( (string) $status['sender']['from_email'] );
+	}
+
+	$domain   = (string) $status['domain']['name'];
+	$verified = ! empty( $status['domain']['verified'] );
+	$host     = '';
+	if ( '' !== $email && false !== strpos( $email, '@' ) ) {
+		$host = strtolower( trim( substr( strrchr( $email, '@' ), 1 ) ) );
+	}
+
+	$kind = 'none';
+	if ( '' !== $host ) {
+		if ( '' !== $domain && sendbeam_host_is_within( $host, strtolower( $domain ) ) ) {
+			$kind = 'own_domain';
+		} elseif ( sendbeam_is_shared_sender_host( $host ) ) {
+			$kind = 'shared';
+		} else {
+			$kind = 'other';
+		}
+	}
+
+	return array(
+		'email'    => $email,
+		'host'     => $host,
+		'kind'     => $kind,
+		'domain'   => $domain,
+		'verified' => $verified,
+	);
+}
+
+/**
+ * Is one host that host, or under it?
+ *
+ * @param string $host   Candidate.
+ * @param string $parent The domain it might belong to.
+ * @return bool
+ */
+function sendbeam_host_is_within( $host, $parent ) {
+	if ( '' === $host || '' === $parent ) {
+		return false;
+	}
+	if ( $host === $parent ) {
+		return true;
+	}
+	$suffix = '.' . $parent;
+	return substr( $host, -strlen( $suffix ) ) === $suffix;
+}
+
+/**
+ * Is this address on SendBeam's own mail host rather than the site's domain?
+ *
+ * Derived from `sendbeam_app_url()` rather than hardcoded, so a self-hosted
+ * SendBeam pointed at with the `sendbeam_app_url` filter classifies its own
+ * shared addresses correctly. The two published hosts are kept as a fallback
+ * for a site whose filter points somewhere else entirely.
+ *
+ * @param string $host The From address's host.
+ * @return bool
+ */
+function sendbeam_is_shared_sender_host( $host ) {
+	$app = (string) wp_parse_url( sendbeam_app_url(), PHP_URL_HOST );
+	if ( '' !== $app && sendbeam_host_is_within( $host, strtolower( $app ) ) ) {
+		return true;
+	}
+	foreach ( array( 'post.sendbeam.io', 'mail.sendbeam.io', 'sendbeam.io' ) as $known ) {
+		if ( sendbeam_host_is_within( $host, $known ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * The address this site should be sending as, once its domain is verified.
+ *
+ * The workspace's own sender when that is already on the verified domain —
+ * it is the address the account holder chose — and `hello@<domain>` when it
+ * is not, which is what SendBeam sets up at consent time anyway.
+ *
+ * @param array $status Normalised Connect status.
+ * @return string Empty when there is no verified domain to send from.
+ */
+function sendbeam_own_domain_sender( $status ) {
+	$domain = strtolower( (string) $status['domain']['name'] );
+	if ( '' === $domain || empty( $status['domain']['verified'] ) ) {
+		return '';
+	}
+
+	$workspace = trim( (string) $status['sender']['from_email'] );
+	if ( '' !== $workspace && false !== strpos( $workspace, '@' ) ) {
+		$host = strtolower( trim( substr( strrchr( $workspace, '@' ), 1 ) ) );
+		if ( sendbeam_host_is_within( $host, $domain ) ) {
+			return $workspace;
+		}
+	}
+
+	$candidate = 'hello@' . $domain;
+	return is_email( $candidate ) ? $candidate : '';
+}

@@ -284,8 +284,14 @@ function sendbeam_domain_sentence( $name, $verified ) {
 		return __( 'No sending domain is set up for this site. Add one under Settings → Domains in SendBeam.', 'sendbeam' );
 	}
 	if ( $verified ) {
+		/*
+		 * What this step knows, and nothing more. It used to add "email from
+		 * this site will be sent from your own domain", which is step 4's
+		 * business and was a lie on every site still sending as SendBeam's
+		 * shared address — two true sentences that added up to a wrong one.
+		 */
 		/* translators: %s: the sending domain, e.g. harbourlane.co.uk */
-		return sprintf( __( '%s is verified. Email from this site will be sent from your own domain.', 'sendbeam' ), $name );
+		return sprintf( __( '%s is verified.', 'sendbeam' ), $name );
 	}
 	/* translators: %s: the sending domain, e.g. harbourlane.co.uk */
 	return sprintf( __( 'Add these records to the DNS for %s, then press Check now. Until they are in place SendBeam cannot send as you.', 'sendbeam' ), $name );
@@ -382,8 +388,44 @@ function sendbeam_setup_steps() {
 	}
 
 	$mail_reconnect = false;
+	$mail_attention = false;
+	$mail_done      = $using_mail;
+	$sender         = sendbeam_effective_sender( $status );
 
-	if ( $using_mail ) {
+	if ( $using_mail && 'own_domain' === $sender['kind'] ) {
+		/* translators: %s: the From address, e.g. hello@harbourlane.co.uk */
+		$mail_detail = sprintf( __( 'On, sending as %s. Send yourself a test to be sure.', 'sendbeam' ), $sender['email'] );
+	} elseif ( $using_mail && 'shared' === $sender['kind'] && $verified ) {
+		/*
+		 * The state the Overview used to describe as finished: the domain is
+		 * verified, site email is on, and every message still goes out as
+		 * SendBeam rather than as this site. It works — and it is not what
+		 * the owner set the domain up for, so the step stays open and says so.
+		 */
+		$mail_detail = sprintf(
+			/* translators: 1: the shared From address, 2: the verified sending domain */
+			__( 'On — but sending as %1$s, which is SendBeam\'s shared address, not %2$s. Your domain is verified, so it does not have to be.', 'sendbeam' ),
+			$sender['email'],
+			$domain['name']
+		);
+		$mail_done      = false;
+		$mail_attention = true;
+	} elseif ( $using_mail && 'shared' === $sender['kind'] ) {
+		$mail_detail = sprintf(
+			/* translators: %s: the shared From address */
+			__( 'On, sending as %s — SendBeam\'s shared address. Once your sending domain is verified you can send as your own.', 'sendbeam' ),
+			$sender['email']
+		);
+	} elseif ( $using_mail && 'other' === $sender['kind'] ) {
+		$mail_detail = sprintf(
+			/* translators: 1: the From address, 2: its domain */
+			__( 'On, sending as %1$s — but %2$s is not a domain this workspace has verified, so SendBeam refuses these messages. Change the From address under Site email.', 'sendbeam' ),
+			$sender['email'],
+			$sender['host']
+		);
+		$mail_done      = false;
+		$mail_attention = true;
+	} elseif ( $using_mail ) {
 		$mail_detail = __( 'On. Send yourself a test to be sure.', 'sendbeam' );
 	} elseif ( $connected && ! sendbeam_connect_granted( 'transactional:send' ) ) {
 		$mail_detail    = __( 'This site\'s key was not given permission to send your site\'s email. Reconnect and tick that box to use it.', 'sendbeam' );
@@ -432,7 +474,8 @@ function sendbeam_setup_steps() {
 		),
 		array(
 			'key'       => 'mail',
-			'done'      => $using_mail,
+			'done'      => $mail_done,
+			'attention' => $mail_attention,
 			'label'     => __( 'Send this site\'s email through SendBeam', 'sendbeam' ),
 			'detail'    => $mail_detail,
 			'target'    => sendbeam_tab_url( 'mail' ),

@@ -89,6 +89,15 @@ Paste the key under **SendBeam → Settings → Advanced**, or define `SENDBEAM_
 keep it out of the database. With the constant set the plugin offers neither the button nor the paste field,
 because either would store a second key nothing would ever use.
 
+### What the site sends as
+
+Two settings, easy to confuse and once easy for the plugin to contradict itself about. **Verifying a domain**
+proves the domain is yours. **The From address** decides which address a message actually goes out as, and it
+starts as SendBeam's shared `ws-…@post.sendbeam.io`. `sendbeam_effective_sender()` is the one place that works
+out the address the next message would use and classifies it — `own_domain`, `shared`, `other` or `none` — and
+the Overview's connection line, the site-email step and Site Health all read it. Where the domain is verified
+and the address is still the shared one, the step says so and offers one press to move it.
+
 ## Diagnosing a site
 
 **SendBeam → Site email → Send a test email** sends a real, designed message carrying the From name and

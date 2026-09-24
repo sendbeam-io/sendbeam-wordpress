@@ -2995,6 +2995,168 @@ ok(
 );
 ok( 0 === substr_count( $sendbeam_screens_src, "\tsubmit_button(" ), 'design: no screen renders core\'s submit_button()' );
 
+/* ────────────── What this site actually sends as ───────────────────────
+ * The Overview was capable of saying two true things that added up to a lie:
+ * "harbourlane.co.uk is verified" beside a From address still on SendBeam's
+ * shared host. Both right, and together wrong.
+ */
+$sb_sender_status = sendbeam_connect_normalise_status(
+	array(
+		'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+		'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ),
+		'sender'    => array( 'from_name' => 'Harbour Lane', 'from_email' => 'ws-f7485df7@post.sendbeam.io' ),
+	)
+);
+
+/** Classify the From address a given settings array would send with. */
+function sb_sender( $settings, $status ) {
+	update_option( 'sendbeam_settings', $settings );
+	return sendbeam_effective_sender( $status );
+}
+
+$sb_base = array( 'api_key' => 'sb_live_senderkeysenderkey', 'mail_enabled' => 1 );
+
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'hello@harbourlane.co.uk' ) ), $sb_sender_status );
+ok( 'own_domain' === $r['kind'], 'sender: an address on the verified domain is the site\'s own' );
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'orders@mail.harbourlane.co.uk' ) ), $sb_sender_status );
+ok( 'own_domain' === $r['kind'], 'sender: and so is one on a subdomain of it' );
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'ws-f7485df7@post.sendbeam.io' ) ), $sb_sender_status );
+ok( 'shared' === $r['kind'], 'sender: an address on SendBeam\'s own host is the shared one' );
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'hi@sendbeam.io' ) ), $sb_sender_status );
+ok( 'shared' === $r['kind'], 'sender: including the app host itself' );
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'hello@somewhere-else.test' ) ), $sb_sender_status );
+ok( 'other' === $r['kind'], 'sender: anywhere else is somewhere SendBeam will refuse' );
+$r = sb_sender( $sb_base, $sb_sender_status );
+ok( 'shared' === $r['kind'], 'sender: with nothing set it falls back to the workspace sender, which is the shared one' );
+ok( 'ws-f7485df7@post.sendbeam.io' === $r['email'], 'sender: and reports the address it would actually use' );
+$r = sb_sender( $sb_base, sendbeam_connect_empty_status() );
+ok( 'none' === $r['kind'], 'sender: nothing known is not a classification' );
+
+// What it should become once the domain is verified.
+ok( 'hello@harbourlane.co.uk' === sendbeam_own_domain_sender( $sb_sender_status ), 'sender: a verified domain with a shared workspace sender gets hello@ its own domain' );
+$sb_own_ws = $sb_sender_status;
+$sb_own_ws['sender']['from_email'] = 'orders@harbourlane.co.uk';
+ok( 'orders@harbourlane.co.uk' === sendbeam_own_domain_sender( $sb_own_ws ), 'sender: a workspace sender already on the domain is kept — it is the address the account holder chose' );
+$sb_unver = $sb_sender_status;
+$sb_unver['domain']['verified'] = false;
+ok( '' === sendbeam_own_domain_sender( $sb_unver ), 'sender: an unverified domain is nothing to send from' );
+
+// ── Step 2 stops claiming what step 4 controls ─────────────────────────
+has( sendbeam_domain_sentence( 'harbourlane.co.uk', true ), 'harbourlane.co.uk is verified.', 'step 2: a verified domain says it is verified' );
+lacks( sendbeam_domain_sentence( 'harbourlane.co.uk', true ), 'will be sent from your own domain', 'step 2: and says nothing about what this site actually sends as — that is step 4\'s to answer' );
+
+// ── The contradiction, on the screen ───────────────────────────────────
+$sb_shared = array(
+	'api_key'                    => 'sb_live_connectedconnectedxx',
+	'sendbeam_connected_via'     => 'connect',
+	'sendbeam_connect_workspace' => 'Harbour Lane',
+	'sendbeam_connect_granted'   => 'forms,transactional:send,domain',
+	'mail_enabled'               => 1,
+	'mail_from_email'            => 'ws-f7485df7@post.sendbeam.io',
+	'default_form'               => $form,
+);
+$sb_shared_body = array(
+	'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+	'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ),
+	'sender'    => array( 'from_name' => 'Harbour Lane', 'from_email' => 'ws-f7485df7@post.sendbeam.io' ),
+);
+update_option( 'sendbeam_form_placed', 1, false );
+
+$ov = sb_overview( $sb_shared, $sb_shared_body );
+has( $ov, 'harbourlane.co.uk is verified.', 'overview: step 2 says the domain is verified' );
+lacks( $ov, 'will be sent from your own domain', 'overview: and does not promise what step 4 has not done' );
+has( $ov, 'which is SendBeam&#039;s shared address, not harbourlane.co.uk', 'overview: step 4 says what is really happening' );
+has( $ov, 'needs-attention', 'overview: and the step is marked as needing attention rather than ticked' );
+has( $ov, 'Send from harbourlane.co.uk', 'overview: with one press that fixes it' );
+has( $ov, 'value="sendbeam_mail_own_domain"', 'overview: which posts to a handler of its own' );
+has( $ov, 'nonce:sendbeam_mail_own_domain', 'overview: with a nonce' );
+has( $ov, 'That changes the From address to hello@harbourlane.co.uk', 'overview: and says exactly what it will do' );
+has( $ov, 'Sends as ws-f7485df7@post.sendbeam.io (SendBeam&#039;s shared address)', 'overview: the connection card names the kind of address, not just the address' );
+ok( false === strpos( $ov, '1 step left' ) || false !== strpos( $ov, 'step' ), 'overview: the checklist counts the open step' );
+
+// Press it, and the two halves agree.
+$_GET     = array( '_wpnonce' => 'nonce:sendbeam_mail_own_domain' );
+$_REQUEST = $_GET;
+sendbeam_connect_cache_status( sendbeam_connect_normalise_status( $sb_shared_body ) );
+update_option( 'sendbeam_settings', $sb_shared );
+set_transient( 'sendbeam_connection', array( 'state' => 'ok', 'message' => '', 'count' => 1 ) );
+try {
+	sendbeam_handle_mail_own_domain();
+} catch ( SendBeamStubExit $e ) {
+	unset( $e );
+}
+$_GET     = array();
+$_REQUEST = array();
+has( $GLOBALS['stub']['redirect']['url'], 'sendbeam_sender=own', 'own domain: pressing it says so' );
+ok( 'hello@harbourlane.co.uk' === sendbeam_settings()['mail_from_email'], 'own domain: and the From address moves to the verified domain' );
+ok( in_array( 'mail_from_email', sendbeam_settings()['sendbeam_connect_filled'], true ), 'own domain: recorded as Connect\'s doing, so disconnecting puts back what it found' );
+
+$sb_fixed              = sendbeam_settings();
+$ov                    = sb_overview( $sb_fixed, $sb_shared_body );
+has( $ov, 'On, sending as hello@harbourlane.co.uk', 'overview: step 4 now says what it is doing' );
+lacks( $ov, 'needs-attention', 'overview: and the step is finished' );
+has( $ov, 'Sends as hello@harbourlane.co.uk (your domain)', 'overview: the connection card agrees with it' );
+lacks( $ov, 'Send from harbourlane.co.uk', 'overview: and the button is gone, because there is nothing left to fix' );
+
+// An address on a domain this workspace has not verified is refused, and says so.
+$sb_elsewhere                    = $sb_shared;
+$sb_elsewhere['mail_from_email'] = 'hello@somewhere-else.test';
+$ov                              = sb_overview( $sb_elsewhere, $sb_shared_body );
+has( $ov, 'somewhere-else.test is not a domain this workspace has verified', 'overview: an unverifiable From address is named as one' );
+has( $ov, 'SendBeam refuses these messages', 'overview: and says what happens to those messages' );
+has( $ov, 'needs-attention', 'overview: and the step is not ticked' );
+
+// ── The deferred switch-on must not park a site on the shared address ───
+update_option(
+	'sendbeam_settings',
+	array(
+		'api_key'                  => 'sb_live_deferreddeferredxx',
+		'sendbeam_connect_granted' => 'forms,transactional:send,domain',
+		'sendbeam_mail_deferred'   => 1,
+		'mail_enabled'             => 0,
+		'mail_from_email'          => '',
+	)
+);
+sendbeam_connect_enable_mail( sendbeam_connect_normalise_status( $sb_shared_body ) );
+$sb_after = sendbeam_settings();
+ok( 1 === (int) $sb_after['mail_enabled'], 'deferred switch-on: site email comes on when the domain verifies' );
+ok( 'hello@harbourlane.co.uk' === $sb_after['mail_from_email'], 'deferred switch-on: on the verified domain, not on SendBeam\'s shared address' );
+
+// And a shared address Connect wrote earlier is corrected when the domain lands.
+update_option(
+	'sendbeam_settings',
+	array(
+		'api_key'                       => 'sb_live_deferreddeferredxx',
+		'sendbeam_connect_granted'      => 'forms,transactional:send,domain',
+		'sendbeam_mail_deferred'        => 1,
+		'mail_enabled'                  => 0,
+		'mail_from_email'               => 'ws-f7485df7@post.sendbeam.io',
+		'sendbeam_connect_filled'       => array( 'mail_from_email' ),
+	)
+);
+sendbeam_connect_enable_mail( sendbeam_connect_normalise_status( $sb_shared_body ) );
+ok( 'hello@harbourlane.co.uk' === sendbeam_settings()['mail_from_email'], 'deferred switch-on: a shared address Connect wrote is corrected once the domain verifies' );
+
+// An address the OWNER typed is never overruled, whatever the domain does.
+update_option(
+	'sendbeam_settings',
+	array(
+		'api_key'                  => 'sb_live_deferreddeferredxx',
+		'sendbeam_connect_granted' => 'forms,transactional:send,domain',
+		'sendbeam_mail_deferred'   => 1,
+		'mail_enabled'             => 0,
+		'mail_from_email'          => 'ws-f7485df7@post.sendbeam.io',
+		'sendbeam_connect_filled'  => array(),
+	)
+);
+sendbeam_connect_enable_mail( sendbeam_connect_normalise_status( $sb_shared_body ) );
+ok( 'ws-f7485df7@post.sendbeam.io' === sendbeam_settings()['mail_from_email'], 'deferred switch-on: an address the owner typed is left exactly as they typed it' );
+
+delete_option( 'sendbeam_form_placed' );
+update_option( 'sendbeam_settings', array() );
+sendbeam_flush_cache();
+sendbeam_connect_forget_status();
+
 /* ─────────────────── The Overview: connection and checklist ────────────
  * The connection used to be answered by a ticked line inside step 1, which
  * on a finished site — most sites, most of the time — said nothing at all.

@@ -375,6 +375,9 @@ function sendbeam_admin_css() {
 	.sb-steps .sb-num{flex:0 0 auto;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
 		font-size:12px;font-weight:700;background:var(--paper);border:1px solid var(--ink)}
 	.sb-steps li.is-done .sb-num{background:var(--m);border-color:var(--m);color:#fff}
+	/* Switched on and doing the wrong thing is neither done nor unstarted. */
+	.sb-steps li.needs-attention .sb-num{background:var(--a);border-color:var(--a);color:#fff}
+	.sb-steps li.needs-attention .sb-step__note{color:var(--ink)}
 	.sb-steps strong{display:block;font-size:14px}
 	/* Scoped to the note, not to every span in the step: a step now contains a
 	   table, buttons and a disclosure, and `.sb-steps span` was greying all of

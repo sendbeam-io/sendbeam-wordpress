@@ -31,6 +31,7 @@ defined( 'ABSPATH' ) || exit;
 
 add_action( 'admin_post_sendbeam_domain_check', 'sendbeam_handle_domain_check' );
 add_action( 'admin_post_sendbeam_mail_switch_on', 'sendbeam_handle_mail_switch_on' );
+add_action( 'admin_post_sendbeam_mail_own_domain', 'sendbeam_handle_mail_own_domain' );
 
 /** Where the status lives between renders. */
 const SENDBEAM_CACHE_STATUS = 'sendbeam_connect_status';
@@ -562,10 +563,31 @@ function sendbeam_connect_enable_mail( $status ) {
 			$filled[] = 'mail_from_name';
 		}
 	}
-	if ( '' === trim( (string) $settings['mail_from_email'] ) && '' !== $status['sender']['from_email'] ) {
-		$settings['mail_from_email'] = $status['sender']['from_email'];
+
+	/*
+	 * The From address, and the one thing it must not be. The workspace
+	 * sender is SendBeam's shared `ws-…@post.sendbeam.io` until somebody
+	 * changes it, so filling it in blind on a site whose own domain has just
+	 * verified leaves that site sending as SendBeam — after telling its owner
+	 * the domain was verified. Once there is a verified domain, the address
+	 * is on it.
+	 */
+	$own     = sendbeam_own_domain_sender( $status );
+	$current = trim( (string) $settings['mail_from_email'] );
+	$fill    = '' !== $own ? $own : trim( (string) $status['sender']['from_email'] );
+
+	if ( '' === $current && '' !== $fill ) {
+		$settings['mail_from_email'] = $fill;
 		if ( $connects ) {
 			$filled[] = 'mail_from_email';
+		}
+	} elseif ( '' !== $own && $current !== $own && sendbeam_connect_filled( 'mail_from_email' ) ) {
+		// Connect put the shared address there, and the domain it was waiting
+		// for is now live. Correcting what this plugin wrote is not the same
+		// as overruling something the owner typed.
+		$sender = sendbeam_effective_sender( $status );
+		if ( 'shared' === $sender['kind'] ) {
+			$settings['mail_from_email'] = $own;
 		}
 	}
 	$settings['sendbeam_connect_filled'] = array_values( array_unique( $filled ) );
@@ -675,4 +697,51 @@ function sendbeam_connect_finish_deferred( $status ) {
 
 	sendbeam_connect_enable_mail( $status );
 	return true;
+}
+
+/**
+ * Did Connect fill this setting in, rather than the site owner?
+ *
+ * @param string $key Settings key.
+ * @return bool
+ */
+function sendbeam_connect_filled( $key ) {
+	$settings = sendbeam_settings();
+	$filled   = isset( $settings['sendbeam_connect_filled'] ) && is_array( $settings['sendbeam_connect_filled'] ) ? $settings['sendbeam_connect_filled'] : array();
+	return in_array( $key, $filled, true );
+}
+
+/**
+ * "Send from <your domain>" — the one press that makes step 2's promise true.
+ *
+ * A site whose domain is verified and whose From address is still SendBeam's
+ * shared one is working, and is not doing the thing its owner set the domain
+ * up for. This is the button that fixes it.
+ */
+function sendbeam_handle_mail_own_domain() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+	}
+	check_admin_referer( 'sendbeam_mail_own_domain' );
+
+	$status = sendbeam_is_connected() ? sendbeam_connect_status() : sendbeam_connect_empty_status();
+	$own    = sendbeam_own_domain_sender( $status );
+
+	if ( '' === $own ) {
+		wp_safe_redirect( add_query_arg( 'sendbeam_sender', 'unverified', sendbeam_tab_url( 'overview' ) ) );
+		exit;
+	}
+
+	$settings                    = sendbeam_settings();
+	$settings['mail_from_email'] = $own;
+
+	// Recorded as Connect's doing, so disconnecting puts back what it found.
+	$filled                              = isset( $settings['sendbeam_connect_filled'] ) && is_array( $settings['sendbeam_connect_filled'] ) ? $settings['sendbeam_connect_filled'] : array();
+	$filled[]                            = 'mail_from_email';
+	$settings['sendbeam_connect_filled'] = array_values( array_unique( $filled ) );
+
+	update_option( 'sendbeam_settings', $settings );
+
+	wp_safe_redirect( add_query_arg( 'sendbeam_sender', 'own', sendbeam_tab_url( 'overview' ) ) );
+	exit;
 }

@@ -175,15 +175,50 @@ function sendbeam_overview_connection_card( $status, $connected ) {
 		return;
 	}
 
-	$sender = (string) $status['sender']['from_email'];
-
-	sendbeam_card_open( __( 'Connection', 'sendbeam' ), '' !== $sender ? sprintf( /* translators: %s: the address SendBeam sends from */ __( 'Sends as %s', 'sendbeam' ), $sender ) : '' );
+	sendbeam_card_open( __( 'Connection', 'sendbeam' ), sendbeam_sends_as_line( $status ) );
 	if ( sendbeam_connected_via_connect() ) {
 		sendbeam_connect_connected_panel( $status );
 	} else {
 		sendbeam_connect_pasted_panel( $status );
 	}
 	sendbeam_card_close();
+}
+
+/**
+ * "Sends as …", and what kind of address that is.
+ *
+ * The address on its own was the second half of a contradiction: a card
+ * saying "Sends as ws-…@post.sendbeam.io" above a checklist saying the site's
+ * own domain was verified told somebody two true things and left them to work
+ * out that only one of them was about their email. Saying which kind of
+ * address it is settles it in three words.
+ *
+ * @param array $status Normalised Connect status.
+ * @return string
+ */
+function sendbeam_sends_as_line( $status ) {
+	$sender = sendbeam_effective_sender( $status );
+	if ( '' === $sender['email'] ) {
+		return '';
+	}
+
+	$kinds = array(
+		'own_domain' => __( 'your domain', 'sendbeam' ),
+		'shared'     => __( 'SendBeam\'s shared address', 'sendbeam' ),
+		'other'      => __( 'not a verified domain', 'sendbeam' ),
+	);
+
+	if ( ! isset( $kinds[ $sender['kind'] ] ) ) {
+		/* translators: %s: the address this site sends as */
+		return sprintf( __( 'Sends as %s', 'sendbeam' ), $sender['email'] );
+	}
+
+	return sprintf(
+		/* translators: 1: the address this site sends as, 2: what kind of address it is */
+		__( 'Sends as %1$s (%2$s)', 'sendbeam' ),
+		$sender['email'],
+		$kinds[ $sender['kind'] ]
+	);
 }
 
 /**
@@ -226,10 +261,16 @@ function sendbeam_overview_setup_card( $status, $connected ) {
 	);
 	echo '<ol class="sb-steps">';
 	foreach ( $steps as $i => $step ) {
+		/*
+		 * Three states, not two. A step that is switched on and doing the
+		 * wrong thing is not finished, and it is not unstarted either — a
+		 * plain number beside it reads as "you have not got to this yet".
+		 */
+		$attention = ! empty( $step['attention'] );
 		printf(
 			'<li class="%1$s"><span class="sb-num" aria-hidden="true">%2$s</span><div class="sb-step">',
-			$step['done'] ? 'is-done' : '',
-			$step['done'] ? '&#10003;' : (int) ( $i + 1 )
+			esc_attr( $step['done'] ? 'is-done' : ( $attention ? 'needs-attention' : '' ) ),
+			$step['done'] ? '&#10003;' : ( $attention ? '!' : (int) ( $i + 1 ) )
 		);
 
 		// The connect step links to the card above rather than to a field:
@@ -669,13 +710,47 @@ function sendbeam_overview_mail_panel( $status, $connected ) {
 	$settings = sendbeam_settings();
 
 	if ( ! empty( $settings['mail_enabled'] ) ) {
+		$sender = sendbeam_effective_sender( $status );
+		$own    = sendbeam_own_domain_sender( $status );
+
 		echo '<div class="sb-actions">';
+
+		// The fix first, where there is one to make: a site sending as
+		// SendBeam from a verified domain is one press from sending as
+		// itself, and that press is worth more than another test email.
+		if ( 'shared' === $sender['kind'] && '' !== $own ) {
+			echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+			wp_nonce_field( 'sendbeam_mail_own_domain' );
+			echo '<input type="hidden" name="action" value="sendbeam_mail_own_domain" />';
+			printf(
+				'<button type="submit" class="sb-btn sb-btn--small sb-btn--primary">%s</button>',
+				esc_html(
+					sprintf(
+						/* translators: %s: the verified sending domain */
+						__( 'Send from %s', 'sendbeam' ),
+						$status['domain']['name']
+					)
+				)
+			);
+			echo '</form>';
+		}
+
 		echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
 		wp_nonce_field( 'sendbeam_test_mail' );
 		echo '<input type="hidden" name="action" value="sendbeam_test_mail" />';
-		printf( '<button type="submit" class="sb-btn sb-btn--small">%s</button>', esc_html__( 'Send a test email', 'sendbeam' ) );
+		printf( '<button type="submit" class="sb-btn sb-btn--small%s">%s</button>', esc_attr( 'shared' === $sender['kind'] && '' !== $own ? ' sb-btn--ghost' : '' ), esc_html__( 'Send a test email', 'sendbeam' ) );
 		echo '</form>';
 		echo '</div>';
+
+		if ( 'shared' === $sender['kind'] && '' !== $own ) {
+			echo '<p class="sb-note">' . esc_html(
+				sprintf(
+					/* translators: %s: the address this site would send as instead */
+					__( 'That changes the From address to %s. Nothing else moves, and you can change it again under Site email.', 'sendbeam' ),
+					$own
+				)
+			) . '</p>';
+		}
 		return;
 	}
 

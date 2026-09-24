@@ -56,6 +56,10 @@ function sendbeam_notice_messages() {
 			'unreachable' => array( 'warning', __( 'Disconnected, but this server could not reach SendBeam; revoke it under Settings → API keys.', 'sendbeam' ) ),
 			'constant'    => array( 'warning', __( 'Disconnected here, and nothing was revoked: this site sends with the key defined as SENDBEAM_API_KEY in wp-config.php, which is not the one this button issued. Remove it there, and revoke it under Settings → API keys.', 'sendbeam' ) ),
 		),
+		'sendbeam_sender'          => array(
+			'own'        => array( 'success', __( 'This site now sends as your own domain. Send yourself a test to be sure.', 'sendbeam' ) ),
+			'unverified' => array( 'warning', __( 'There is no verified sending domain to send from yet, so nothing was changed. Finish step 2 first.', 'sendbeam' ) ),
+		),
 		'sendbeam_sync_saved'      => array(
 			'1' => array( 'success', __( 'Saved. The opt-in box is live where you asked for it.', 'sendbeam' ) ),
 		),
