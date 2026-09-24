@@ -4739,6 +4739,28 @@ $sb_desk = substr( $sb_css, 0, strpos( $sb_css, '@media (max-width:782px)' ) );
 has( $sb_desk, '.sendbeam-app .sb-btn{display:inline-flex', 'touch: the desktop button rule is still there' );
 has( $sb_desk, 'min-height:36px', 'touch: at its original 36px' );
 
+// ── #18 "Not installed" about plugins that are installed ────────────────
+// The probe is a class or function check, which is the right probe; it
+// answers "is this running". A plugin sitting in wp-content/plugins waiting
+// to be activated is installed, and somebody who has just installed one and
+// is wondering why nothing changed is exactly the person reading this row.
+ob_start();
+sendbeam_screen_form_plugins( array() );
+$sb_plugins = ob_get_clean();
+has( $sb_plugins, 'Contact Form 7', 'bridges: the table lists every plugin it supports' );
+lacks( $sb_plugins, 'Not installed', 'bridges: it never says "Not installed", which the probe cannot know' );
+
+// The probe answers "is this running", so that is the word, wherever it is
+// rendered. Asserted against the source because every bridge class exists in
+// this process, so every row renders Active here.
+$sb_bridges_src = file_get_contents( dirname( __DIR__ ) . '/includes/screens.php' );
+has( $sb_bridges_src, "esc_html__( 'Not active', 'sendbeam' )", 'bridges: the label a row gets when the plugin is not running is "Not active"' );
+$sb_all_src = '';
+foreach ( glob( dirname( __DIR__ ) . '/includes/*.php' ) as $sb_file ) {
+	$sb_all_src .= file_get_contents( $sb_file );
+}
+lacks( $sb_all_src, "'Not installed'", 'bridges: and "Not installed" is said nowhere in the plugin' );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

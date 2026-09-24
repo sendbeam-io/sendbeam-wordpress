@@ -1124,7 +1124,12 @@ function sendbeam_screen_form_plugins( $lists ) {
 		printf(
 			'<tr><td><strong>%1$s</strong></td><td>%2$s</td><td>%3$s</td></tr>',
 			esc_html( $row[0] ),
-			$hosts[ $key ] ? '<span class="sb-chip">' . esc_html__( 'Active', 'sendbeam' ) . '</span>' : '<span class="sb-note">' . esc_html__( 'Not installed', 'sendbeam' ) . '</span>',
+			// "Not active", not "Not installed". The probe is for a class or
+			// a function, which is the right probe — but it answers "is this
+			// running", and a plugin sitting in wp-content/plugins waiting to
+			// be activated is installed. Somebody who has just installed one
+			// and is wondering why nothing changed needs the true word.
+			$hosts[ $key ] ? '<span class="sb-chip">' . esc_html__( 'Active', 'sendbeam' ) . '</span>' : '<span class="sb-note">' . esc_html__( 'Not active', 'sendbeam' ) . '</span>',
 			esc_html( $row[1] )
 		);
 	}

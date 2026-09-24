@@ -80,7 +80,7 @@
 
 - **Every "you do not have permission" was served as HTTP 500.** `wp_die()` with no status argument defaults to a server error, so all sixteen of the plugin's admin-post actions answered an Editor's POST with a 500 — a correct refusal, logged everywhere as a fault in the plugin. They answer 403. (The nonce refusals were already right: `check_admin_referer()` sends 403 itself.)
 
-- **Tap targets on a phone were 26–36px.** Apple asks for 44pt and Android for 48dp; the 26px "I already have an API key" disclosure on the Overview is the one an owner reaches for first and misses. Buttons are 44px below 782px, small buttons 40px, and the disclosures and button-shaped links are sized with them. Desktop metrics are unchanged.
+- **"Not installed" about plugins that are installed.** The form-plugin table probes for a class or a function, which is the right probe — it answers whether the plugin is *running*. Somebody who has just installed Fluent Forms and is wondering why nothing has changed is exactly the person reading that row. It says "Not active", which is true in both cases.
 
 ### Connect
 
