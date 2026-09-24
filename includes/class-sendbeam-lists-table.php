@@ -122,7 +122,7 @@ class SendBeam_Lists_Table extends WP_List_Table {
 		$actions = array(
 			'open' => sprintf(
 				'<a href="%s" target="_blank" rel="noopener">%s</a>',
-				esc_url( sendbeam_app_url() . '/lists/' . rawurlencode( (string) $item['id'] ) ),
+				esc_url( sendbeam_app_link( '/lists/' . rawurlencode( (string) $item['id'] ) ) ),
 				esc_html__( 'Open in SendBeam', 'sendbeam' )
 			),
 		);

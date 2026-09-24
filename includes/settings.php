@@ -295,7 +295,7 @@ function sendbeam_section_forms_intro() {
 		sprintf(
 			/* translators: %s: link to the SendBeam forms page */
 			__( 'Form IDs are under %s in SendBeam: open a form and copy the ID from its Embed panel. Forms load from sendbeam.io, so any change you make there shows on your site straight away.', 'sendbeam' ),
-			'<a href="' . esc_url( sendbeam_app_url() . '/forms' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Forms', 'sendbeam' ) . '</a>'
+			'<a href="' . esc_url( sendbeam_app_link( '/forms' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'Forms', 'sendbeam' ) . '</a>'
 		),
 		array(
 			'a' => array(
@@ -388,7 +388,7 @@ function sendbeam_field_form_id( $args ) {
 			sprintf(
 				/* translators: %s: link to create a form */
 				__( 'This workspace has no forms yet. %s, then come back and refresh.', 'sendbeam' ),
-				'<a href="' . esc_url( sendbeam_app_url() . '/forms' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Create one in SendBeam', 'sendbeam' ) . '</a>'
+				'<a href="' . esc_url( sendbeam_app_link( '/forms' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'Create one in SendBeam', 'sendbeam' ) . '</a>'
 			),
 			array(
 				'a' => array(
@@ -514,7 +514,7 @@ function sendbeam_section_connect_intro() {
 		sprintf(
 			/* translators: %s: link to the API keys page */
 			__( 'One key connects this site to a SendBeam workspace. Make one under %s. Give it <strong>Forms (read)</strong> so this page can list your forms, and <strong>Send site email</strong> if you want WordPress email to go through SendBeam.', 'sendbeam' ),
-			'<a href="' . esc_url( sendbeam_app_url() . '/settings/api-keys' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Settings → API keys', 'sendbeam' ) . '</a>'
+			'<a href="' . esc_url( sendbeam_app_link( '/settings/api-keys' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'Settings → API keys', 'sendbeam' ) . '</a>'
 		),
 		array(
 			'a'      => array(

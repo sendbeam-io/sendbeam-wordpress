@@ -3064,6 +3064,36 @@ ok( '' === ob_get_clean(), 'render: a user who cannot manage options sees nothin
 $GLOBALS['stub']['caps']['manage_options'] = true;
 $_GET = array();
 
+/*
+ * One function knows what a link into SendBeam looks like, and its default is
+ * where a person with an account wants to land.
+ */
+ok( 'https://sendbeam.io/dashboard' === sendbeam_app_link(), 'app links: the default is the app\'s signed-in home' );
+ok( 'https://sendbeam.io/forms' === sendbeam_app_link( '/forms' ), 'app links: a deep link keeps its path' );
+ok( 'https://sendbeam.io' === sendbeam_app_url(), 'app links: and the origin the API is called against is unchanged' );
+
+/*
+ * No anchor anywhere in the plugin's markup points at the bare origin. The
+ * base URL is still used for the API, for the postMessage origin check and
+ * for the "SendBeam address" line in the debug report — none of which is
+ * something a person clicks.
+ */
+$GLOBALS['stub']['caps']['manage_options'] = true;
+foreach ( array_keys( sendbeam_pages() ) as $sendbeam_slug ) {
+	$_GET = array( 'page' => $sendbeam_slug );
+	ob_start();
+	sendbeam_render_admin_page();
+	$sendbeam_html = ob_get_clean();
+	lacks( $sendbeam_html, 'href="https://sendbeam.io"', "app links: $sendbeam_slug has no anchor on the bare origin" );
+	lacks( $sendbeam_html, "href='https://sendbeam.io'", "app links: $sendbeam_slug has none with single quotes either" );
+	// The header band carries the link the owner pressed — on every screen
+	// but the wizard, whose band shows how far through you are instead.
+	if ( 'sendbeam-setup' !== $sendbeam_slug ) {
+		has( $sendbeam_html, 'href="https://sendbeam.io/dashboard" target="_blank"', "app links: $sendbeam_slug's header opens the app" );
+	}
+}
+$_GET = array();
+
 // The Plugins-screen link goes to the Settings page, not to a dashboard.
 $sendbeam_links = sendbeam_action_links( array() );
 has( $sendbeam_links[0], 'admin.php?page=sendbeam-settings', 'plugins screen: the Settings link points at the Settings page' );
@@ -3577,6 +3607,15 @@ has( $ov, 'Sends as', 'overview: and the address this site sends from' );
 has( $ov, 'Reconnect', 'overview: with Reconnect' );
 has( $ov, 'Disconnect', 'overview: and Disconnect' );
 has( $ov, 'Open SendBeam', 'overview: and a way through to SendBeam itself' );
+/*
+ * The app, not the marketing site. `sendbeam_app_url()` is the origin the API
+ * is called against and the bare origin is the page inviting people to sign
+ * up — which is where "Open SendBeam" was sending people who already had an
+ * account. The signed-in home is /dashboard.
+ */
+has( $ov, 'href="https://sendbeam.io/dashboard"', 'overview: which opens the app, not the page selling it' );
+ok( 1 === substr_count( $ov, 'https://sendbeam.io/dashboard' ), 'overview: once, from the workspace card' );
+lacks( $ov, 'href="https://sendbeam.io"', 'overview: and nothing points at the bare origin' );
 has( $ov, 'class="sb-card__action"', 'overview: whose one secondary action sits in the card header, not adrift in its body' );
 
 // The workspace figures read across, not down a column with a blank card

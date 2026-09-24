@@ -471,7 +471,7 @@ function sendbeam_setup_steps() {
 			'done'      => $verified,
 			'label'     => __( 'Verify your sending domain', 'sendbeam' ),
 			'detail'    => $domain_detail,
-			'target'    => sendbeam_app_url() . '/settings/domains',
+			'target'    => sendbeam_app_link( '/settings/domains' ),
 			'reconnect' => $domain_reconnect,
 		),
 		array(

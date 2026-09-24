@@ -37,7 +37,7 @@ function sendbeam_editor_defaults() {
 		'window.sendbeamBlock = ' . wp_json_encode(
 			array(
 				'defaultForm' => $settings['default_form'],
-				'formsUrl'    => sendbeam_app_url() . '/forms',
+				'formsUrl'    => sendbeam_app_link( '/forms' ),
 			)
 		) . ';',
 		'before'

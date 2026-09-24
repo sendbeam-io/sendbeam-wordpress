@@ -126,7 +126,7 @@ class SendBeam_Forms_Table extends WP_List_Table {
 			sprintf(
 				/* translators: %s: link to create a form in SendBeam */
 				__( 'No forms in this workspace yet. %s, and it will appear here.', 'sendbeam' ),
-				'<a href="' . esc_url( sendbeam_app_url() . '/forms' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Create your first form', 'sendbeam' ) . '</a>'
+				'<a href="' . esc_url( sendbeam_app_link( '/forms' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'Create your first form', 'sendbeam' ) . '</a>'
 			),
 			array(
 				'a' => array(
@@ -156,7 +156,7 @@ class SendBeam_Forms_Table extends WP_List_Table {
 			),
 			'edit'    => sprintf(
 				'<a href="%s" target="_blank" rel="noopener">%s</a>',
-				esc_url( sendbeam_app_url() . '/forms/' . rawurlencode( $id ) ),
+				esc_url( sendbeam_app_link( '/forms/' . rawurlencode( $id ) ) ),
 				esc_html__( 'Edit in SendBeam', 'sendbeam' )
 			),
 		);

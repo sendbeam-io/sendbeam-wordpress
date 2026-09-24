@@ -21,6 +21,26 @@ function sendbeam_app_url() {
 }
 
 /**
+ * A link into SendBeam for somebody to click.
+ *
+ * Distinct from `sendbeam_app_url()`, which is the origin the API is called
+ * against and the origin messages are checked for. The bare origin is the
+ * marketing site: "Open SendBeam" on the Overview was sending people who
+ * already have an account to a page inviting them to get one. The app's
+ * signed-in home is /dashboard, which sends a signed-out visitor to /login
+ * and back.
+ *
+ * Every human-facing link goes through here, deep ones included, so there is
+ * one place that knows what a link into SendBeam looks like.
+ *
+ * @param string $path Path within the app, with a leading slash.
+ * @return string
+ */
+function sendbeam_app_link( $path = '/dashboard' ) {
+	return sendbeam_app_url() . $path;
+}
+
+/**
  * Default values for every setting, so callers never test for missing keys.
  *
  * @return array<string, string|int>

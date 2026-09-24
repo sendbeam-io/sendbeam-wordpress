@@ -92,7 +92,7 @@ function sendbeam_screen_overview() {
 function sendbeam_workspace_card( $forms, $lists, $subscribers ) {
 	$open = sprintf(
 		'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s" target="_blank" rel="noopener">%s</a>',
-		esc_url( sendbeam_app_url() ),
+		esc_url( sendbeam_app_link() ),
 		esc_html__( 'Open SendBeam', 'sendbeam' )
 	);
 
@@ -428,7 +428,7 @@ function sendbeam_domain_panel( $status, $standalone = false ) {
 			echo '<div class="sb-step__panel"><div class="sb-actions">';
 			printf(
 				'<a class="sb-btn sb-btn--small sb-btn--ghost" href="%s" target="_blank" rel="noopener">%s</a>',
-				esc_url( sendbeam_app_url() . '/settings/domains' ),
+				esc_url( sendbeam_app_link( '/settings/domains' ) ),
 				esc_html__( 'Open Settings → Domains', 'sendbeam' )
 			);
 			echo '</div></div>';
@@ -1856,7 +1856,7 @@ function sendbeam_settings_advanced_card() {
  * @return string
  */
 function sendbeam_docs_url( $slug = '' ) {
-	return sendbeam_app_url() . '/docs/wordpress' . ( $slug ? '/' . $slug : '' );
+	return sendbeam_app_link( '/docs/wordpress' ) . ( $slug ? '/' . $slug : '' );
 }
 
 /**
@@ -1992,7 +1992,7 @@ function sendbeam_help_documentation_card() {
 	echo '</div></div>';
 	printf(
 		'<p class="sb-note" style="margin-top:12px"><a href="%1$s" target="_blank" rel="noopener">%2$s</a> — %3$s</p>',
-		esc_url( sendbeam_app_url() . '/docs/ecommerce' ),
+		esc_url( sendbeam_app_link( '/docs/ecommerce' ) ),
 		esc_html__( 'E-commerce events', 'sendbeam' ),
 		esc_html__( 'Cart Abandoned, Product Viewed and Order Placed, plus the Shopify webhook.', 'sendbeam' )
 	);
