@@ -13,6 +13,7 @@ Full documentation: **[sendbeam.io/docs/wordpress](https://sendbeam.io/docs/word
 | Your own button that opens a pop-up | `[sendbeam_popup_button label="Subscribe"]`, or any element with `data-sendbeam-open="<form id>"` |
 | Ask people to subscribe while they register, comment or check out | SendBeam → Audience |
 | Send WordPress email from your verified domain | SendBeam → Site email |
+| See what the site has sent, and what became of it | SendBeam → Site email → Email log |
 | Find out why something is not working | SendBeam → Help, or Tools → Site Health |
 
 Forms render from their hosted page, so a change in SendBeam (fields, double opt-in, thank-you text, the list
@@ -88,6 +89,17 @@ Only what you use. Placing a form or a pop-up needs no key at all.
 Paste the key under **SendBeam → Settings → Advanced**, or define `SENDBEAM_API_KEY` in `wp-config.php` to
 keep it out of the database. With the constant set the plugin offers neither the button nor the paste field,
 because either would store a second key nothing would ever use.
+
+### The email log
+
+`{$wpdb->prefix}sendbeam_mail_log`, one row per message: `sent_at` (UTC), `to_addr`, `subject`, `result`
+(`sent` / `fallback` / `failed`), `note`, `source`, with indexes on `sent_at` and `result`. Created by dbDelta
+on activation and behind a `sendbeam_db_version` check on `admin_init`, so an upgrade by zip — which fires no
+activation hook — still gets it. Per-site on multisite. **Bodies are never stored.**
+
+Retention is 7 / 30 / 90 days or for ever, pruned by a daily `sendbeam_mail_log_prune` event, with a hard cap
+of `SENDBEAM_MAIL_LOG_MAX` (20,000) rows on top of whatever the setting says. Entries from the pre-1.8.3
+option migrate on first load and the option is deleted; uninstall drops the table.
 
 ### What the site sends as
 

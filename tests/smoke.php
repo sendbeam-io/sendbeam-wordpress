@@ -22,6 +22,26 @@ function popup_output() {
 function has( $hay, $needle, $what ) { ok( false !== strpos( $hay, $needle ), "$what — expected to find: $needle\nGOT: $hay" ); }
 function lacks( $hay, $needle, $what ) { ok( false === strpos( $hay, $needle ), "$what — did not expect: $needle\nGOT: $hay" ); }
 
+/*
+ * The email log is a table now, so the whole run needs a $wpdb. The one test
+ * that deliberately runs without one swaps it out and puts it back.
+ */
+$GLOBALS['wpdb'] = new SendBeam_Stub_MailDb();
+
+/** The log, newest first, the way every screen reads it. */
+function sb_log() {
+	$rows = $GLOBALS['wpdb']->rows;
+	usort( $rows, function ( $a, $b ) { return ( (int) $b['id'] ) - ( (int) $a['id'] ); } );
+	return array_values( $rows );
+}
+
+/** Empty it between tests. */
+function sb_log_reset() {
+	$GLOBALS['wpdb']->rows    = array();
+	$GLOBALS['wpdb']->next_id = 1;
+	$GLOBALS['wpdb']->queries = array();
+}
+
 $form = '8f3c1a2e-3b1d-4c55-9a0e-1f2d3c4b5a69';
 $other = '11111111-2222-4333-8444-555555555555';
 
@@ -276,8 +296,9 @@ ok( $sent['reply_to'] === 'Shop <shop@example-site.test>', 'reply-to' );
 ok( $sent['bcc'] === array( 'owner@example-site.test' ), 'bcc' );
 ok( $sent['headers'] === array( 'X-Order-Id' => '1001' ), 'only X-* headers forwarded' );
 ok( ! isset( $sent['from_email'] ), 'no From when WordPress would invent wordpress@…' );
-$log = get_option( 'sendbeam_mail_log' );
-ok( $log[0]['result'] === 'sent' && $log[0]['to'] === 'Ada <ada@customer.test>', 'log entry' );
+$log = sb_log();
+ok( $log[0]['result'] === 'sent' && $log[0]['to_addr'] === 'Ada <ada@customer.test>', 'log entry' );
+ok( '' !== $log[0]['sent_at'] && 1 === preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $log[0]['sent_at'] ), 'log entry: with a UTC datetime, not a Unix stamp' );
 
 // Plain text (WordPress default), From header on the site's domain, wp_mail_from_name filter honoured.
 $stub['remote'] = array();
@@ -299,12 +320,12 @@ ok( $sent['from_email'] === 'hello@example-site.test' && $sent['from_name'] === 
 // Attachments → server mailer.
 $stub['remote'] = array();
 ok( null === apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm', 'headers' => '', 'attachments' => array( '/tmp/invoice.pdf' ) ) ), 'attachments → null' );
-ok( count( $stub['remote'] ) === 0 && get_option( 'sendbeam_mail_log' )[0]['result'] === 'fallback', 'no call, logged as fallback' );
+ok( count( $stub['remote'] ) === 0 && sb_log()[0]['result'] === 'fallback', 'no call, logged as fallback' );
 
 // API refusal: fallback on → null; fallback off → false + wp_mail_failed.
 $stub['remote_reply'] = array( 'response' => array( 'code' => 403 ), 'body' => '{"error":"Monthly email limit reached"}' );
 ok( null === apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm' ) ), 'refused + fallback → null' );
-ok( get_option( 'sendbeam_mail_log' )[0]['note'] === 'Monthly email limit reached', 'API error in the log' );
+ok( sb_log()[0]['note'] === 'Monthly email limit reached', 'API error in the log' );
 update_option( 'sendbeam_settings', array( 'mail_enabled' => 1, 'api_key' => 'sb_live_abcdefghijklmnop', 'mail_fallback' => 0 ) );
 $stub['actions'] = array();
 ok( false === apply_filters( 'pre_wp_mail', null, array( 'to' => 'a@b.test', 'subject' => 's', 'message' => 'm' ) ), 'refused, no fallback → false' );
@@ -2577,10 +2598,12 @@ function sb_placement( $db, $options = array() ) {
 	update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_connectedconnectedxx', 'default_form' => $GLOBALS['form'] ) );
 	update_option( 'sendbeam_popups', array() );
 	$GLOBALS['stub']['db'] = $db;
+	$sb_was_wpdb           = $GLOBALS['wpdb'];
 	$GLOBALS['wpdb']       = new SendBeam_Stub_Db();
 	$where                 = sendbeam_form_placement( true );
 	$sql                   = implode( ' ', $GLOBALS['wpdb']->queries );
-	unset( $GLOBALS['wpdb'] );
+	// Back to the one that holds the log: it is needed for the rest of the run.
+	$GLOBALS['wpdb'] = $sb_was_wpdb;
 	return array( $where, $sql );
 }
 
@@ -3208,18 +3231,14 @@ sendbeam_flush_cache();
 has( sb_render_table( new SendBeam_Forms_Table() ), 'Forms (read) permission', 'forms table: a key that cannot read forms is told which permission is missing' );
 
 // ── The email log ───────────────────────────────────────────────────────
-update_option(
-	'sendbeam_mail_log',
-	array(
-		array( 'at' => 1758700000, 'to' => 'ada@customer.test', 'subject' => 'Order #1001', 'result' => 'sent', 'note' => '' ),
-		array( 'at' => 1758600000, 'to' => 'bob@customer.test', 'subject' => 'Password reset', 'result' => 'failed', 'note' => 'Monthly email limit reached' ),
-		array( 'at' => 1758500000, 'to' => 'cat@customer.test', 'subject' => 'New comment', 'result' => 'fallback', 'note' => 'has attachments' ),
-	)
-);
+sb_log_reset();
+sendbeam_mail_log_insert( 'cat@customer.test', 'New comment', 'fallback', 'has attachments', 'akismet', 1758500000 );
+sendbeam_mail_log_insert( 'bob@customer.test', 'Password reset', 'failed', 'Monthly email limit reached', 'wp-core', 1758600000 );
+sendbeam_mail_log_insert( 'ada@customer.test', 'Order #1001', 'sent', '', 'woocommerce', 1758700000 );
 $log_table = new SendBeam_Mail_Log_Table();
 $html      = sb_render_table( $log_table );
 has( $html, 'column-date column-primary', 'email log: Date is the primary column' );
-foreach ( array( 'Date', 'To', 'Subject', 'Result', 'Note' ) as $sendbeam_col ) {
+foreach ( array( 'Date', 'To', 'Subject', 'Result', 'Sent by', 'Note' ) as $sendbeam_col ) {
 	has( $html, '>' . $sendbeam_col . '</th>', "email log: the $sendbeam_col column is there" );
 }
 has( $html, 'ada@customer.test', 'email log: a sent message is listed' );
@@ -3228,34 +3247,38 @@ has( $html, 'Monthly email limit reached', 'email log: a failure keeps the reaso
 has( $html, 'Server mailer', 'email log: a fall-back to the server mailer is named as one' );
 has( $html, 'name="message[]"', 'email log: rows can be ticked' );
 has( $html, '<option value="delete">Delete</option>', 'email log: the one bulk action is Delete' );
+has( $html, 'woocommerce', 'email log: and which plugin asked for the message' );
+/*
+ * The sentinel for core is `wp-core`, not the product's name: the coding
+ * standard's own auto-fixer rewrites that word wherever it finds it, which
+ * would turn a stored value the screen matches on into one it does not.
+ */
+has( $html, '>WordPress<', 'email log: with core itself named in words' );
+ok( 'wp-core' === sendbeam_mail_source() || '' === sendbeam_mail_source(), 'email log: and stored as a sentinel a linter will not rewrite' );
 
 $_REQUEST['s'] = 'password';
 has( sb_render_table( new SendBeam_Mail_Log_Table() ), 'bob@customer.test', 'email log: search keeps what matches' );
 lacks( sb_render_table( new SendBeam_Mail_Log_Table() ), 'ada@customer.test', 'email log: search drops what does not' );
 $_REQUEST = array();
 
-update_option( 'sendbeam_mail_log', array() );
+sb_log_reset();
 has( sb_render_table( new SendBeam_Mail_Log_Table() ), 'Nothing has been sent through SendBeam', 'email log: an empty log says what to do about it' );
 
 // Bulk delete: the rows that were ticked go, and nothing else does.
-update_option(
-	'sendbeam_mail_log',
-	array(
-		array( 'at' => 3, 'to' => 'a@t.test', 'subject' => 'A', 'result' => 'sent', 'note' => '' ),
-		array( 'at' => 2, 'to' => 'b@t.test', 'subject' => 'B', 'result' => 'sent', 'note' => '' ),
-		array( 'at' => 1, 'to' => 'c@t.test', 'subject' => 'C', 'result' => 'sent', 'note' => '' ),
-	)
-);
+sb_log_reset();
+sendbeam_mail_log_insert( 'a@t.test', 'A', 'sent', '', '', 1758000001 );
+sendbeam_mail_log_insert( 'b@t.test', 'B', 'sent', '', '', 1758000002 );
+sendbeam_mail_log_insert( 'c@t.test', 'C', 'sent', '', '', 1758000003 );
 $_REQUEST = array(
 	'action'   => 'delete',
-	'message'  => array( 1 ),
+	'message'  => array( 2 ),
 	'_wpnonce' => 'nonce:bulk-sendbeam_messages',
 );
 $table = new SendBeam_Mail_Log_Table();
 $table->process_bulk_action();
-$kept = get_option( 'sendbeam_mail_log' );
+$kept = sb_log();
 ok( 2 === count( $kept ), 'email log: a bulk delete removes exactly the rows that were ticked' );
-ok( 'a@t.test' === $kept[0]['to'] && 'c@t.test' === $kept[1]['to'], 'email log: the rows that were not ticked are untouched, and stay in order' );
+ok( 'c@t.test' === $kept[0]['to_addr'] && 'a@t.test' === $kept[1]['to_addr'], 'email log: the rows that were not ticked are untouched' );
 
 // The same request without the nonce must not delete anything.
 $_REQUEST = array(
@@ -3269,9 +3292,9 @@ try {
 	$threw = true;
 }
 ok( $threw, 'email log: a bulk delete without a valid nonce is refused' );
-ok( 2 === count( get_option( 'sendbeam_mail_log' ) ), 'email log: and nothing was deleted' );
+ok( 2 === count( sb_log() ), 'email log: and nothing was deleted' );
 $_REQUEST = array();
-update_option( 'sendbeam_mail_log', array() );
+sb_log_reset();
 
 // ── Audience lists ──────────────────────────────────────────────────────
 $GLOBALS['stub']['remote_reply'] = function ( $url ) {
@@ -3631,13 +3654,9 @@ $sb_done['mail_enabled'] = 1;
 $sb_done['default_form'] = $form;
 update_option( 'sendbeam_form_placed', 1, false );
 
-update_option(
-	'sendbeam_mail_log',
-	array(
-		array( 'at' => 1758700000, 'to' => 'ada@customer.test', 'subject' => 'Order #1001', 'result' => 'sent', 'note' => '' ),
-		array( 'at' => 1758600000, 'to' => 'bob@customer.test', 'subject' => 'Password reset', 'result' => 'failed', 'note' => 'refused' ),
-	)
-);
+sb_log_reset();
+sendbeam_mail_log_insert( 'bob@customer.test', 'Password reset', 'failed', 'refused', '', 1758600000 );
+sendbeam_mail_log_insert( 'ada@customer.test', 'Order #1001', 'sent', '', '', 1758700000 );
 
 $ov = sb_overview( $sb_done, $sb_verified );
 has( $ov, '<h2>Connection</h2>', 'overview: the connection is a card of its own, above the checklist' );
@@ -3717,7 +3736,7 @@ $_REQUEST = array();
 delete_option( 'sendbeam_form_placed' );
 
 // With nothing sent yet the card says so rather than showing an empty list.
-update_option( 'sendbeam_mail_log', array() );
+sb_log_reset();
 has( sb_overview( $sb_done, $sb_verified ), 'Nothing has gone out through SendBeam from this site yet', 'overview: a site that has sent nothing is told so, not shown an empty list' );
 
 /* ────────────────────── The pop-up rules, as cards ─────────────────────
@@ -3786,6 +3805,274 @@ has( $sendbeam_admin_js, 'function renumber()', 'pop-ups: the cards renumber the
 ok( 2 === substr_count( $sendbeam_admin_js, 'renumber();' ), 'pop-ups: after an add and after a remove' );
 
 update_option( 'sendbeam_popups', array() );
+
+/* ─────────────────────────── The email log ─────────────────────────────
+ * It was twenty rows in an option: a shop doing thirty order emails an hour
+ * lost the morning by lunchtime, and every write rewrote the whole array.
+ */
+sb_log_reset();
+$GLOBALS['stub']['dbdelta'] = array();
+delete_option( 'sendbeam_db_version' );
+
+// ── The table's shape ───────────────────────────────────────────────────
+sendbeam_mail_log_install();
+$sb_ddl = $GLOBALS['stub']['dbdelta'][0];
+has( $sb_ddl, 'CREATE TABLE wp_sendbeam_mail_log', 'log table: named from $wpdb->prefix, so multisite gets one per site' );
+foreach ( array(
+	'id bigint(20) unsigned NOT NULL AUTO_INCREMENT',
+	'sent_at datetime NOT NULL',
+	'to_addr varchar(255)',
+	'subject text NOT NULL',
+	'result varchar(16)',
+	'note text NOT NULL',
+	'source varchar(64)',
+) as $sb_col ) {
+	has( $sb_ddl, $sb_col, "log table: the $sb_col column" );
+}
+has( $sb_ddl, 'PRIMARY KEY  (id)', 'log table: with the two spaces dbDelta insists on' );
+has( $sb_ddl, 'KEY sent_at (sent_at)', 'log table: an index on the column everything orders by' );
+has( $sb_ddl, 'KEY result (result)', 'log table: and on the one the views filter by' );
+has( $sb_ddl, 'utf8mb4', 'log table: in the site\'s own charset and collation' );
+lacks( $sb_ddl, 'body', 'log table: the message itself is never stored' );
+lacks( $sb_ddl, 'html', 'log table: in any column' );
+ok( SENDBEAM_DB_VERSION === (int) get_option( 'sendbeam_db_version' ), 'log table: and the version is recorded' );
+
+// Installing again when the version already matches does nothing.
+$GLOBALS['stub']['dbdelta'] = array();
+sendbeam_mail_log_maybe_upgrade();
+ok( 0 === count( $GLOBALS['stub']['dbdelta'] ), 'log table: a version that already matches does not run dbDelta again' );
+
+// An upgrade by zip fires no activation hook, so the tidy-up is scheduled
+// from here too or a site that upgraded that way keeps its log for ever.
+$GLOBALS['stub']['cron'] = array();
+delete_option( 'sendbeam_db_version' );
+sendbeam_mail_log_maybe_upgrade();
+ok( (bool) wp_next_scheduled( SENDBEAM_PRUNE_HOOK ), 'log table: an upgrade schedules the daily tidy-up, activation hook or not' );
+
+// ── Writing ────────────────────────────────────────────────────────────
+sb_log_reset();
+ok( sendbeam_mail_log_insert( 'ada@customer.test', 'Order #1001', 'sent', '', 'woocommerce', 1758700000 ), 'log: a row goes in' );
+$sb_row = sb_log()[0];
+ok( 'ada@customer.test' === $sb_row['to_addr'], 'log: with the address it went to' );
+ok( '2025-09-24 07:46:40' === $sb_row['sent_at'], 'log: and a UTC datetime, so the log does not move when the site changes timezone' );
+ok( 'woocommerce' === $sb_row['source'], 'log: and which plugin asked for it' );
+sendbeam_mail_log_insert( 'bob@t.test', 'X', 'nonsense-result', '', '', 1758700001 );
+ok( 'failed' === sb_log()[0]['result'], 'log: a result nobody recognises is recorded as a failure, not as a success' );
+sendbeam_mail_log_insert( array( 'a@t.test', 'b@t.test' ), 'Y', 'sent', '', '', 1758700002 );
+ok( 'a@t.test, b@t.test' === sb_log()[0]['to_addr'], 'log: several recipients become one readable field' );
+sendbeam_mail_log_insert( str_repeat( 'x', 400 ) . '@t.test', 'Z', 'sent', '', str_repeat( 's', 200 ), 1758700003 );
+ok( 255 === mb_strlen( sb_log()[0]['to_addr'] ), 'log: an address longer than the column is cut, not refused' );
+ok( 64 === mb_strlen( sb_log()[0]['source'] ), 'log: and so is the source' );
+
+// ── The migration off the option ───────────────────────────────────────
+sb_log_reset();
+update_option(
+	'sendbeam_mail_log',
+	array(
+		array( 'at' => 1758700000, 'to' => 'new@t.test', 'subject' => 'Newest', 'result' => 'sent', 'note' => '' ),
+		array( 'at' => 1758600000, 'to' => 'old@t.test', 'subject' => 'Oldest', 'result' => 'failed', 'note' => 'refused' ),
+	)
+);
+ok( 2 === sendbeam_mail_log_migrate(), 'migration: both rows move into the table' );
+ok( false === get_option( 'sendbeam_mail_log' ), 'migration: and the option is gone' );
+$sb_moved = sb_log();
+ok( 'new@t.test' === $sb_moved[0]['to_addr'], 'migration: newest first, as it was' );
+ok( '2025-09-23 04:00:00' === $sb_moved[1]['sent_at'], 'migration: with the original timestamps, not the moment of the upgrade' );
+ok( 'refused' === $sb_moved[1]['note'], 'migration: and the reason it failed' );
+
+// Twice is not twice as many rows.
+ok( 0 === sendbeam_mail_log_migrate(), 'migration: running it again finds nothing' );
+ok( 2 === count( sb_log() ), 'migration: and does not duplicate what it already moved' );
+
+// ── Reading ────────────────────────────────────────────────────────────
+sb_log_reset();
+sendbeam_mail_log_insert( 'ada@customer.test', 'Order #1001', 'sent', '', 'woocommerce', 1758700000 );
+sendbeam_mail_log_insert( 'bob@customer.test', 'Password reset', 'failed', 'Monthly email limit reached', 'wp-core', 1758600000 );
+sendbeam_mail_log_insert( 'cat@customer.test', 'New comment', 'fallback', 'has attachments', '', 1758500000 );
+sendbeam_mail_log_insert( 'dan@customer.test', 'Receipt', 'sent', '', 'woocommerce', 1758400000 );
+
+$sb_counts = sendbeam_mail_log_counts();
+ok( 4 === $sb_counts['all'], 'views: the counts add up' );
+ok( 2 === $sb_counts['sent'] && 1 === $sb_counts['failed'] && 1 === $sb_counts['fallback'], 'views: one per result' );
+
+$sb_page = sendbeam_mail_log_query( array( 'per_page' => 2 ) );
+ok( 4 === $sb_page['total'], 'query: the total counts every match, not the page' );
+ok( 2 === count( $sb_page['rows'] ), 'query: and the page is the page' );
+ok( 'ada@customer.test' === $sb_page['rows'][0]['to_addr'], 'query: newest first by default' );
+$sb_page = sendbeam_mail_log_query( array( 'per_page' => 2, 'page' => 2 ) );
+ok( 'cat@customer.test' === $sb_page['rows'][0]['to_addr'], 'query: the second page carries on where the first stopped' );
+
+$sb_page = sendbeam_mail_log_query( array( 'view' => 'sent' ) );
+ok( 2 === $sb_page['total'], 'query: a view narrows it to one result' );
+$sb_page = sendbeam_mail_log_query( array( 'view' => 'nonsense' ) );
+ok( 4 === $sb_page['total'], 'query: a view nobody defined is ignored rather than obeyed' );
+
+$sb_page = sendbeam_mail_log_query( array( 'search' => 'password' ) );
+ok( 1 === $sb_page['total'], 'search: the subject is searched' );
+$sb_page = sendbeam_mail_log_query( array( 'search' => 'cat@' ) );
+ok( 1 === $sb_page['total'], 'search: and the address' );
+$sb_page = sendbeam_mail_log_query( array( 'search' => 'limit reached' ) );
+ok( 1 === $sb_page['total'], 'search: and the reason it failed, which is what somebody actually looks for' );
+
+// Neither of the two things that cannot be a placeholder comes from a
+// request without passing through an allow-list first.
+$sb_page = sendbeam_mail_log_query( array( 'orderby' => 'note; DROP TABLE wp_posts', 'order' => 'DESC' ) );
+$sb_sql  = implode( ' ', $GLOBALS['wpdb']->queries );
+lacks( $sb_sql, 'DROP TABLE wp_posts', 'query: an order column from the request cannot reach the statement' );
+has( $sb_sql, 'FROM `wp_sendbeam_mail_log`', 'query: and the table name is backticked, since it cannot be a placeholder before WordPress 6.2' );
+has( $sb_sql, 'ORDER BY sent_at', 'query: it falls back to the one column that is always safe' );
+sendbeam_mail_log_query( array( 'orderby' => 'result', 'order' => 'asc' ) );
+has( implode( ' ', $GLOBALS['wpdb']->queries ), 'ORDER BY result ASC', 'query: and an order it does recognise is used' );
+
+ok( 4 === count( sendbeam_mail_log_recent( 5 ) ), 'recent: asks for five and gets the four there are' );
+ok( 2 === count( sendbeam_mail_log_recent( 2 ) ), 'recent: and takes the limit seriously' );
+
+// ── Deleting ───────────────────────────────────────────────────────────
+$sb_ids = array_column( sb_log(), 'id' );
+ok( 1 === sendbeam_mail_log_delete( array( $sb_ids[0] ) ), 'delete: one row goes' );
+ok( 3 === count( sb_log() ), 'delete: and only that one' );
+ok( 0 === sendbeam_mail_log_delete( array() ), 'delete: nothing ticked deletes nothing' );
+ok( 3 === sendbeam_mail_log_clear(), 'clear: takes the rest' );
+ok( 0 === count( sb_log() ), 'clear: and leaves an empty table' );
+
+// ── Retention ──────────────────────────────────────────────────────────
+update_option( 'sendbeam_settings', array() );
+ok( 30 === sendbeam_mail_log_days(), 'retention: thirty days out of the box' );
+foreach ( array( 7, 30, 90, 0 ) as $sb_days ) {
+	update_option( 'sendbeam_settings', array( 'mail_log_days' => $sb_days ) );
+	ok( $sb_days === sendbeam_mail_log_days(), "retention: $sb_days is a choice" );
+}
+update_option( 'sendbeam_settings', array( 'mail_log_days' => 4000 ) );
+ok( 30 === sendbeam_mail_log_days(), 'retention: a number nobody offered falls back to thirty, not to for ever' );
+$sb_clean = sendbeam_sanitize_settings( array( '_tab' => 'mail', 'mail_log_days' => '90' ) );
+ok( 90 === $sb_clean['mail_log_days'], 'retention: the form saves a choice it recognises' );
+$sb_clean = sendbeam_sanitize_settings( array( '_tab' => 'mail', 'mail_log_days' => '-1' ) );
+ok( 30 === $sb_clean['mail_log_days'], 'retention: and refuses one it does not' );
+
+// ── Pruning ────────────────────────────────────────────────────────────
+sb_log_reset();
+update_option( 'sendbeam_settings', array( 'mail_log_days' => 7 ) );
+sendbeam_mail_log_insert( 'old@t.test', 'Old', 'sent', '', '', time() - ( 30 * DAY_IN_SECONDS ) );
+sendbeam_mail_log_insert( 'new@t.test', 'New', 'sent', '', '', time() - HOUR_IN_SECONDS );
+ok( 1 === sendbeam_mail_log_prune(), 'prune: a row past its date goes' );
+ok( 1 === count( sb_log() ) && 'new@t.test' === sb_log()[0]['to_addr'], 'prune: and the one inside it stays' );
+
+update_option( 'sendbeam_settings', array( 'mail_log_days' => 0 ) );
+sendbeam_mail_log_insert( 'ancient@t.test', 'Ancient', 'sent', '', '', time() - ( 900 * DAY_IN_SECONDS ) );
+ok( 0 === sendbeam_mail_log_prune(), 'prune: "for ever" keeps a nine-hundred-day-old row' );
+ok( 2 === count( sb_log() ), 'prune: whatever its date' );
+
+/*
+ * The cap is the other half. "For ever" is a promise about time, not about
+ * size, and a forgotten site on somebody else's hosting should not be able to
+ * fill their disk with it.
+ */
+ok( 20000 === SENDBEAM_MAIL_LOG_MAX, 'prune: there is a ceiling regardless' );
+sb_log_reset();
+for ( $sb_n = 0; $sb_n < 12; $sb_n++ ) {
+	sendbeam_mail_log_insert( "n{$sb_n}@t.test", 'X', 'sent', '', '', 1758000000 + $sb_n );
+}
+$GLOBALS['stub']['log_max'] = 10;
+ok( 12 === count( sb_log() ), 'prune: twelve rows in' );
+// With the constant at twenty thousand the cap cannot be reached in a test,
+// so the statement it would issue is what gets checked.
+$GLOBALS['wpdb']->queries = array();
+sendbeam_mail_log_prune();
+has( implode( ' ', $GLOBALS['wpdb']->queries ), 'SELECT COUNT(*) FROM `wp_sendbeam_mail_log`', 'prune: the cap is measured before it is applied' );
+
+// ── The cron that runs it ──────────────────────────────────────────────
+$GLOBALS['stub']['cron'] = array();
+sendbeam_mail_log_schedule_prune();
+$sb_cron = array_values( array_filter( $GLOBALS['stub']['cron'], function ( $c ) { return SENDBEAM_PRUNE_HOOK === $c['hook']; } ) );
+ok( 1 === count( $sb_cron ), 'cron: the tidy-up is scheduled' );
+ok( 'daily' === $sb_cron[0]['recurrence'], 'cron: once a day' );
+sendbeam_mail_log_schedule_prune();
+ok( 1 === count( array_filter( $GLOBALS['stub']['cron'], function ( $c ) { return SENDBEAM_PRUNE_HOOK === $c['hook']; } ) ), 'cron: scheduling twice does not schedule twice' );
+sendbeam_on_deactivate();
+ok( ! wp_next_scheduled( SENDBEAM_PRUNE_HOOK ), 'cron: deactivating clears it, so a switched-off plugin does no work' );
+sendbeam_on_activate();
+ok( wp_next_scheduled( SENDBEAM_PRUNE_HOOK ), 'cron: and activating puts it back' );
+
+// ── Clear the log ──────────────────────────────────────────────────────
+sb_log_reset();
+sendbeam_mail_log_insert( 'a@t.test', 'A', 'sent', '', '', 1758000001 );
+sendbeam_mail_log_insert( 'b@t.test', 'B', 'sent', '', '', 1758000002 );
+$GLOBALS['stub']['caps']['manage_options'] = true;
+$_REQUEST                                  = array( '_wpnonce' => 'nonce:sendbeam_clear_log' );
+unset( $GLOBALS['stub']['redirect'] );
+try {
+	sendbeam_handle_clear_log();
+} catch ( SendBeamStubExit $e ) {
+	unset( $e );
+}
+$_REQUEST = array();
+ok( 0 === count( sb_log() ), 'clear the log: the button empties it' );
+has( $GLOBALS['stub']['redirect']['url'], 'sendbeam_log_cleared=2', 'clear the log: and says how many went' );
+
+// Without the nonce, or without the capability, nothing goes.
+sendbeam_mail_log_insert( 'c@t.test', 'C', 'sent', '', '', 1758000003 );
+$threw = false;
+try {
+	sendbeam_handle_clear_log();
+} catch ( SendBeamStubExit $e ) {
+	$threw = true;
+}
+ok( $threw, 'clear the log: refused without a nonce' );
+ok( 1 === count( sb_log() ), 'clear the log: and nothing was deleted' );
+
+$GLOBALS['stub']['caps']['manage_options'] = false;
+$_REQUEST                                  = array( '_wpnonce' => 'nonce:sendbeam_clear_log' );
+$threw                                     = false;
+try {
+	sendbeam_handle_clear_log();
+} catch ( SendBeamStubExit $e ) {
+	$threw = true;
+}
+ok( $threw, 'clear the log: refused without the capability' );
+ok( 1 === count( sb_log() ), 'clear the log: and still nothing was deleted' );
+$GLOBALS['stub']['caps']['manage_options'] = true;
+$_REQUEST                                  = array();
+
+// It is a button on the screen, behind a closed confirmation, and NOT a
+// bulk action sitting one mis-click from "Delete".
+ob_start();
+sendbeam_mail_log_clear_action();
+$sb_clear = ob_get_clean();
+has( $sb_clear, '<details class="sb-confirm">', 'clear the log: behind a confirmation that renders nothing until it is pressed' );
+has( $sb_clear, 'Clear the log', 'clear the log: which is what the button says' );
+has( $sb_clear, 'value="sendbeam_clear_log"', 'clear the log: posting to its own handler' );
+has( $sb_clear, 'nonce:sendbeam_clear_log', 'clear the log: with a nonce' );
+$sb_bulk = ( new SendBeam_Mail_Log_Table() );
+ob_start();
+$sb_bulk->prepare_items();
+$sb_bulk->display();
+$sb_bulk_html = ob_get_clean();
+lacks( $sb_bulk_html, 'Delete all', 'clear the log: and never as a bulk action beside Delete' );
+
+// ── The views, on the screen ───────────────────────────────────────────
+sb_log_reset();
+sendbeam_mail_log_insert( 'a@t.test', 'A', 'sent', '', '', 1758000001 );
+sendbeam_mail_log_insert( 'b@t.test', 'B', 'failed', 'nope', '', 1758000002 );
+$sb_views = new SendBeam_Mail_Log_Table();
+$sb_views->prepare_items();
+ob_start();
+$sb_views->views();
+$sb_views_html = ob_get_clean();
+has( $sb_views_html, 'All <span class="count">(2)</span>', 'views: All, with a count' );
+has( $sb_views_html, 'Sent <span class="count">(1)</span>', 'views: Sent, with a count' );
+has( $sb_views_html, 'Failed <span class="count">(1)</span>', 'views: Failed, with a count' );
+lacks( $sb_views_html, 'Server mailer', 'views: and a view nothing landed in is not a link to an empty screen' );
+
+// ── Uninstall ──────────────────────────────────────────────────────────
+$sb_uninstall = file_get_contents( dirname( __DIR__ ) . '/uninstall.php' );
+has( $sb_uninstall, 'DROP TABLE IF EXISTS', 'uninstall: the table is dropped' );
+has( $sb_uninstall, "\$wpdb->prefix . 'sendbeam_mail_log'", 'uninstall: the one this site made' );
+has( $sb_uninstall, "str_replace( '`', '``'", 'uninstall: with the name backtick-escaped, since a DROP cannot take a placeholder' );
+has( $sb_uninstall, "'sendbeam_db_version'", 'uninstall: and the version that says it exists' );
+has( $sb_uninstall, "'sendbeam_mail_log'", 'uninstall: with the old option swept too, for a site that never upgraded past it' );
+
+sb_log_reset();
+update_option( 'sendbeam_settings', array() );
 
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor

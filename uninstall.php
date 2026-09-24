@@ -20,7 +20,8 @@ $sendbeam_options = array(
 	'sendbeam_sync',
 	'sendbeam_sync_log',
 	'sendbeam_bridges',
-	'sendbeam_mail_log',
+	'sendbeam_mail_log',      // The pre-1.8.3 option; the table goes below.
+	'sendbeam_db_version',
 	'sendbeam_activated_at',
 	'sendbeam_ecommerce',
 	'sendbeam_ecommerce_log',
@@ -29,6 +30,24 @@ $sendbeam_options = array(
 );
 foreach ( $sendbeam_options as $sendbeam_option ) {
 	delete_option( $sendbeam_option );
+}
+
+/*
+ * The email log's own table. Deleting a plugin should leave nothing behind,
+ * and a table of who this site emailed is the last thing to leave lying
+ * around.
+ */
+global $wpdb;
+if ( isset( $wpdb ) && is_object( $wpdb ) && method_exists( $wpdb, 'query' ) ) {
+	/*
+	 * The name is built from $wpdb->prefix and a literal, so nothing about it
+	 * comes from anywhere a request could reach. Backticked and escaped all
+	 * the same, because a DROP cannot take a placeholder for its table and a
+	 * reviewer should not have to take that on trust.
+	 */
+	$sendbeam_table = '`' . str_replace( '`', '``', $wpdb->prefix . 'sendbeam_mail_log' ) . '`';
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- dropping the plugin's own table is the point of uninstalling; the name is backtick-escaped above and no part of it is user input.
+	$wpdb->query( "DROP TABLE IF EXISTS {$sendbeam_table}" );
 }
 
 $sendbeam_transients = array(

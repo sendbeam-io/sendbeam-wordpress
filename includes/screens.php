@@ -117,8 +117,7 @@ function sendbeam_workspace_card( $forms, $lists, $subscribers ) {
  * ever done" — the Site email screen has the whole log, searchable.
  */
 function sendbeam_workspace_recent() {
-	$log = get_option( 'sendbeam_mail_log', array() );
-	$log = is_array( $log ) ? array_slice( array_values( $log ), 0, 5 ) : array();
+	$log = sendbeam_mail_log_recent( 5 );
 
 	echo '<p class="sb-label" style="margin-top:18px">' . esc_html__( 'Recent site email', 'sendbeam' ) . '</p>';
 
@@ -146,10 +145,11 @@ function sendbeam_workspace_recent() {
 		 * get a time instead, which is what somebody checking whether the
 		 * last one went out actually wants.
 		 */
-		$long  = wp_date( get_option( 'date_format' ), (int) $row['at'] );
-		$short = wp_date( 'Y-m-d', (int) $row['at'] ) === $today
-			? wp_date( get_option( 'time_format' ), (int) $row['at'] )
-			: wp_date( 'j M', (int) $row['at'] );
+		$at    = sendbeam_mail_log_stamp( $row );
+		$long  = wp_date( get_option( 'date_format' ), $at );
+		$short = wp_date( 'Y-m-d', $at ) === $today
+			? wp_date( get_option( 'time_format' ), $at )
+			: wp_date( 'j M', $at );
 
 		printf(
 			'<li><span class="sb-recent__when"><span class="sb-recent__long">%1$s</span>' .
@@ -158,7 +158,7 @@ function sendbeam_workspace_recent() {
 			'<span class="sb-recent__what sb-recent__what--%4$s">%5$s</span></li>',
 			esc_html( $long ),
 			esc_html( $short ),
-			esc_html( (string) $row['to'] ),
+			esc_html( (string) $row['to_addr'] ),
 			esc_attr( $results[ $key ][0] ),
 			esc_html( $results[ $key ][1] )
 		);
@@ -1493,9 +1493,60 @@ function sendbeam_screen_mail() {
 
 	sendbeam_list_card(
 		__( 'Email log', 'sendbeam' ),
-		__( 'The last few messages this site handed to SendBeam, and what became of each.', 'sendbeam' ),
-		__( 'Search the log', 'sendbeam' )
+		sendbeam_mail_log_intro(),
+		__( 'Search the log', 'sendbeam' ),
+		'sendbeam_mail_log_clear_action'
 	);
+}
+
+/**
+ * What the log card says about itself.
+ *
+ * @return string
+ */
+function sendbeam_mail_log_intro() {
+	$days = sendbeam_mail_log_days();
+	if ( 0 === $days ) {
+		return __( 'Every message this site has handed to SendBeam, and what became of each. Kept until you clear it; only the subject and the result are stored, never the message.', 'sendbeam' );
+	}
+	return sprintf(
+		/* translators: %d: how many days the log is kept for */
+		_n(
+			'Every message this site has handed to SendBeam, and what became of each. Kept for %d day; only the subject and the result are stored, never the message.',
+			'Every message this site has handed to SendBeam, and what became of each. Kept for %d days; only the subject and the result are stored, never the message.',
+			$days,
+			'sendbeam'
+		),
+		$days
+	);
+}
+
+/**
+ * "Clear the log" — all of it, behind its own confirmation.
+ *
+ * Deliberately not a bulk action. "Delete" and "Delete all" one mis-click
+ * apart in the same dropdown is how somebody loses the log they came to read.
+ */
+function sendbeam_mail_log_clear_action() {
+	if ( 0 === sendbeam_mail_log_counts()['all'] ) {
+		return;
+	}
+	echo '<details class="sb-confirm">';
+	printf(
+		'<summary class="sb-btn sb-btn--danger sb-btn--small">' .
+		'<span class="sb-confirm__label sb-confirm__label--shut">%1$s</span>' .
+		'<span class="sb-confirm__label sb-confirm__label--open">%2$s</span></summary>',
+		esc_html__( 'Clear the log', 'sendbeam' ),
+		esc_html__( 'Cancel', 'sendbeam' )
+	);
+	echo '<div class="sb-confirm__box">';
+	echo '<p class="sb-note">' . esc_html__( 'Delete every entry in the log? Nothing else changes — this is a record of what was sent, not the messages themselves, and clearing it does not unsend anything.', 'sendbeam' ) . '</p>';
+	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	wp_nonce_field( 'sendbeam_clear_log' );
+	echo '<input type="hidden" name="action" value="sendbeam_clear_log" />';
+	printf( '<button type="submit" class="sb-btn sb-btn--small sb-btn--danger">%s</button>', esc_html__( 'Yes, clear it', 'sendbeam' ) );
+	echo '</form>';
+	echo '</div></details>';
 }
 
 /**
@@ -1630,6 +1681,22 @@ function sendbeam_test_mail_failure( $result ) {
 }
 
 /**
+ * Carry the view and the sort across a form submission.
+ *
+ * Without these, searching from inside the Failed view drops you back into
+ * All, and a bulk delete forgets which column the list was ordered by.
+ */
+function sendbeam_list_keep_state() {
+	foreach ( array( 'result', 'orderby', 'order' ) as $key ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- carried straight back into the same list's own query string.
+		$value = isset( $_REQUEST[ $key ] ) ? sanitize_key( wp_unslash( $_REQUEST[ $key ] ) ) : '';
+		if ( '' !== $value ) {
+			printf( '<input type="hidden" name="%s" value="%s" />', esc_attr( $key ), esc_attr( $value ) );
+		}
+	}
+}
+
+/**
  * A card whose body is the screen's list table.
  *
  * One function because all three are the same shape: a heading, a sentence,
@@ -1640,8 +1707,9 @@ function sendbeam_test_mail_failure( $result ) {
  * @param string $title  Card heading.
  * @param string $note   The sentence under it.
  * @param string $search Placeholder and label for the search box.
+ * @param string $action Optional callable rendering an action under the table.
  */
-function sendbeam_list_card( $title, $note, $search ) {
+function sendbeam_list_card( $title, $note, $search, $action = '' ) {
 	$table = function_exists( 'sendbeam_list_table' ) ? sendbeam_list_table() : null;
 
 	sendbeam_card_open( $title );
@@ -1653,11 +1721,18 @@ function sendbeam_list_card( $title, $note, $search ) {
 		return;
 	}
 
+	// All / Sent / Failed, with counts. Core prints these outside the form,
+	// because a view is a link rather than something you submit.
+	if ( method_exists( $table, 'views' ) ) {
+		$table->views();
+	}
+
 	// GET, because a search is a place you can link to and come back to. The
 	// hidden `page` keeps the search on this screen rather than throwing it
 	// at the admin dashboard.
 	echo '<form method="get">';
 	printf( '<input type="hidden" name="page" value="%s" />', esc_attr( sendbeam_current_page() ) );
+	sendbeam_list_keep_state();
 	$table->search_box( $search, 'sendbeam-search' );
 	echo '</form>';
 
@@ -1665,8 +1740,15 @@ function sendbeam_list_card( $title, $note, $search ) {
 	// display(); the form around it is ours to provide.
 	echo '<form method="post">';
 	printf( '<input type="hidden" name="page" value="%s" />', esc_attr( sendbeam_current_page() ) );
+	sendbeam_list_keep_state();
 	$table->display();
 	echo '</form>';
+
+	if ( '' !== $action && is_callable( $action ) ) {
+		echo '<div class="sb-actions" style="margin-bottom:0">';
+		call_user_func( $action );
+		echo '</div>';
+	}
 
 	sendbeam_card_close();
 }

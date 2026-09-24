@@ -10,11 +10,10 @@ defined( 'ABSPATH' ) || exit;
 /**
  * What this site has recently sent through SendBeam.
  *
- * The log is an option holding the last twenty attempts: enough to answer
- * "did my password reset go out?" without turning a settings screen into a
- * mail archive. There is no Resend row action because the log keeps what was
- * sent *to* and *about*, never the message body — a Resend button that could
- * only send a different email is worse than no button.
+ * A table of its own, one row per attempt, kept for as long as the site owner
+ * asked. There is no Resend row action because the log keeps what was sent
+ * *to* and *about*, never the message body — a Resend button that could only
+ * send a different email is worse than no button.
  */
 class SendBeam_Mail_Log_Table extends WP_List_Table {
 
@@ -41,8 +40,72 @@ class SendBeam_Mail_Log_Table extends WP_List_Table {
 			'to'      => __( 'To', 'sendbeam' ),
 			'subject' => __( 'Subject', 'sendbeam' ),
 			'result'  => __( 'Result', 'sendbeam' ),
+			'source'  => __( 'Sent by', 'sendbeam' ),
 			'note'    => __( 'Note', 'sendbeam' ),
 		);
+	}
+
+	/**
+	 * The two columns worth ordering by.
+	 *
+	 * @return array<string,array>
+	 */
+	protected function get_sortable_columns() {
+		return array(
+			'date'   => array( 'sent_at', true ),
+			'result' => array( 'result', false ),
+		);
+	}
+
+	/**
+	 * All / Sent / Server mailer / Failed, with counts.
+	 *
+	 * The counts are the point: "did anything fail?" is the question this
+	 * screen exists to answer, and a list of two hundred rows does not answer
+	 * it at a glance.
+	 *
+	 * @return array<string,string>
+	 */
+	protected function get_views() {
+		$counts = sendbeam_mail_log_counts();
+		$now    = $this->current_view();
+		$base   = sendbeam_page_url( 'sendbeam-mail' );
+
+		$labels = array(
+			''         => __( 'All', 'sendbeam' ),
+			'sent'     => __( 'Sent', 'sendbeam' ),
+			'fallback' => __( 'Server mailer', 'sendbeam' ),
+			'failed'   => __( 'Failed', 'sendbeam' ),
+		);
+
+		$views = array();
+		foreach ( $labels as $key => $label ) {
+			$count = '' === $key ? $counts['all'] : $counts[ $key ];
+			// A view nobody has any rows for is a link to an empty screen.
+			if ( '' !== $key && 0 === $count ) {
+				continue;
+			}
+			$url           = '' === $key ? $base : add_query_arg( 'result', $key, $base );
+			$views[ $key ] = sprintf(
+				'<a href="%1$s"%2$s>%3$s <span class="count">(%4$s)</span></a>',
+				esc_url( $url ),
+				$key === $now ? ' class="current" aria-current="page"' : '',
+				esc_html( $label ),
+				esc_html( number_format_i18n( $count ) )
+			);
+		}
+		return $views;
+	}
+
+	/**
+	 * Which view is showing.
+	 *
+	 * @return string
+	 */
+	private function current_view() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only navigation between views of a list.
+		$view = isset( $_REQUEST['result'] ) ? sanitize_key( wp_unslash( $_REQUEST['result'] ) ) : '';
+		return in_array( $view, array( 'sent', 'fallback', 'failed' ), true ) ? $view : '';
 	}
 
 	/**
@@ -55,7 +118,11 @@ class SendBeam_Mail_Log_Table extends WP_List_Table {
 	}
 
 	/**
-	 * Clearing the log is the one thing that can be done to it.
+	 * Deleting the rows somebody ticked, and nothing else.
+	 *
+	 * Emptying the whole log is a button of its own on the screen, behind its
+	 * own confirmation. It is not in here, because "Delete" sitting one
+	 * mis-click from "Delete all" in the same dropdown is how a log gets lost.
 	 *
 	 * @return array<string,string>
 	 */
@@ -86,55 +153,36 @@ class SendBeam_Mail_Log_Table extends WP_List_Table {
 			return;
 		}
 
-		$log = get_option( 'sendbeam_mail_log', array() );
-		if ( ! is_array( $log ) ) {
-			return;
-		}
-		foreach ( $chosen as $index ) {
-			unset( $log[ $index ] );
-		}
-		update_option( 'sendbeam_mail_log', array_values( $log ), false );
-
-		$GLOBALS['sendbeam_deleted'] = count( $chosen );
+		$GLOBALS['sendbeam_deleted'] = sendbeam_mail_log_delete( $chosen );
 	}
 
 	/** Load, filter and page the rows. */
 	public function prepare_items() {
-		$log = get_option( 'sendbeam_mail_log', array() );
-		$log = is_array( $log ) ? array_values( $log ) : array();
-
-		// Each row carries its position in the stored log, because that is
-		// what a bulk delete has to name: two messages can share a second,
-		// an address and a subject.
-		foreach ( $log as $i => $row ) {
-			$log[ $i ]['index'] = $i;
-		}
-
-		$search = sendbeam_list_search();
-		if ( '' !== $search ) {
-			$needle = strtolower( $search );
-			$log    = array_values(
-				array_filter(
-					$log,
-					function ( $row ) use ( $needle ) {
-						$hay = strtolower( (string) $row['to'] . ' ' . (string) $row['subject'] . ' ' . (string) $row['note'] );
-						return false !== strpos( $hay, $needle );
-					}
-				)
-			);
-		}
-
 		$per_page = sendbeam_per_page( 'sendbeam_mail_log_per_page' );
-		$page     = max( 1, (int) $this->get_pagenum() );
-		$total    = count( $log );
 
-		$this->items           = array_slice( $log, ( $page - 1 ) * $per_page, $per_page );
-		$this->_column_headers = array( $this->get_columns(), array(), array(), $this->get_default_primary_column_name() );
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- sorting a list is a GET; core's own list tables read these the same way.
+		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_key( wp_unslash( $_REQUEST['orderby'] ) ) : 'sent_at';
+		$order   = isset( $_REQUEST['order'] ) ? sanitize_key( wp_unslash( $_REQUEST['order'] ) ) : 'desc';
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		$page = sendbeam_mail_log_query(
+			array(
+				'search'   => sendbeam_list_search(),
+				'view'     => $this->current_view(),
+				'orderby'  => $orderby,
+				'order'    => $order,
+				'per_page' => $per_page,
+				'page'     => max( 1, (int) $this->get_pagenum() ),
+			)
+		);
+
+		$this->items           = $page['rows'];
+		$this->_column_headers = array( $this->get_columns(), array(), $this->get_sortable_columns(), $this->get_default_primary_column_name() );
 		$this->set_pagination_args(
 			array(
-				'total_items' => $total,
+				'total_items' => $page['total'],
 				'per_page'    => $per_page,
-				'total_pages' => (int) ceil( $total / max( 1, $per_page ) ),
+				'total_pages' => (int) ceil( $page['total'] / max( 1, $per_page ) ),
 			)
 		);
 	}
@@ -143,6 +191,10 @@ class SendBeam_Mail_Log_Table extends WP_List_Table {
 	public function no_items() {
 		if ( '' !== sendbeam_list_search() ) {
 			esc_html_e( 'No message here matches that.', 'sendbeam' );
+			return;
+		}
+		if ( '' !== $this->current_view() ) {
+			esc_html_e( 'Nothing in the log ended that way.', 'sendbeam' );
 			return;
 		}
 		esc_html_e( 'Nothing has been sent through SendBeam from this site yet. Send yourself a test above and it will show up here.', 'sendbeam' );
@@ -155,7 +207,7 @@ class SendBeam_Mail_Log_Table extends WP_List_Table {
 	 * @return string
 	 */
 	public function column_cb( $item ) {
-		return sprintf( '<input type="checkbox" name="message[]" value="%d" />', (int) $item['index'] );
+		return sprintf( '<input type="checkbox" name="message[]" value="%d" />', (int) $item['id'] );
 	}
 
 	/**
@@ -165,7 +217,35 @@ class SendBeam_Mail_Log_Table extends WP_List_Table {
 	 * @return string
 	 */
 	public function column_date( $item ) {
-		return '<span class="sb-mono">' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $item['at'] ) ) . '</span>';
+		$at = sendbeam_mail_log_stamp( $item );
+		return '<span class="sb-mono">' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $at ) ) . '</span>';
+	}
+
+	/**
+	 * What asked for the message, when the plugin could tell.
+	 *
+	 * @param array $item Row.
+	 * @return string
+	 */
+	public function column_source( $item ) {
+		$source = isset( $item['source'] ) ? (string) $item['source'] : '';
+		if ( '' === $source ) {
+			return '<span class="sb-note">&mdash;</span>';
+		}
+		if ( 'wp-core' === $source ) {
+			return esc_html__( 'WordPress', 'sendbeam' );
+		}
+		return '<code>' . esc_html( $source ) . '</code>';
+	}
+
+	/**
+	 * Who it went to.
+	 *
+	 * @param array $item Row.
+	 * @return string
+	 */
+	public function column_to( $item ) {
+		return esc_html( (string) $item['to_addr'] );
 	}
 
 	/**

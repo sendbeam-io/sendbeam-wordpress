@@ -116,6 +116,18 @@ function sendbeam_admin_init() {
 		)
 	);
 	add_settings_field(
+		'mail_log_days',
+		__( 'Keep log entries for', 'sendbeam' ),
+		'sendbeam_field_select',
+		'sendbeam_mail_page',
+		'sendbeam_mail',
+		array(
+			'key'     => 'mail_log_days',
+			'options' => sendbeam_mail_log_retentions(),
+			'help'    => __( 'Older entries are deleted once a day. Whatever you choose, the log is capped at 20,000 messages and the oldest go first — the contents of a message are never stored, only who it went to, its subject and what became of it.', 'sendbeam' ),
+		)
+	);
+	add_settings_field(
 		'mail_fallback',
 		__( 'If SendBeam cannot send', 'sendbeam' ),
 		'sendbeam_field_checkbox',
@@ -167,7 +179,7 @@ function sendbeam_sanitize_settings( $input ) {
 	$groups = array(
 		'connect' => array( 'api_key' ),
 		'forms'   => array( 'default_form', 'contact_form', 'style_accent', 'style_text', 'style_field', 'style_border', 'style_radius', 'style_font', 'style_size', 'style_bare' ),
-		'mail'    => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback' ),
+		'mail'    => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback', 'mail_log_days' ),
 	);
 	$tab    = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
 	$keys   = isset( $groups[ $tab ] ) ? $groups[ $tab ] : array_merge( ...array_values( $groups ) );
@@ -222,6 +234,11 @@ function sendbeam_sanitize_settings( $input ) {
 		$from_email             = isset( $input['mail_from_email'] ) ? sanitize_email( wp_unslash( $input['mail_from_email'] ) ) : '';
 		$out['mail_from_email'] = $from_email && is_email( $from_email ) ? $from_email : '';
 		$out['mail_fallback']   = empty( $input['mail_fallback'] ) ? 0 : 1;
+
+		// One of four, and 30 for anything else — a retention nobody
+		// recognises would quietly become "for ever".
+		$days                 = isset( $input['mail_log_days'] ) ? (int) $input['mail_log_days'] : 30;
+		$out['mail_log_days'] = in_array( $days, array( 0, 7, 30, 90 ), true ) ? $days : 30;
 	}
 
 	// A blank key field keeps the saved key; "remove" clears it.

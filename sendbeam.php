@@ -33,6 +33,7 @@ require SENDBEAM_DIR . 'includes/menu.php';
 require SENDBEAM_DIR . 'includes/screens.php';
 require SENDBEAM_DIR . 'includes/settings.php';
 require SENDBEAM_DIR . 'includes/render.php';
+require SENDBEAM_DIR . 'includes/mail-log.php';
 require SENDBEAM_DIR . 'includes/mail.php';
 require SENDBEAM_DIR . 'includes/notices.php';
 require SENDBEAM_DIR . 'includes/onboarding.php';

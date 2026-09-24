@@ -33,6 +33,12 @@ function sendbeam_on_activate() {
 	}
 	sendbeam_flush_cache();
 
+	// The log's table, and the daily tidy-up that keeps it from growing
+	// without limit.
+	sendbeam_mail_log_install();
+	sendbeam_mail_log_migrate();
+	sendbeam_mail_log_schedule_prune();
+
 	/*
 	 * A transient rather than an option, and a short one: the redirect it
 	 * asks for should happen on the very next admin page load or not at all.
@@ -52,6 +58,7 @@ function sendbeam_on_activate() {
  */
 function sendbeam_on_deactivate() {
 	sendbeam_connect_unschedule_recheck();
+	sendbeam_mail_log_unschedule_prune();
 }
 
 /**

@@ -68,6 +68,9 @@ function sendbeam_default_settings() {
 		'mail_from_name'                => '',
 		'mail_from_email'               => '',
 		'mail_fallback'                 => 1,
+		// How many days of the email log to keep. 0 is for ever, which the
+		// hard row cap still puts a ceiling on.
+		'mail_log_days'                 => 30,
 		// Set only when the key arrived through Connect, so the Overview can
 		// name the workspace and offer Disconnect rather than a paste field.
 		// Cleared the moment the key is changed or removed by hand.

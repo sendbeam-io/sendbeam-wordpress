@@ -18,9 +18,6 @@ defined( 'ABSPATH' ) || exit;
 add_filter( 'pre_wp_mail', 'sendbeam_pre_wp_mail', 10, 2 );
 add_action( 'admin_post_sendbeam_test_mail', 'sendbeam_handle_test_mail' );
 
-/** How many results to keep for the settings page. */
-const SENDBEAM_MAIL_LOG_SIZE = 20;
-
 /**
  * The API key: the wp-config.php constant wins over the saved setting, so a
  * key never has to live in the database.
@@ -233,29 +230,60 @@ function sendbeam_api_send( $body ) {
 }
 
 /**
- * Remember the outcome for the settings page (last few only).
+ * Remember the outcome.
  *
- * @param string $to      Recipient(s).
- * @param string $subject Subject.
- * @param string $result  'sent', 'fallback' or 'failed'.
- * @param string $note    Error or reason.
+ * A thin wrapper over the table, kept because every caller in the plugin
+ * already speaks this shape and because "what asked for this send" is worked
+ * out here rather than at each of them.
+ *
+ * @param string|string[] $to      Recipient(s).
+ * @param string          $subject Subject.
+ * @param string          $result  'sent', 'fallback' or 'failed'.
+ * @param string          $note    Error or reason.
+ * @param string          $source  What asked for it; worked out when omitted.
  */
-function sendbeam_mail_log( $to, $subject, $result, $note = '' ) {
-	$log = get_option( 'sendbeam_mail_log', array() );
-	if ( ! is_array( $log ) ) {
-		$log = array();
+function sendbeam_mail_log( $to, $subject, $result, $note = '', $source = null ) {
+	sendbeam_mail_log_insert( $to, $subject, $result, $note, null === $source ? sendbeam_mail_source() : $source );
+}
+
+/**
+ * Which plugin or part of WordPress asked for this message.
+ *
+ * Worth knowing and impossible to ask for directly: `wp_mail()` takes no
+ * caller. The backtrace is the only place the answer exists, and it is read
+ * once per send, only for the log, and never for a decision.
+ *
+ * The sentinel for "core itself" is `wp-core` rather than the product's name,
+ * because the coding standard's own auto-fixer rewrites that word wherever it
+ * finds it — including inside a string that is a stored value, which turns a
+ * sentinel the screen matches on into one it does not.
+ *
+ * @return string A plugin folder name, 'wp-core', or '' when it cannot be told.
+ */
+function sendbeam_mail_source() {
+	if ( ! function_exists( 'debug_backtrace' ) ) {
+		return '';
 	}
-	array_unshift(
-		$log,
-		array(
-			'at'      => time(),
-			'to'      => is_array( $to ) ? implode( ', ', $to ) : (string) $to,
-			'subject' => (string) $subject,
-			'result'  => $result,
-			'note'    => (string) $note,
-		)
-	);
-	update_option( 'sendbeam_mail_log', array_slice( $log, 0, SENDBEAM_MAIL_LOG_SIZE ), false );
+	// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_debug_backtrace -- the only way to name the caller of wp_mail(), which takes none; used for one log column and never for a decision.
+	$frames  = debug_backtrace( DEBUG_BACKTRACE_IGNORE_ARGS, 12 );
+	$plugins = defined( 'WP_PLUGIN_DIR' ) ? wp_normalize_path( WP_PLUGIN_DIR ) : '';
+
+	foreach ( (array) $frames as $frame ) {
+		if ( empty( $frame['file'] ) ) {
+			continue;
+		}
+		$file = wp_normalize_path( $frame['file'] );
+		if ( '' !== $plugins && 0 === strpos( $file, $plugins . '/' ) ) {
+			$rest = substr( $file, strlen( $plugins ) + 1 );
+			$slug = strtok( $rest, '/' );
+			// This plugin asking on somebody else's behalf is not an answer.
+			if ( 'sendbeam' !== $slug && false !== $slug ) {
+				return (string) $slug;
+			}
+		}
+	}
+
+	return 'wp-core';
 }
 
 /**

@@ -108,6 +108,16 @@ function sendbeam_admin_notices() {
 		);
 	}
 
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a count this plugin put on its own redirect.
+	if ( isset( $_GET['sendbeam_log_cleared'] ) ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- as above.
+		$cleared = max( 0, (int) $_GET['sendbeam_log_cleared'] );
+		sendbeam_notice(
+			esc_html( sprintf( /* translators: %d: number of log rows */ _n( 'The log is empty. %d entry was deleted.', 'The log is empty. %d entries were deleted.', $cleared, 'sendbeam' ), $cleared ) ),
+			'success'
+		);
+	}
+
 	if ( ! empty( $GLOBALS['sendbeam_deleted'] ) ) {
 		$gone = (int) $GLOBALS['sendbeam_deleted'];
 		sendbeam_notice(

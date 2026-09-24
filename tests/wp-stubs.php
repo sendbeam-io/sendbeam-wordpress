@@ -257,10 +257,28 @@ class SendBeam_Stub_Db {
 
 	public function esc_like( $text ) { return addcslashes( (string) $text, '_%\\' ); }
 
+	/**
+	 * Fill the placeholders in order, whichever kind they are.
+	 *
+	 * %d has to be handled as well as %s: the log's DELETE names its rows
+	 * with `id IN ( %d, %d )`, and a prepare() that only knew about strings
+	 * left those untouched — which looks exactly like a delete that matched
+	 * nothing.
+	 */
 	public function prepare( $sql, ...$args ) {
 		if ( 1 === count( $args ) && is_array( $args[0] ) ) { $args = $args[0]; }
 		foreach ( $args as $arg ) {
-			$sql = preg_replace( '/%s/', "'" . addslashes( (string) $arg ) . "'", $sql, 1 );
+			$sql = preg_replace_callback(
+				'/%[sdf]/',
+				function ( $m ) use ( $arg ) {
+					// Quotes only. addslashes() would double the backslash
+					// esc_like() puts in front of an underscore, and the
+					// point of this stub is SQL a test can read.
+					return '%s' === $m[0] ? "'" . str_replace( "'", "\\'", (string) $arg ) . "'" : (string) ( 0 + $arg );
+				},
+				$sql,
+				1
+			);
 		}
 		return $sql;
 	}
@@ -319,6 +337,9 @@ function wp_enqueue_media( $args = array() ) {}
 function get_admin_page_title() { return 'SendBeam'; }
 function submit_button_wrapper() {}
 function esc_attr_e( $s, $d = null ) { echo esc_attr( $s ); }
+function wp_normalize_path( $path ) { return str_replace( '\\', '/', (string) $path ); }
+function dbDelta( $queries = '', $execute = true ) { $GLOBALS['stub']['dbdelta'][] = $queries; return array(); }
+if ( ! defined( 'DAY_IN_SECONDS' ) ) { define( 'DAY_IN_SECONDS', 86400 ); }
 
 // ── WP_List_Table ───────────────────────────────────────────────────────
 /**
@@ -352,6 +373,20 @@ class WP_List_Table {
 		return array(); }
 	protected function get_bulk_actions() {
 		return array(); }
+	protected function get_views() {
+		return array(); }
+	protected function get_sortable_columns() {
+		return array(); }
+	/** Core prints the views as a .subsubsub list above the table. */
+	public function views() {
+		$views = $this->get_views();
+		if ( ! $views ) { return; }
+		echo '<ul class="subsubsub">';
+		foreach ( $views as $key => $link ) {
+			echo '<li class="' . esc_attr( $key ? $key : 'all' ) . '">' . $link . '</li>';
+		}
+		echo '</ul>';
+	}
 	public function no_items() {
 		echo 'No items.'; }
 	public function get_pagenum() {
@@ -449,3 +484,111 @@ function wp_list_pluck_stub( $rows, $field ) {
 function wp_register_style( $h, $src, $deps = array(), $ver = false, $media = 'all' ) { $GLOBALS['stub']['styles'][ $h ] = $src; }
 function wp_enqueue_style( $h ) { $GLOBALS['stub']['styles'][ $h . ':enqueued' ] = true; }
 function wp_add_inline_style( $h, $css ) { $GLOBALS['stub']['inline_css'][ $h ][] = $css; }
+
+// ── The email log's table ───────────────────────────────────────────────
+/**
+ * Enough of $wpdb to hold a log.
+ *
+ * Rows live in a PHP array and the handful of statements the plugin issues
+ * are answered by reading it — which is not a SQL engine, but it is enough to
+ * prove the shape of every query, that prepare() is reached with the right
+ * values, and that a prune deletes what it says it deletes. The statements
+ * themselves are recorded so a test can assert on them.
+ */
+class SendBeam_Stub_MailDb extends SendBeam_Stub_Db {
+	public $prefix  = 'wp_';
+	public $rows    = array();
+	public $next_id = 1;
+	public $created = '';
+
+	public function get_charset_collate() { return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'; }
+
+	public function insert( $table, $data, $format = null ) {
+		$this->queries[] = 'INSERT INTO ' . $table;
+		$data['id']      = $this->next_id++;
+		$this->rows[]    = $data;
+		return 1;
+	}
+
+	/** Everything the plugin asks of the log, answered off the array. */
+	public function get_results( $sql, $output = OBJECT ) {
+		$this->queries[] = $sql;
+		if ( false !== strpos( $sql, 'GROUP BY result' ) ) {
+			$by = array();
+			foreach ( $this->rows as $r ) { $by[ $r['result'] ] = ( $by[ $r['result'] ] ?? 0 ) + 1; }
+			$out = array();
+			foreach ( $by as $result => $n ) { $out[] = array( 'result' => $result, 'n' => $n ); }
+			return $out;
+		}
+		$rows = $this->filter( $sql );
+		// ORDER BY: only the two columns the plugin allows.
+		$col = ( false !== strpos( $sql, 'ORDER BY result' ) ) ? 'result' : 'sent_at';
+		$dir = ( false !== strpos( $sql, "{$col} ASC" ) ) ? 1 : -1;
+		usort( $rows, function ( $a, $b ) use ( $col, $dir ) {
+			$c = strcmp( (string) $a[ $col ], (string) $b[ $col ] );
+			if ( 0 === $c ) { $c = (int) $a['id'] - (int) $b['id']; }
+			return $c * $dir;
+		} );
+		if ( preg_match( '/LIMIT (\d+) OFFSET (\d+)/', $sql, $m ) ) {
+			$rows = array_slice( $rows, (int) $m[2], (int) $m[1] );
+		}
+		return array_values( $rows );
+	}
+
+	public function get_var( $sql ) {
+		$this->queries[] = $sql;
+		if ( false !== strpos( $sql, 'COUNT(*)' ) && false !== strpos( $sql, 'sendbeam_mail_log' ) ) {
+			return count( $this->filter( $sql ) );
+		}
+		return parent::get_var( $sql );
+	}
+
+	public function query( $sql ) {
+		$this->queries[] = $sql;
+		if ( false !== strpos( $sql, 'DROP TABLE' ) ) { $this->rows = array(); return true; }
+		if ( 0 !== strpos( ltrim( $sql ), 'DELETE' ) ) { return 0; }
+
+		$keep = array();
+		$gone = 0;
+		$ids  = array();
+		if ( preg_match( '/id IN \( ([^)]*) \)/', $sql, $m ) ) {
+			$ids = array_map( 'intval', array_map( 'trim', explode( ',', str_replace( "'", '', $m[1] ) ) ) );
+		}
+		$before = null;
+		if ( preg_match( "/sent_at < '([^']+)'/", $sql, $m ) ) { $before = $m[1]; }
+		$limit = null;
+		if ( preg_match( '/LIMIT (\d+)/', $sql, $m ) ) { $limit = (int) $m[1]; }
+
+		$rows = $this->rows;
+		if ( null !== $limit ) {
+			usort( $rows, function ( $a, $b ) { return strcmp( $a['sent_at'], $b['sent_at'] ) ?: ( (int) $a['id'] - (int) $b['id'] ); } );
+		}
+		foreach ( $rows as $r ) {
+			$hit = ( $ids && in_array( (int) $r['id'], $ids, true ) )
+				|| ( null !== $before && $r['sent_at'] < $before )
+				|| ( ! $ids && null === $before && null === $limit );
+			if ( null !== $limit && ! $ids && null === $before ) { $hit = $gone < $limit; }
+			if ( $hit && ( null === $limit || $gone < $limit || $ids || null !== $before ) ) { $gone++; continue; }
+			$keep[] = $r;
+		}
+		$this->rows = array_values( $keep );
+		return $gone;
+	}
+
+	/** The WHERE the plugin builds, applied to the array. */
+	private function filter( $sql ) {
+		$rows = $this->rows;
+		if ( preg_match( "/result = '([^']+)'/", $sql, $m ) ) {
+			$rows = array_values( array_filter( $rows, function ( $r ) use ( $m ) { return $r['result'] === $m[1]; } ) );
+		}
+		if ( preg_match( "/to_addr LIKE '%([^%]*)%'/", $sql, $m ) && '' !== $m[1] ) {
+			$needle = $m[1];
+			$rows   = array_values( array_filter( $rows, function ( $r ) use ( $needle ) {
+				return false !== stripos( $r['to_addr'] . ' ' . $r['subject'] . ' ' . $r['note'], $needle );
+			} ) );
+		}
+		return $rows;
+	}
+}
+if ( ! defined( 'OBJECT' ) ) { define( 'OBJECT', 'OBJECT' ); }
+if ( ! defined( 'ARRAY_A' ) ) { define( 'ARRAY_A', 'ARRAY_A' ); }
