@@ -40,13 +40,21 @@ in one call. Nothing is sent to SendBeam until you press the button. If you alre
 have an API key" on the same screen still takes one. Forms are then picked from a dropdown of the connected
 workspace's own forms — no IDs to copy.
 
-Leaving the sending-domain box ticked does the next piece of setting up for you. SendBeam adds this site's
-domain to the workspace, and the Overview's second step shows its DNS records with a Copy button on every
-value, a **Check now** button that re-runs the check without leaving wp-admin, and a **Set up DNS
-automatically** button where your registrar supports one-click set-up. Site email fills in its sender from the
-workspace but only switches on once that domain is verified — a site should never have its password resets
-quietly routed through a domain nothing has set up yet. **Disconnect**, on the connected card, revokes the key
-in SendBeam first and then forgets it here.
+Leaving the sending-domain box ticked does the next piece of setting up for you. The consent page suggests
+this site's own domain and lets you type a different one — a brand domain, or `mail.` something — and whatever
+you enter is what SendBeam sets up and what the plugin shows. The Overview's second step lists its DNS records
+with a Copy button on every value and a column saying which of them are live yet, a **Check now** button that
+re-runs the check without leaving wp-admin, and a **Set up DNS automatically** button where your registrar
+supports one-click set-up — that one brings you back here when it is done. Records rarely spread while you are
+still looking at wp-admin, so the site quietly checks again every hour for a day and finishes the job when
+they appear.
+
+Site email fills in its sender from the workspace but only switches on once that domain is verified — a site
+should never have its password resets quietly routed through a domain nothing has set up yet. If a permission
+turns out to be missing, the step that needs it offers **Reconnect with more permissions** rather than making
+you disconnect first. **Disconnect**, on the connected card, revokes the key in SendBeam, forgets it here, and
+puts back the settings Connect filled in — your list, form, sending domain and sender stay in the workspace,
+where other sites may still be using them.
 
 ## API key permissions
 
