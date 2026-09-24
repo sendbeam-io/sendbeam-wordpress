@@ -3604,7 +3604,7 @@ $sendbeam_js = sendbeam_connect_admin_js();
 lacks( $sendbeam_css, '.sb-confirm__box{display:none', 'design: the confirmation is not hidden by a stylesheet either' );
 has( $sendbeam_css, '.sendbeam-app .sb-confirm>summary{list-style:none', 'design: the disclosure marker is off, so the summary reads as the button it is' );
 has( $sendbeam_css, '.sb-confirm[open]>summary .sb-confirm__label--shut{display:none}', 'design: and the summary\'s label is the action it would perform next' );
-has( $sendbeam_css, '.sendbeam-app .is-hidden{display:none}', 'design: a row that does not apply yet is hidden by the server, not by script on load' );
+has( $sendbeam_css, '.sendbeam-app .is-hidden{display:none!important}', 'design: a row that does not apply yet is hidden by the server, not by script on load' );
 
 $GLOBALS['stub']['inline']['sendbeam-admin'] = array();
 sendbeam_admin_assets( 'toplevel_page_sendbeam' );
@@ -4730,7 +4730,7 @@ ok( array() === $sb_bad, 'refusal: no wp_die() is left on the 500 default — ' 
 $sb_css   = sendbeam_admin_css();
 $sb_phone = substr( $sb_css, strpos( $sb_css, '@media (max-width:782px)' ) );
 has( $sb_phone, '.sendbeam-app .sb-btn{min-height:44px', 'touch: buttons are 44px on a phone' );
-has( $sb_phone, '.sendbeam-app .sb-btn--small{min-height:40px', 'touch: and the small ones grow too' );
+has( $sb_phone, '.sendbeam-app .sb-btn--small{min-height:44px', 'touch: and the small ones grow to the same 44px' );
 has( $sb_phone, '.sb-paste>summary{padding:12px 0;min-height:44px', 'touch: so does the paste-a-key disclosure' );
 has( $sb_phone, '.sendbeam-app .sb-link{min-height:44px', 'touch: and a link that acts as a button' );
 
@@ -4800,6 +4800,115 @@ sendbeam_connect_cache_status(
 has( implode( ' | ', sendbeam_connect_granted_list() ), "Set up this site's sending domain", 'permissions: a site with no domain keeps the original wording' );
 sb_connect_reset();
 sb_seed_settings( array() );
+
+// ── The hiding rule has to beat every layout rule in the file ───────────
+// .sendbeam-app .is-hidden is (0,2,0) and the Settings API reset
+// `.sendbeam-app .form-table tr` is (0,2,1), so the From name, From address
+// and fallback rows on Site email were drawn whether the switch was on or
+// off — the exact thing the server-rendered pattern exists to prevent. This
+// parses the stylesheet rather than looking for one string, so the next rule
+// that out-specifies it fails here instead of on a screen.
+$sb_css = sendbeam_admin_css();
+
+/**
+ * Every declaration block in the stylesheet, with its selectors.
+ *
+ * Media queries are flattened: a rule inside one still competes with a rule
+ * outside it, because a media query adds nothing to specificity.
+ *
+ * @param string $css The stylesheet.
+ * @return array<int,array{selectors:string[],body:string}>
+ */
+function sb_css_rules( $css ) {
+	$css   = preg_replace( '!/\*.*?\*/!s', '', $css );
+	$css   = preg_replace( '/@media[^{]*\{/', '', $css );
+	$rules = array();
+	if ( preg_match_all( '/([^{}]+)\{([^{}]*)\}/', $css, $m, PREG_SET_ORDER ) ) {
+		foreach ( $m as $one ) {
+			$sel = trim( $one[1] );
+			if ( '' === $sel || 0 === strpos( $sel, '@' ) ) {
+				continue;
+			}
+			$rules[] = array(
+				'selectors' => array_map( 'trim', explode( ',', $sel ) ),
+				'body'      => $one[2],
+			);
+		}
+	}
+	return $rules;
+}
+
+/**
+ * CSS specificity as one comparable number: ids, classes, elements.
+ *
+ * @param string $selector One selector.
+ * @return int
+ */
+function sb_specificity( $selector ) {
+	$s = preg_replace( '/::?[a-z-]+(\([^)]*\))?/', ' PSEUDO ', $selector );
+	$ids     = preg_match_all( '/#[A-Za-z0-9_-]+/', $s );
+	$classes = preg_match_all( '/\.[A-Za-z0-9_-]+/', $s ) + preg_match_all( '/\[[^\]]+\]/', $s );
+	$bare    = preg_replace( '/[#.][A-Za-z0-9_-]+|\[[^\]]+\]|PSEUDO/', ' ', $s );
+	$els     = preg_match_all( '/\b[a-z][a-z0-9]*\b/', $bare );
+	return $ids * 10000 + $classes * 100 + $els;
+}
+
+$sb_rules  = sb_css_rules( $sb_css );
+$sb_hiders = array();
+foreach ( $sb_rules as $rule ) {
+	foreach ( $rule['selectors'] as $sel ) {
+		if ( false !== strpos( $sel, '.is-hidden' ) && preg_match( '/display\s*:\s*none/i', $rule['body'] ) ) {
+			$sb_hiders[] = array(
+				'selector'  => $sel,
+				'spec'      => sb_specificity( $sel ),
+				'important' => (bool) preg_match( '/display\s*:\s*none\s*!important/i', $rule['body'] ),
+			);
+		}
+	}
+}
+ok( $sb_hiders, 'hiding: there is a rule that hides .is-hidden' );
+
+// Every rule that could put a display back on an element carrying .is-hidden.
+$sb_beats = array();
+foreach ( $sb_rules as $rule ) {
+	if ( ! preg_match( '/display\s*:\s*(block|flex|inline-flex|inline-block|grid|table|table-row|inline)/i', $rule['body'] ) ) {
+		continue;
+	}
+	$sb_loud = (bool) preg_match( '/display\s*:\s*[a-z-]+\s*!important/i', $rule['body'] );
+	foreach ( $rule['selectors'] as $sel ) {
+		if ( false !== strpos( $sel, '.is-hidden' ) ) {
+			continue;
+		}
+		$sb_spec = sb_specificity( $sel );
+		$sb_won  = false;
+		foreach ( $sb_hiders as $h ) {
+			// !important beats anything that is not important; otherwise the
+			// hider needs at least equal specificity, since it is declared
+			// after the layout rules it has to beat.
+			if ( $h['important'] && ! $sb_loud ) {
+				$sb_won = true;
+			} elseif ( $h['important'] === $sb_loud && $h['spec'] >= $sb_spec ) {
+				$sb_won = true;
+			}
+		}
+		if ( ! $sb_won ) {
+			$sb_beats[] = $sel . ' (' . $sb_spec . ')';
+		}
+	}
+}
+ok( array() === $sb_beats, 'hiding: no display rule in the stylesheet out-ranks it — ' . implode( ', ', array_slice( $sb_beats, 0, 4 ) ) );
+
+// The one that actually bit, named, so the regression is unmistakable.
+$sb_tr_spec = sb_specificity( '.sendbeam-app .form-table tr' );
+ok( $sb_tr_spec > sb_specificity( '.sendbeam-app .is-hidden' ), 'hiding: the Settings API row reset really is the more specific selector' );
+ok( $sb_hiders[0]['important'], 'hiding: so the hiding rule wins on !important rather than on specificity' );
+
+// ── #17 again: small buttons and the tab bar are tap targets too ────────
+$sb_phone = substr( $sb_css, strpos( $sb_css, '@media (max-width:782px)' ) );
+has( $sb_phone, '.sendbeam-app .sb-btn--small{min-height:44px', 'touch: Copy, Remove, Check now and the confirmations are 44px' );
+has( $sb_phone, '.sb-tab{height:44px;min-height:44px}', 'touch: and so is the Settings tab bar' );
+lacks( $sb_phone, 'min-height:40px', 'touch: nothing on a phone is left at 40px' );
+lacks( $sb_phone, 'min-height:42px', 'touch: or at 42px' );
 
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor

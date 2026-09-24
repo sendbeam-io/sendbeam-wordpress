@@ -490,8 +490,15 @@ function sendbeam_admin_css() {
 	.sb-scope .sb-note{margin-left:4px}
 	.sb-inline{display:inline-flex;align-items:center;gap:8px;font-size:14px}
 	.sendbeam-app [hidden]{display:none!important}
-	/* Server-rendered "not applicable yet", so nothing draws and then goes. */
-	.sendbeam-app .is-hidden{display:none}
+	/* Server-rendered "not applicable yet", so nothing draws and then goes.
+	   !important for the same reason [hidden] above has it: this has to beat
+	   every layout rule in the file, whatever the selector. It did not, and
+	   the one that mattered was the Settings API reset — `.sendbeam-app
+	   .form-table tr` is (0,2,1) against the (0,2,0) here, so the From
+	   name, From address and fallback rows on Site email were drawn whether
+	   the switch was on or off, which is the exact thing this pattern exists
+	   to prevent. A hiding rule that can be out-specified is not one. */
+	.sendbeam-app .is-hidden{display:none!important}
 
 	/* ── Pop-up rules ─────────────────────────────────────────────────── */
 	/* A rule is a card, like everything else on every other screen. It used
@@ -532,10 +539,17 @@ function sendbeam_admin_css() {
 		   padding grows with the height so a wider target is not a taller
 		   sliver, and full-width primaries stay full width. */
 		.sendbeam-app .sb-btn{min-height:44px;padding:0 18px}
-		.sendbeam-app .sb-btn--small{min-height:40px;padding:0 14px}
+		/* 44 as well, not 40. This is the group an owner actually presses on
+		   a phone — Copy, Remove, Choose, Check now, Set up DNS
+		   automatically, Reconnect, Send a test email, and both of the "Yes,
+		   …" confirmations — and "small" is about how loud a button is, not
+		   about how hard it should be to hit. */
+		.sendbeam-app .sb-btn--small{min-height:44px;padding:0 14px}
 		/* The confirm\'s summary already wears .sb-btn, so it is covered
 		   above; the paste disclosure is a plain summary and is not. */
 		.sb-paste>summary{padding:12px 0;min-height:44px;display:flex;align-items:center}
+		/* The Settings tab bar is a row of links people navigate with. */
+		.sb-tab{height:44px;min-height:44px}
 		.sendbeam-app .sb-link{min-height:44px;display:inline-flex;align-items:center}
 		.sendbeam-app{margin:10px}
 		.sb-head{padding:14px}

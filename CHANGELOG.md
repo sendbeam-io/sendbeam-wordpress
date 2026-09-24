@@ -82,6 +82,9 @@
 
 - **The permissions list named this site's host, not the domain that was chosen.** The domain scope's label interpolates the host the consent page was asked about, which is right on a consent page and a description of the request rather than the outcome on a connected site: a site connected with SEND FROM set to `mail.harbourlane.co.uk` read "Set up this site's sending domain (harbourlane.co.uk)" ever after. The connected card names the domain the workspace actually has.
 
+- **A hiding rule that could be out-specified was not hiding anything.** `.sendbeam-app .is-hidden` is (0,2,0) and the Settings API row reset `.sendbeam-app .form-table tr` is (0,2,1), so on Site email the From name, From address and fallback rows were drawn whether the switch was on or off — the exact thing the server-rendered pattern exists to prevent. It carries `!important` now, for the same reason `[hidden]` beside it always has, and the tests parse the stylesheet and compare specificities rather than looking for one string, so the next rule that out-ranks it fails there instead of on a screen.
+- The phone tap sizes cover the rest of the controls: small buttons (Copy, Remove, Choose, Check now, Set up DNS automatically, Reconnect, Send a test email and both "Yes, …" confirmations) were 40px and the Settings tab bar 42px. Everything the plugin renders is at least 44px below 782px.
+
 ### Connect
 
 - **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.
