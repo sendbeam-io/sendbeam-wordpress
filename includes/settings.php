@@ -235,6 +235,23 @@ function sendbeam_sanitize_settings( $input ) {
 		}
 	}
 
+	/*
+	 * Saving a tab by hand is the owner taking those settings back. They come
+	 * off the list of things Connect filled, so disconnecting later puts back
+	 * only what the plugin actually put there — a From address somebody typed
+	 * is not Connect's to clear, whoever typed it first.
+	 */
+	$out['sendbeam_connect_filled'] = isset( $out['sendbeam_connect_filled'] ) && is_array( $out['sendbeam_connect_filled'] ) ? $out['sendbeam_connect_filled'] : array();
+	$owned                          = array();
+	if ( isset( $touch['mail_enabled'] ) ) {
+		$owned = array( 'mail_enabled', 'mail_from_name', 'mail_from_email' );
+	} elseif ( isset( $touch['default_form'] ) ) {
+		$owned = array( 'default_form' );
+	}
+	if ( $owned ) {
+		$out['sendbeam_connect_filled'] = array_values( array_diff( $out['sendbeam_connect_filled'], $owned ) );
+	}
+
 	// A different key means a different workspace, so anything remembered about
 	// the old one — whether it worked, which forms it could see — is now a lie.
 	// That includes the Connect marker: a key pasted or removed by hand did not
@@ -249,6 +266,8 @@ function sendbeam_sanitize_settings( $input ) {
 		// ones would offer buttons that cannot work.
 		$out['sendbeam_connect_granted'] = '';
 		$out['sendbeam_mail_deferred']   = 0;
+		// Nor is anything this site's settings hold still Connect's doing.
+		$out['sendbeam_connect_filled'] = array();
 	}
 
 	// A form chosen or cleared changes what the checklist should be looking

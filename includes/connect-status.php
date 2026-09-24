@@ -449,14 +449,33 @@ function sendbeam_handle_mail_switch_on() {
 function sendbeam_connect_enable_mail( $status ) {
 	$settings = sendbeam_settings();
 
+	/*
+	 * A held-back switch-on is Connect finishing the job consent started, so
+	 * what it fills goes on the same list the exchange writes and Disconnect
+	 * puts back. Pressing **Switch on** by hand is the owner's own decision
+	 * and is recorded as nobody's but theirs.
+	 */
+	$connects = ! empty( $settings['sendbeam_mail_deferred'] );
+	$filled   = isset( $settings['sendbeam_connect_filled'] ) && is_array( $settings['sendbeam_connect_filled'] ) ? $settings['sendbeam_connect_filled'] : array();
+
+	if ( empty( $settings['mail_enabled'] ) && $connects ) {
+		$filled[] = 'mail_enabled';
+	}
 	$settings['mail_enabled']           = 1;
 	$settings['sendbeam_mail_deferred'] = 0;
 	if ( '' === trim( (string) $settings['mail_from_name'] ) && '' !== $status['sender']['from_name'] ) {
 		$settings['mail_from_name'] = $status['sender']['from_name'];
+		if ( $connects ) {
+			$filled[] = 'mail_from_name';
+		}
 	}
 	if ( '' === trim( (string) $settings['mail_from_email'] ) && '' !== $status['sender']['from_email'] ) {
 		$settings['mail_from_email'] = $status['sender']['from_email'];
+		if ( $connects ) {
+			$filled[] = 'mail_from_email';
+		}
 	}
+	$settings['sendbeam_connect_filled'] = array_values( array_unique( $filled ) );
 
 	update_option( 'sendbeam_settings', $settings );
 }

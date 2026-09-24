@@ -1409,6 +1409,60 @@ sb_run_admin_post( 'sendbeam_connect_disconnect' );
 ok( 0 === strpos( $GLOBALS['stub']['exit'], 'wp_die' ), 'disconnect: the capability is required' );
 ok( SENDBEAM_API_KEY === sendbeam_settings()['api_key'], 'disconnect: a caller without the capability changes nothing' );
 
+// ── What Disconnect puts back ──────────────────────────────────────────
+// The workspace keeps its list, form, domain and sender. What this site puts
+// back is what Connect filled in here — and only that, because a form ID
+// belonging to a workspace this site no longer has a key for makes every
+// embed 404 without a word.
+sb_v2_exchange( sb_v2_body( array( 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ) ) ) );
+$sb_filled = sendbeam_settings()['sendbeam_connect_filled'];
+ok( in_array( 'default_form', $sb_filled, true ), 'filled: the form Connect chose is recorded as Connect\'s' );
+ok( in_array( 'mail_from_name', $sb_filled, true ) && in_array( 'mail_from_email', $sb_filled, true ), 'filled: the sender Connect filled is recorded' );
+ok( in_array( 'mail_enabled', $sb_filled, true ), 'filled: site email switched on at consent is recorded' );
+
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_disconnect' );
+$_REQUEST = $_POST;
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 204 ), 'body' => '' );
+sb_run_admin_post( 'sendbeam_connect_disconnect' );
+$sb_after = sendbeam_settings();
+ok( '' === $sb_after['default_form'], 'disconnect: the form Connect chose is let go' );
+ok( '' === $sb_after['mail_from_name'] && '' === $sb_after['mail_from_email'], 'disconnect: the sender Connect filled is let go' );
+ok( empty( $sb_after['mail_enabled'] ), 'disconnect: site email Connect switched on goes off with it' );
+ok( array() === $sb_after['sendbeam_connect_filled'], 'disconnect: the list of what was filled is emptied too' );
+
+// The same site, but the owner chose the form and the From address. Those are
+// theirs: Disconnect leaves both exactly where they are.
+sb_v2_exchange( sb_v2_body(), array( 'default_form' => $other, 'mail_from_email' => 'orders@harbourlane.co.uk', 'mail_from_name' => 'Orders' ) );
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_disconnect' );
+$_REQUEST = $_POST;
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 204 ), 'body' => '' );
+sb_run_admin_post( 'sendbeam_connect_disconnect' );
+$sb_after = sendbeam_settings();
+ok( $other === $sb_after['default_form'], 'disconnect: a form the owner chose is left alone' );
+ok( 'orders@harbourlane.co.uk' === $sb_after['mail_from_email'] && 'Orders' === $sb_after['mail_from_name'], 'disconnect: a sender the owner typed is left alone' );
+
+// Saving the Site email tab by hand is the owner taking those settings back.
+sb_v2_exchange( sb_v2_body( array( 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ) ) ) );
+update_option( 'sendbeam_settings', sendbeam_sanitize_settings( array( '_tab' => 'mail', 'mail_enabled' => '1', 'mail_from_name' => 'Harbour Lane', 'mail_from_email' => 'hello@harbourlane.co.uk' ) ) );
+$sb_filled = sendbeam_settings()['sendbeam_connect_filled'];
+ok( ! in_array( 'mail_from_email', $sb_filled, true ) && ! in_array( 'mail_enabled', $sb_filled, true ), 'filled: saving Site email by hand takes those settings off Connect\'s list' );
+ok( in_array( 'default_form', $sb_filled, true ), 'filled: saving one tab does not release the settings on another' );
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_disconnect' );
+$_REQUEST = $_POST;
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 204 ), 'body' => '' );
+sb_run_admin_post( 'sendbeam_connect_disconnect' );
+$sb_after = sendbeam_settings();
+ok( ! empty( $sb_after['mail_enabled'] ), 'disconnect: site email the owner switched on themselves stays on' );
+ok( 'hello@harbourlane.co.uk' === $sb_after['mail_from_email'], 'disconnect: and the sender they typed stays with it' );
+
+// A key pasted over the top of a connection leaves nothing of Connect's behind.
+sb_v2_exchange( sb_v2_body() );
+update_option( 'sendbeam_settings', sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => 'sb_live_pastedoverthetopxxxx' ) ) );
+ok( array() === sendbeam_settings()['sendbeam_connect_filled'], 'filled: a key changed by hand ends Connect\'s claim on anything' );
+
+sb_connect_reset();
+update_option( 'sendbeam_settings', array() );
+
 // ── A blocked pop-up ───────────────────────────────────────────────────
 sb_connect_reset();
 $_POST    = array( '_wpnonce' => 'nonce:sendbeam_connect_start', 'sendbeam_popup' => '0' );
@@ -1526,6 +1580,7 @@ has( $ov, 'Disconnect', 'overview: Disconnect is visible on the connected card' 
 has( $ov, 'value="sendbeam_disconnect"', 'overview: Disconnect posts to the disconnect handler' );
 has( $ov, 'nonce:sendbeam_disconnect', 'overview: Disconnect carries a nonce' );
 has( $ov, 'sb-confirm', 'overview: Disconnect is confirmed before it runs' );
+has( $ov, 'Your list, form and sending domain stay in SendBeam', 'overview: the confirmation says what disconnecting does not take away' );
 lacks( $ov, 'confirm(', 'overview: the confirmation is the plugin\'s own, not a browser dialog' );
 lacks( $ov, 'Switch on', 'overview: site email cannot be switched on while the domain is unverified' );
 has( $ov, 'Waiting on step 2', 'overview: the site email step says what it is waiting for' );

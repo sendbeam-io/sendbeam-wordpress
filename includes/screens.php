@@ -496,7 +496,7 @@ function sendbeam_connect_connected_panel( $status = null ) {
 		esc_html__( 'Disconnect', 'sendbeam' )
 	);
 	echo '<div class="sb-confirm__box">';
-	echo '<p class="sb-note">' . esc_html__( 'Disconnect this site? The key is revoked in SendBeam and forgotten here. Forms already on your pages stop loading until you connect again.', 'sendbeam' ) . '</p>';
+	echo '<p class="sb-note">' . esc_html__( 'Disconnect this site? Its key is revoked. Your list, form and sending domain stay in SendBeam. Forms already on your pages stop loading until you connect again.', 'sendbeam' ) . '</p>';
 	printf( '<button type="submit" class="sb-btn sb-btn--small">%s</button> ', esc_html__( 'Yes, disconnect', 'sendbeam' ) );
 	printf( '<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-confirm__cancel">%s</button>', esc_html__( 'Cancel', 'sendbeam' ) );
 	echo '</div></form>';

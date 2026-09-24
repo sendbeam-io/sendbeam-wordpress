@@ -58,6 +58,11 @@ function sendbeam_default_settings() {
 		// on the consent page — and the Overview has to say "you did not give
 		// this site that permission" rather than guess.
 		'sendbeam_connect_granted'   => '',
+		// Which of this site's settings Connect filled in for the owner, so
+		// that disconnecting can put back exactly what it changed and not one
+		// thing more. Anything the owner has since saved by hand comes off
+		// the list: it is theirs now.
+		'sendbeam_connect_filled'    => array(),
 		// Site email was approved at consent time but held back because the
 		// sending domain was not verified yet. The domain check switches it
 		// on and clears this; turning site email off by hand clears it too,

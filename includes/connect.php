@@ -524,6 +524,17 @@ function sendbeam_connect_store_key( $api_key, $workspace, $data = array() ) {
 	$granted = sendbeam_connect_granted_from_response( $data );
 	$status  = sendbeam_connect_normalise_status( $data );
 
+	/*
+	 * Everything below fills a setting the site had left empty, and Disconnect
+	 * has to be able to put those back without touching anything the owner
+	 * chose. So each one is recorded as it is filled. A reconnect adds to the
+	 * list rather than replacing it — the first connection's work is still
+	 * this plugin's to undo — and saving the tab by hand takes a setting off
+	 * it again, in sendbeam_sanitize_settings().
+	 */
+	$before = sendbeam_settings();
+	$filled = isset( $before['sendbeam_connect_filled'] ) && is_array( $before['sendbeam_connect_filled'] ) ? $before['sendbeam_connect_filled'] : array();
+
 	$clean['sendbeam_connected_via']     = 'connect';
 	$clean['sendbeam_connect_workspace'] = $workspace;
 	$clean['sendbeam_connect_granted']   = implode( ',', $granted );
@@ -534,14 +545,17 @@ function sendbeam_connect_store_key( $api_key, $workspace, $data = array() ) {
 	$clean['sendbeam_connect_notes'] = isset( $status['notes'] ) && is_array( $status['notes'] ) ? array_values( $status['notes'] ) : array();
 	if ( '' === trim( (string) $clean['default_form'] ) && sendbeam_is_form_id( $status['default_form']['id'] ) ) {
 		$clean['default_form'] = strtolower( $status['default_form']['id'] );
+		$filled[]              = 'default_form';
 	}
 
 	if ( in_array( 'transactional:send', $granted, true ) ) {
 		if ( '' === trim( (string) $clean['mail_from_name'] ) && '' !== $status['sender']['from_name'] ) {
 			$clean['mail_from_name'] = $status['sender']['from_name'];
+			$filled[]                = 'mail_from_name';
 		}
 		if ( '' === trim( (string) $clean['mail_from_email'] ) && '' !== $status['sender']['from_email'] ) {
 			$clean['mail_from_email'] = $status['sender']['from_email'];
+			$filled[]                 = 'mail_from_email';
 		}
 
 		/*
@@ -557,11 +571,14 @@ function sendbeam_connect_store_key( $api_key, $workspace, $data = array() ) {
 			if ( ! empty( $status['domain']['verified'] ) ) {
 				$clean['mail_enabled']           = 1;
 				$clean['sendbeam_mail_deferred'] = 0;
+				$filled[]                        = 'mail_enabled';
 			} else {
 				$clean['sendbeam_mail_deferred'] = 1;
 			}
 		}
 	}
+
+	$clean['sendbeam_connect_filled'] = array_values( array_unique( $filled ) );
 
 	update_option( 'sendbeam_settings', $clean );
 	sendbeam_flush_cache();
@@ -650,17 +667,39 @@ function sendbeam_connect_disconnect() {
 		$note = ( $result['ok'] || 401 === $result['status'] ) ? 'ok' : 'unreachable';
 	}
 
-	$settings                               = sendbeam_settings();
+	$settings = sendbeam_settings();
+
+	/*
+	 * The workspace keeps its list, its form, its sending domain and its
+	 * sender — disconnecting one site is not a reason to dismantle a
+	 * workspace other sites may be sending from. What this site puts back is
+	 * what Connect filled in here, and only that: a form ID belonging to a
+	 * workspace this site no longer has a key for makes every embed 404
+	 * silently, and a From address pointing at a domain it can no longer send
+	 * from is worse than an empty field.
+	 */
+	$filled = isset( $settings['sendbeam_connect_filled'] ) && is_array( $settings['sendbeam_connect_filled'] ) ? $settings['sendbeam_connect_filled'] : array();
+	foreach ( array( 'default_form', 'mail_from_name', 'mail_from_email' ) as $key ) {
+		if ( in_array( $key, $filled, true ) ) {
+			$settings[ $key ] = '';
+		}
+	}
+	if ( in_array( 'mail_enabled', $filled, true ) ) {
+		$settings['mail_enabled'] = 0;
+	}
+
 	$settings['api_key']                    = '';
 	$settings['sendbeam_connected_via']     = '';
 	$settings['sendbeam_connect_workspace'] = '';
 	$settings['sendbeam_connect_notes']     = array();
 	$settings['sendbeam_connect_granted']   = '';
+	$settings['sendbeam_connect_filled']    = array();
 	$settings['sendbeam_mail_deferred']     = 0;
 	update_option( 'sendbeam_settings', $settings );
 
 	sendbeam_flush_cache();
 	sendbeam_connect_forget_status();
+	delete_transient( 'sendbeam_form_placed' );
 
 	wp_safe_redirect( add_query_arg( 'sendbeam_disconnected', $note, sendbeam_tab_url( 'overview' ) ) );
 	exit;
