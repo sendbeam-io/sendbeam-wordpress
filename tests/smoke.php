@@ -1108,6 +1108,87 @@ ok( '2026/09/23, 15:04' === sendbeam_connect_when( '2026-09-23T15:04:05Z' ), 'ch
 delete_option( 'date_format' );
 delete_option( 'time_format' );
 
+// ── Why there is no sending domain ─────────────────────────────────────
+// `domain: null` meant four different things and the screen could only say
+// "not set up" to all four. The state says which, and every sentence on step
+// 2 now comes out of the answer rather than out of what this site remembers
+// granting — the two disagree on any site whose key was pasted by hand.
+ok( 'not_granted' === sendbeam_connect_normalise_status( array( 'domain_state' => 'not_granted' ) )['domain_state'], 'domain state: the state comes back as SendBeam sent it' );
+ok( '' === sendbeam_connect_clean_domain_state( 'made_up' ), 'domain state: a state that is not in the contract is dropped' );
+ok( 'ok' === sendbeam_connect_domain_state( sendbeam_connect_normalise_status( array( 'domain' => array( 'name' => 'harbourlane.co.uk' ) ) ) ), 'domain state: an answer with a domain and no state reads as ok' );
+ok( 'not_found' === sendbeam_connect_domain_state( sendbeam_connect_normalise_status( array( 'workspace' => array( 'id' => 'ws_1' ) ) ) ), 'domain state: an answer with neither falls back to not_found rather than to nothing' );
+ok( 'The domain is on another workspace.' === sendbeam_connect_normalise_status( array( 'domain_state' => 'not_found', 'domain_note' => 'The domain is on another workspace.' ) )['domain_note'], 'domain state: the note is one sentence for the owner' );
+ok( 'Your plan allows one sending domain.' === sendbeam_connect_normalise_status( array( 'domain_state' => 'not_found', 'notes' => array( 'Your plan allows one sending domain.' ) ) )['domain_note'], 'domain state: a SendBeam that predates domain_note still gets its sentence across' );
+
+/**
+ * The checklist sentences for one status body, keyed by step.
+ *
+ * @param array $status   Status payload as the API would send it.
+ * @param array $settings Saved settings.
+ * @return array<string,string>
+ */
+function sb_step_details( $status, $settings = null ) {
+	$GLOBALS['stub']['caps']['manage_options'] = true;
+	update_option( 'sendbeam_settings', null === $settings ? array( 'api_key' => 'sb_live_connectedconnectedxx', 'sendbeam_connected_via' => 'connect', 'sendbeam_connect_granted' => 'forms,transactional:send,domain' ) : $settings );
+	set_transient( 'sendbeam_connection', array( 'state' => '' === (string) ( sendbeam_settings()['api_key'] ) ? 'none' : 'ok', 'message' => '', 'count' => 1 ) );
+	sendbeam_connect_cache_status( sendbeam_connect_normalise_status( $status ) );
+	$out = array();
+	foreach ( sendbeam_setup_steps() as $step ) {
+		$out[ $step['key'] ] = $step['detail'];
+		$out[ $step['key'] . ':reconnect' ] = ! empty( $step['reconnect'] ) ? '1' : '';
+	}
+	return $out;
+}
+
+$sb_dom = sb_step_details( array( 'domain_state' => 'not_granted' ) );
+has( $sb_dom['domain'], 'You did not allow SendBeam to set up a sending domain', 'domain state: not_granted says the box was never ticked' );
+ok( '1' === $sb_dom['domain:reconnect'], 'domain state: not_granted offers a way to reconnect' );
+
+$sb_dom = sb_step_details( array( 'domain_state' => 'no_permission' ) );
+has( $sb_dom['domain'], 'made before domains could be read', 'domain state: no_permission says the key is too old' );
+ok( '1' === $sb_dom['domain:reconnect'], 'domain state: no_permission offers a way to reconnect' );
+
+$sb_dom = sb_step_details( array( 'domain_state' => 'no_site' ) );
+has( $sb_dom['domain'], 'No sending domain is set up for this site', 'domain state: no_site says there is no domain' );
+has( $sb_dom['domain'], 'Settings → Domains', 'domain state: no_site says where to add one' );
+
+$sb_dom = sb_step_details( array( 'domain_state' => 'not_found', 'domain_note' => 'It was removed from the workspace.' ) );
+has( $sb_dom['domain'], 'It was removed from the workspace.', 'domain state: not_found carries SendBeam\'s own reason' );
+
+$sb_dom = sb_step_details( array( 'domain_state' => 'managed_host', 'domain_note' => 'example.wordpress.com is run by a hosting company; mail cannot be sent from it.' ) );
+has( $sb_dom['domain'], 'run by a hosting company', 'domain state: managed_host is the note, in SendBeam\'s words' );
+
+$sb_dom = sb_step_details( array( 'domain_state' => 'unavailable', 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => true ) ) );
+has( $sb_dom['domain'], 'showing the last known state', 'domain state: unavailable says the answer is old' );
+has( $sb_dom['domain'], 'harbourlane.co.uk is verified', 'domain state: unavailable still shows what was last known' );
+$sb_dom = sb_step_details( array( 'domain_state' => 'unavailable' ) );
+has( $sb_dom['domain'], 'showing the last known state', 'domain state: unavailable with nothing cached is the sentence on its own' );
+lacks( $sb_dom['domain'], 'is verified', 'domain state: unavailable claims nothing it does not know' );
+
+// The defect this replaced: a key pasted by hand records no permissions, so
+// the step told those sites they had no permission to read a domain — while
+// the records for that very domain rendered underneath.
+$sb_pasted = array( 'api_key' => 'sb_live_pastedpastedpasted' );
+$sb_dom    = sb_step_details(
+	array(
+		'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => false, 'records' => array( array( 'type' => 'CNAME', 'name' => 'sb1._domainkey', 'value' => 'sb1.dkim.sendbeam.io', 'found' => false ) ) ),
+	),
+	$sb_pasted
+);
+has( $sb_dom['domain'], 'Add these records to the DNS for harbourlane.co.uk', 'domain state: a pasted key that can read the domain is simply ok' );
+lacks( $sb_dom['domain'], 'not given permission', 'domain state: nothing claims a permission is missing while the domain is on screen' );
+
+// The sending host is the owner's choice at consent time and need not be
+// this site's domain at all. Whatever the answer says is what is shown.
+$GLOBALS['stub']['site_url'] = 'https://www.example-site.test';
+$sb_dom = sb_step_details( array( 'domain' => array( 'name' => 'mail.brand.co.uk', 'verified' => true ) ) );
+has( $sb_dom['domain'], 'mail.brand.co.uk is verified', 'domain state: the domain shown is the one SendBeam reported' );
+lacks( $sb_dom['domain'], 'example-site.test', 'domain state: the step never derives the host from site_url' );
+unset( $GLOBALS['stub']['site_url'] );
+update_option( 'sendbeam_settings', array() );
+sendbeam_connect_forget_status();
+delete_transient( 'sendbeam_connection' );
+
 // ── Check now ──────────────────────────────────────────────────────────
 /** Drive an admin-post handler that ends in a redirect. */
 function sb_run_admin_post( $fn ) {
@@ -1450,6 +1531,21 @@ $sb_on['mail_enabled'] = 1;
 $ov = sb_overview( $sb_on, $sb_verified );
 has( $ov, 'Send a test email', 'overview: site email that is on offers the test send' );
 has( $ov, 'nonce:sendbeam_test_mail', 'overview: the test send carries a nonce' );
+
+// A site connected with a key pasted by hand: no recorded permissions, but a
+// domain it can plainly read. The screen must not print a table of records
+// under a sentence saying it has no permission to read them.
+$ov = sb_overview( array( 'api_key' => 'sb_live_pastedpastedpasted' ), $sb_unverified );
+has( $ov, 'v=sb1 k=abc', 'overview: a pasted key still gets its DNS records' );
+lacks( $ov, 'not given permission to read', 'overview: nothing claims a missing permission while the records are on screen' );
+
+// No domain at all: no table, no Check now, and the page where it is fixed.
+$sb_nodomain = array( 'workspace' => array( 'id' => 'ws_1', 'name' => 'Harbour Lane' ), 'domain_state' => 'no_site' );
+$ov = sb_overview( $sb_connected, $sb_nodomain );
+has( $ov, 'No sending domain is set up for this site', 'overview: a site with no domain is told so once' );
+has( $ov, '/settings/domains', 'overview: and handed the page where it is added' );
+lacks( $ov, 'table class="sb-table sb-dns"', 'overview: no records table for a domain that does not exist' );
+lacks( $ov, 'Check now', 'overview: nothing offers to check a domain that does not exist' );
 
 // Never connected: the Connect button, and no checklist that pretends to know anything.
 $ov = sb_overview( array(), array() );

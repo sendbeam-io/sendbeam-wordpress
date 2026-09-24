@@ -192,12 +192,31 @@ function sendbeam_overview_step_panel( $step, $status, $connected ) {
  * @param bool  $connected Whether the key works.
  */
 function sendbeam_overview_domain_panel( $status, $connected ) {
-	if ( ! $connected || '' === $status['domain']['name'] ) {
+	if ( ! $connected ) {
 		return;
 	}
 
 	$domain   = $status['domain'];
 	$verified = ! empty( $domain['verified'] );
+	$state    = sendbeam_connect_domain_state( $status );
+
+	/*
+	 * No domain, so no records and nothing to check — the step's own sentence
+	 * has already said why. What it cannot do is hand over the page where the
+	 * owner fixes it, so that is all this panel is in that case.
+	 */
+	if ( '' === $domain['name'] ) {
+		if ( in_array( $state, array( 'no_site', 'not_found', 'managed_host' ), true ) ) {
+			echo '<div class="sb-step__panel"><div class="sb-actions">';
+			printf(
+				'<a class="sb-btn sb-btn--small sb-btn--ghost" href="%s" target="_blank" rel="noopener">%s</a>',
+				esc_url( sendbeam_app_url() . '/settings/domains' ),
+				esc_html__( 'Open Settings → Domains', 'sendbeam' )
+			);
+			echo '</div></div>';
+		}
+		return;
+	}
 
 	echo '<div class="sb-step__panel">';
 

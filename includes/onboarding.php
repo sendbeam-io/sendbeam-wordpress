@@ -95,6 +95,29 @@ function sendbeam_form_is_placed( $force = false ) {
 }
 
 /**
+ * What step 2 says once there really is a sending domain.
+ *
+ * The name is always the one the answer carried, never one derived from
+ * site_url: the owner chooses the sending host at consent time and it is
+ * often not this site's domain at all.
+ *
+ * @param string $name     The sending domain, from the response.
+ * @param bool   $verified Whether SendBeam has seen its records.
+ * @return string
+ */
+function sendbeam_domain_sentence( $name, $verified ) {
+	if ( '' === (string) $name ) {
+		return __( 'No sending domain is set up for this site. Add one under Settings → Domains in SendBeam.', 'sendbeam' );
+	}
+	if ( $verified ) {
+		/* translators: %s: the sending domain, e.g. harbourlane.co.uk */
+		return sprintf( __( '%s is verified. Email from this site will be sent from your own domain.', 'sendbeam' ), $name );
+	}
+	/* translators: %s: the sending domain, e.g. harbourlane.co.uk */
+	return sprintf( __( 'Add these records to the DNS for %s, then press Check now. Until they are in place SendBeam cannot send as you.', 'sendbeam' ), $name );
+}
+
+/**
  * How far through setup are they? Drives the checklist on the settings page.
  *
  * Four steps now, not three, and the new one is second on purpose. Verifying
@@ -124,22 +147,43 @@ function sendbeam_setup_steps() {
 	$domain   = $status['domain'];
 	$verified = ! empty( $domain['verified'] );
 
+	/*
+	 * Everything step 2 says comes out of the answer SendBeam just gave, and
+	 * nothing out of what this site remembers granting. The two disagree more
+	 * often than they look like they would — a key pasted by hand has no
+	 * recorded permissions at all, and the step used to tell those sites they
+	 * had no permission to read a domain while printing that domain's DNS
+	 * records directly underneath.
+	 */
+	$state            = $connected ? sendbeam_connect_domain_state( $status ) : '';
+	$note             = isset( $status['domain_note'] ) ? trim( (string) $status['domain_note'] ) : '';
+	$domain_reconnect = false;
+
 	if ( ! $connected ) {
 		$domain_detail = __( 'Connect the site first and SendBeam will set the domain up and show you the records.', 'sendbeam' );
-	} elseif ( ! sendbeam_connect_granted( 'domain' ) ) {
-		$domain_detail = __( 'This site\'s key was not given permission to read your sending domain. Add the domain under Sending in SendBeam, or reconnect and tick the domain box.', 'sendbeam' );
-	} elseif ( $verified ) {
-		/* translators: %s: the sending domain, e.g. harbourlane.co.uk */
-		$domain_detail = sprintf( __( '%s is verified. Email from this site will be sent from your own domain.', 'sendbeam' ), $domain['name'] );
-	} elseif ( '' !== $domain['name'] ) {
-		/* translators: %s: the sending domain, e.g. harbourlane.co.uk */
-		$domain_detail = sprintf( __( 'Add these records to the DNS for %s, then press Check now. Until they are in place SendBeam cannot send as you.', 'sendbeam' ), $domain['name'] );
+	} elseif ( 'not_granted' === $state ) {
+		$domain_detail    = __( 'You did not allow SendBeam to set up a sending domain, so this site has none.', 'sendbeam' );
+		$domain_reconnect = true;
+	} elseif ( 'no_permission' === $state ) {
+		$domain_detail    = __( 'This connection was made before domains could be read, so this site cannot see its sending domain.', 'sendbeam' );
+		$domain_reconnect = true;
+	} elseif ( 'managed_host' === $state ) {
+		$domain_detail = '' !== $note
+			? $note
+			: __( 'This site runs on a hosting company\'s own domain, so mail cannot be sent from it. Add a domain you own under Settings → Domains in SendBeam.', 'sendbeam' );
+	} elseif ( 'unavailable' === $state ) {
+		$domain_detail = __( 'SendBeam could not be reached; showing the last known state.', 'sendbeam' );
+		if ( '' !== $domain['name'] ) {
+			$domain_detail .= ' ' . sendbeam_domain_sentence( $domain['name'], $verified );
+		}
+	} elseif ( 'no_site' === $state || 'not_found' === $state ) {
+		$domain_detail = __( 'No sending domain is set up for this site.', 'sendbeam' );
+		if ( '' !== $note ) {
+			$domain_detail .= ' ' . rtrim( $note, '.' ) . '.';
+		}
+		$domain_detail .= ' ' . __( 'Add one under Settings → Domains in SendBeam.', 'sendbeam' );
 	} else {
-		$notes         = isset( $settings['sendbeam_connect_notes'] ) && is_array( $settings['sendbeam_connect_notes'] ) ? $settings['sendbeam_connect_notes'] : array();
-		$domain_detail = $notes
-			/* translators: %s: SendBeam's own explanation, e.g. a plan cap on sending domains */
-			? sprintf( __( 'SendBeam could not set the domain up: %s Add it under Sending in SendBeam, then press Check now.', 'sendbeam' ), rtrim( (string) $notes[0], '.' ) . '.' )
-			: __( 'No sending domain yet. Add one under Sending in SendBeam.', 'sendbeam' );
+		$domain_detail = sendbeam_domain_sentence( $domain['name'], $verified );
 	}
 
 	$placed = ( $using_form || $using_popup ) ? sendbeam_form_is_placed() : false;
@@ -154,10 +198,13 @@ function sendbeam_setup_steps() {
 		$form_detail = __( 'Choose a signup, contact or pop-up form below.', 'sendbeam' );
 	}
 
+	$mail_reconnect = false;
+
 	if ( $using_mail ) {
 		$mail_detail = __( 'On. Send yourself a test to be sure.', 'sendbeam' );
 	} elseif ( $connected && ! sendbeam_connect_granted( 'transactional:send' ) ) {
-		$mail_detail = __( 'This site\'s key was not given permission to send your site\'s email. Reconnect and tick that box to use it.', 'sendbeam' );
+		$mail_detail    = __( 'This site\'s key was not given permission to send your site\'s email. Reconnect and tick that box to use it.', 'sendbeam' );
+		$mail_reconnect = true;
 	} elseif ( ! $verified ) {
 		$mail_detail = __( 'Waiting on step 2: this site\'s email can only go out once the sending domain is verified.', 'sendbeam' );
 	} else {
@@ -175,11 +222,12 @@ function sendbeam_setup_steps() {
 			'target' => sendbeam_tab_url( 'overview' ) . '#sendbeam_api_key',
 		),
 		array(
-			'key'    => 'domain',
-			'done'   => $verified,
-			'label'  => __( 'Verify your sending domain', 'sendbeam' ),
-			'detail' => $domain_detail,
-			'target' => sendbeam_app_url() . '/settings/sending',
+			'key'       => 'domain',
+			'done'      => $verified,
+			'label'     => __( 'Verify your sending domain', 'sendbeam' ),
+			'detail'    => $domain_detail,
+			'target'    => sendbeam_app_url() . '/settings/domains',
+			'reconnect' => $domain_reconnect,
 		),
 		array(
 			'key'    => 'form',
@@ -189,11 +237,12 @@ function sendbeam_setup_steps() {
 			'target' => sendbeam_tab_url( 'forms' ),
 		),
 		array(
-			'key'    => 'mail',
-			'done'   => $using_mail,
-			'label'  => __( 'Send this site\'s email through SendBeam', 'sendbeam' ),
-			'detail' => $mail_detail,
-			'target' => sendbeam_tab_url( 'mail' ),
+			'key'       => 'mail',
+			'done'      => $using_mail,
+			'label'     => __( 'Send this site\'s email through SendBeam', 'sendbeam' ),
+			'detail'    => $mail_detail,
+			'target'    => sendbeam_tab_url( 'mail' ),
+			'reconnect' => $mail_reconnect,
 		),
 	);
 }

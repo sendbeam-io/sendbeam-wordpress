@@ -59,6 +59,15 @@ function sendbeam_connect_empty_status() {
 	return array(
 		'ok'           => false,
 		'error'        => '',
+		'notes'        => array(),
+		// Why there is no sending domain, when there is none. `domain` being
+		// null meant four different things before this — the box was never
+		// ticked, the key is too old to read domains, the key has no site
+		// host, the row was deleted by hand — and the screen could only say
+		// "not set up" to all four, which is the one answer that helps
+		// nobody.
+		'domain_state' => '',
+		'domain_note'  => '',
 		'workspace'    => array(
 			'id'   => '',
 			'name' => '',
@@ -122,6 +131,16 @@ function sendbeam_connect_normalise_status( $data ) {
 		$out['default_form']['name'] = isset( $data['default_form']['name'] ) ? sanitize_text_field( (string) $data['default_form']['name'] ) : '';
 	}
 
+	$out['domain_state'] = sendbeam_connect_clean_domain_state( isset( $data['domain_state'] ) ? $data['domain_state'] : '' );
+	if ( isset( $data['domain_note'] ) && is_string( $data['domain_note'] ) ) {
+		$out['domain_note'] = mb_substr( sanitize_text_field( $data['domain_note'] ), 0, 200 );
+	}
+	// v2 said the same thing in an array called `notes`. A site talking to a
+	// SendBeam that predates `domain_note` still gets its sentence.
+	if ( '' === $out['domain_note'] && $out['notes'] ) {
+		$out['domain_note'] = (string) $out['notes'][0];
+	}
+
 	if ( isset( $data['domain'] ) && is_array( $data['domain'] ) && ! empty( $data['domain']['name'] ) ) {
 		$out['domain']['name']       = sanitize_text_field( (string) $data['domain']['name'] );
 		$out['domain']['verified']   = ! empty( $data['domain']['verified'] );
@@ -147,7 +166,40 @@ function sendbeam_connect_normalise_status( $data ) {
 		$out['sender']['from_email'] = ( $email && is_email( $email ) ) ? $email : '';
 	}
 
+	$out['domain_state'] = sendbeam_connect_domain_state( $out );
+
 	return $out;
+}
+
+/**
+ * The states the contract defines, and nothing else.
+ *
+ * @param mixed $raw Value from the API.
+ * @return string Empty when it is not one of them.
+ */
+function sendbeam_connect_clean_domain_state( $raw ) {
+	$known = array( 'ok', 'not_granted', 'no_permission', 'no_site', 'not_found', 'managed_host', 'unavailable' );
+	$raw   = is_string( $raw ) ? strtolower( trim( $raw ) ) : '';
+	return in_array( $raw, $known, true ) ? $raw : '';
+}
+
+/**
+ * A status's domain state, worked out when the answer did not carry one.
+ *
+ * A cached body written before this field existed, or an older SendBeam,
+ * would otherwise leave every sentence on step 2 blank. A domain that came
+ * back is `ok`; no domain and no reason is `not_found`, which is both the
+ * commonest case and the one whose sentence is safe to show for any of them.
+ *
+ * @param array $status Normalised status.
+ * @return string
+ */
+function sendbeam_connect_domain_state( $status ) {
+	$state = isset( $status['domain_state'] ) ? sendbeam_connect_clean_domain_state( $status['domain_state'] ) : '';
+	if ( '' !== $state ) {
+		return $state;
+	}
+	return ( isset( $status['domain']['name'] ) && '' !== $status['domain']['name'] ) ? 'ok' : 'not_found';
 }
 
 /**
