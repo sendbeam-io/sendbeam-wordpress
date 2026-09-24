@@ -1094,6 +1094,20 @@ has( $v3_table, 'sb-tick', 'records: a record that is live is ticked' );
 lacks( $v3_table, 'Priority', 'records: there is no Priority column — every record is a CNAME' );
 lacks( $v3_table, 'priority', 'records: nothing on the table mentions priority' );
 
+// ── When the check last ran ────────────────────────────────────────────
+// The API answers in ISO 8601 UTC. That is the right thing to send and the
+// wrong thing to print at somebody: it is not a time anybody reads, and it is
+// not their hour either.
+ok( '23 September 2026, 3:04 pm' === sendbeam_connect_when( '2026-09-23T15:04:05Z' ), 'checked at: an ISO timestamp is rendered in the site\'s own date and time format' );
+ok( '24 September 2026, 5:49 am' === sendbeam_connect_when( '2026-09-24T05:49:24.291+00:00' ), 'checked at: fractional seconds and an offset are understood too' );
+ok( '' === sendbeam_connect_when( '' ), 'checked at: nothing in, nothing out' );
+ok( 'whenever' === sendbeam_connect_when( 'whenever' ), 'checked at: something that will not parse is shown as it came rather than dropped' );
+update_option( 'date_format', 'Y/m/d' );
+update_option( 'time_format', 'H:i' );
+ok( '2026/09/23, 15:04' === sendbeam_connect_when( '2026-09-23T15:04:05Z' ), 'checked at: the formats the site owner chose are the ones used' );
+delete_option( 'date_format' );
+delete_option( 'time_format' );
+
 // ── Check now ──────────────────────────────────────────────────────────
 /** Drive an admin-post handler that ends in a redirect. */
 function sb_run_admin_post( $fn ) {
@@ -1390,6 +1404,8 @@ has( $ov, 'v=sb1 k=abc', 'overview: the DNS records are shown, not linked to' );
 has( $ov, '10 feedback-smtp.eu-west-1.amazonses.com', 'overview: every record is shown' );
 has( $ov, 'data-copy="10 feedback-smtp.eu-west-1.amazonses.com"', 'overview: each record value has its own Copy button' );
 has( $ov, 'Check now', 'overview: the domain can be re-checked without leaving wp-admin' );
+has( $ov, 'Last checked 23 September 2026, 3:04 pm', 'overview: the last check is a time the site owner can read, in their own format' );
+lacks( $ov, '2026-09-23T15:04:05Z', 'overview: the raw ISO timestamp is never printed at anybody' );
 has( $ov, 'value="sendbeam_domain_check"', 'overview: Check now posts to the check handler' );
 has( $ov, 'nonce:sendbeam_domain_check', 'overview: Check now carries a nonce' );
 has( $ov, 'Set up DNS automatically', 'overview: the registrar one-click button is offered' );

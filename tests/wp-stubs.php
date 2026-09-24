@@ -190,6 +190,14 @@ if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
 function esc_attr__( $s, $d = null ) { return esc_attr( $s ); }
 
 /**
+ * Dates. The real wp_date() renders in the site's timezone; the stub uses
+ * UTC, which is what the tests assert against, and the plugin's job is only
+ * to hand WordPress a format and a timestamp rather than print the raw ISO
+ * string it got from the API.
+ */
+function wp_date( $format, $timestamp = null, $timezone = null ) { return gmdate( (string) $format, null === $timestamp ? time() : (int) $timestamp ); }
+
+/**
  * Enough of the Settings API to render a tab. The fields themselves are
  * exercised elsewhere; what these let the smoke test see is the *screen* —
  * which is the one layer no test could reach before, and the one where a

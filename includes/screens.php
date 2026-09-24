@@ -249,9 +249,9 @@ function sendbeam_overview_domain_panel( $status, $connected ) {
 	if ( '' !== $domain['checked_at'] ) {
 		echo '<p class="sb-note">' . esc_html(
 			sprintf(
-				/* translators: %s: an ISO timestamp of the last DNS check */
+				/* translators: %s: when the DNS was last checked, in the site's own date and time format */
 				__( 'Last checked %s.', 'sendbeam' ),
-				$domain['checked_at']
+				sendbeam_connect_when( $domain['checked_at'] )
 			)
 		) . '</p>';
 	}

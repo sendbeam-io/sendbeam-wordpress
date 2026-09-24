@@ -216,6 +216,34 @@ function sendbeam_connect_clean_records( $raw ) {
 }
 
 /**
+ * A timestamp from the API, in the site's own words.
+ *
+ * SendBeam answers in ISO 8601 UTC, which is the right thing to send and the
+ * wrong thing to show: "2026-09-24T05:49:24.291+00:00" is not a time anybody
+ * reads, and it is not even the right hour for most of the people reading it.
+ * WordPress already knows the site's timezone and the formats its owner
+ * chose, so it does the rendering.
+ *
+ * Anything that will not parse is handed back untouched rather than dropped —
+ * a strange-looking date is better than a step that silently stops saying
+ * when it last ran.
+ *
+ * @param string $iso A timestamp from the API.
+ * @return string
+ */
+function sendbeam_connect_when( $iso ) {
+	$iso = trim( (string) $iso );
+	if ( '' === $iso ) {
+		return '';
+	}
+	$stamp = strtotime( $iso );
+	if ( ! $stamp ) {
+		return $iso;
+	}
+	return wp_date( get_option( 'date_format', 'j F Y' ) . ', ' . get_option( 'time_format', 'g:i a' ), $stamp );
+}
+
+/**
  * Remember a status for a minute.
  *
  * @param array $status Normalised status.
