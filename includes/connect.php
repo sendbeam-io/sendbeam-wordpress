@@ -744,14 +744,14 @@ function sendbeam_connect_disconnect() {
 		$settings['mail_enabled'] = 0;
 	}
 
-	$settings['api_key']                    = '';
+	$settings['api_key']                       = '';
 	$settings['sendbeam_connected_via']        = '';
 	$settings['sendbeam_connect_workspace']    = '';
 	$settings['sendbeam_connect_workspace_id'] = '';
 	$settings['sendbeam_connect_notes']        = array();
-	$settings['sendbeam_connect_granted']   = '';
-	$settings['sendbeam_connect_filled']    = array();
-	$settings['sendbeam_mail_deferred']     = 0;
+	$settings['sendbeam_connect_granted']      = '';
+	$settings['sendbeam_connect_filled']       = array();
+	$settings['sendbeam_mail_deferred']        = 0;
 
 	// Before the key is forgotten, not after: the cached answer is filed
 	// under that key, and a site that has just let go of it can no longer

@@ -27,32 +27,32 @@ function sendbeam_app_url() {
  */
 function sendbeam_default_settings() {
 	return array(
-		'default_form'               => '',
-		'contact_form'               => '',
-		'popup_form'                 => '',
-		'popup_where'                => 'off',
-		'popup_trigger'              => 'timer',
-		'popup_delay'                => 5,
-		'popup_once'                 => 'day',
-		'popup_label'                => '',
-		'style_accent'               => '',
-		'style_text'                 => '',
-		'style_field'                => '',
-		'style_border'               => '',
-		'style_radius'               => '',
-		'style_font'                 => 'inherit',
-		'style_size'                 => '',
-		'style_bare'                 => 1,
-		'mail_enabled'               => 0,
-		'api_key'                    => '',
-		'mail_from_name'             => '',
-		'mail_from_email'            => '',
-		'mail_fallback'              => 1,
+		'default_form'                  => '',
+		'contact_form'                  => '',
+		'popup_form'                    => '',
+		'popup_where'                   => 'off',
+		'popup_trigger'                 => 'timer',
+		'popup_delay'                   => 5,
+		'popup_once'                    => 'day',
+		'popup_label'                   => '',
+		'style_accent'                  => '',
+		'style_text'                    => '',
+		'style_field'                   => '',
+		'style_border'                  => '',
+		'style_radius'                  => '',
+		'style_font'                    => 'inherit',
+		'style_size'                    => '',
+		'style_bare'                    => 1,
+		'mail_enabled'                  => 0,
+		'api_key'                       => '',
+		'mail_from_name'                => '',
+		'mail_from_email'               => '',
+		'mail_fallback'                 => 1,
 		// Set only when the key arrived through Connect, so the Overview can
 		// name the workspace and offer Disconnect rather than a paste field.
 		// Cleared the moment the key is changed or removed by hand.
-		'sendbeam_connected_via'     => '',
-		'sendbeam_connect_workspace' => '',
+		'sendbeam_connected_via'        => '',
+		'sendbeam_connect_workspace'    => '',
 		// The workspace's own ID, which is what says whether a reconnect
 		// landed in the same workspace or a different one. The name cannot
 		// answer that: two workspaces can share one, and renaming a
@@ -62,18 +62,18 @@ function sendbeam_default_settings() {
 		// was *asked* for is not the same thing — the person can untick a box
 		// on the consent page — and the Overview has to say "you did not give
 		// this site that permission" rather than guess.
-		'sendbeam_connect_granted'   => '',
+		'sendbeam_connect_granted'      => '',
 		// Which of this site's settings Connect filled in for the owner, so
 		// that disconnecting can put back exactly what it changed and not one
 		// thing more. Anything the owner has since saved by hand comes off
 		// the list: it is theirs now.
-		'sendbeam_connect_filled'    => array(),
+		'sendbeam_connect_filled'       => array(),
 		// Site email was approved at consent time but held back because the
 		// sending domain was not verified yet. The domain check switches it
 		// on and clears this; turning site email off by hand clears it too,
 		// so a later check never re-enables something deliberately switched
 		// off.
-		'sendbeam_mail_deferred'     => 0,
+		'sendbeam_mail_deferred'        => 0,
 	);
 }
 
