@@ -323,11 +323,10 @@ function sendbeam_handle_test_mail() {
 	wp_safe_redirect(
 		add_query_arg(
 			array(
-				'page'          => 'sendbeam',
 				'sendbeam_test' => $ok ? 'ok' : 'error',
 				'sendbeam_note' => rawurlencode( $note ),
 			),
-			admin_url( 'options-general.php' )
+			sendbeam_tab_url( 'mail' )
 		)
 	);
 	exit;

@@ -18,49 +18,51 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * The tabs, in order.
+ * The old tab keys, and the page each one became.
  *
- * @return array<string,string>
+ * Every handler in the plugin redirects to `sendbeam_tab_url( 'overview' )`
+ * and friends, and every bookmark anyone made points at
+ * `options-general.php?page=sendbeam&tab=X`. Keeping one table of what became
+ * what means the move is a change of address rather than a change of
+ * behaviour — and the 301 in menu.php reads the same table.
+ *
+ * @return array<string,string> Old tab key => new page slug.
  */
-function sendbeam_tabs() {
+function sendbeam_tab_pages() {
 	return array(
-		'overview'  => __( 'Overview', 'sendbeam' ),
-		'forms'     => __( 'Forms', 'sendbeam' ),
-		'audience'  => __( 'Audience', 'sendbeam' ),
-		'popup'     => __( 'Pop-ups', 'sendbeam' ),
-		'mail'      => __( 'Site email', 'sendbeam' ),
-		'ecommerce' => __( 'E-commerce events', 'sendbeam' ),
-		'docs'      => __( 'Docs', 'sendbeam' ),
+		'overview'  => 'sendbeam',
+		'forms'     => 'sendbeam-forms',
+		'audience'  => 'sendbeam-audience',
+		'popup'     => 'sendbeam-popups',
+		'mail'      => 'sendbeam-mail',
+		'ecommerce' => 'sendbeam-ecommerce',
+		// The Docs tab is gone; the Help page carries what it held.
+		'docs'      => 'sendbeam-help',
 	);
 }
 
 /**
- * Which tab is showing.
- *
- * @return string
- */
-function sendbeam_current_tab() {
-	$tabs = sendbeam_tabs();
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only navigation.
-	$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'overview';
-	return isset( $tabs[ $tab ] ) ? $tab : 'overview';
-}
-
-/**
- * URL for a tab.
+ * URL for what used to be a tab.
  *
  * @param string $tab Tab key.
  * @return string
  */
 function sendbeam_tab_url( $tab ) {
-	return admin_url( 'options-general.php?page=sendbeam&tab=' . rawurlencode( $tab ) );
+	$pages = sendbeam_tab_pages();
+	return sendbeam_page_url( isset( $pages[ $tab ] ) ? $pages[ $tab ] : 'sendbeam' );
 }
 
 /**
- * Header and tab bar.
+ * The branded band at the top of every SendBeam screen.
+ *
+ * It replaces the visual `<h1>` (the screen-reader one is in the router), and
+ * it names the section it is above: a header that says only "SendBeam" on
+ * eight different pages tells you the plugin you are in and nothing about
+ * where in it you are.
+ *
+ * @param string $title The section name.
  */
-function sendbeam_render_header() {
-	$current    = sendbeam_current_tab();
+function sendbeam_render_header( $title = '' ) {
 	$connection = sendbeam_connection();
 	$states     = array(
 		'ok'          => array( 'moss', __( 'Connected', 'sendbeam' ) ),
@@ -75,21 +77,39 @@ function sendbeam_render_header() {
 		<div class="sb-head__brand">
 			<span class="sb-mark" aria-hidden="true"></span>
 			<span class="sb-wordmark">SendBeam</span>
-			<span class="sb-ver">v<?php echo esc_html( SENDBEAM_VERSION ); ?></span>
+			<?php if ( '' !== $title ) : ?>
+				<span class="sb-head__where" aria-hidden="true">/</span>
+				<span class="sb-head__title"><?php echo esc_html( $title ); ?></span>
+			<?php endif; ?>
 		</div>
 		<div class="sb-head__right">
 			<span class="sb-state sb-state--<?php echo esc_attr( $state[0] ); ?>"><?php echo esc_html( $state[1] ); ?></span>
 			<a class="sb-btn sb-btn--ghost" href="<?php echo esc_url( sendbeam_app_url() ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Open SendBeam', 'sendbeam' ); ?></a>
 		</div>
 	</div>
-	<nav class="sb-tabs" aria-label="<?php esc_attr_e( 'SendBeam sections', 'sendbeam' ); ?>">
-		<?php foreach ( sendbeam_tabs() as $key => $label ) : ?>
-			<a class="sb-tab<?php echo esc_attr( $key === $current ? ' is-active' : '' ); ?>"
-				href="<?php echo esc_url( sendbeam_tab_url( $key ) ); ?>"
-				<?php echo $key === $current ? 'aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a>
-		<?php endforeach; ?>
-	</nav>
 	<?php
+}
+
+/**
+ * An in-page tab bar, for the one screen that still has tabs.
+ *
+ * @param array<string,string> $tabs    Key => label.
+ * @param string               $current The active key.
+ * @param string               $slug    The page the tabs live on.
+ * @param string               $label   Accessible name for the nav.
+ */
+function sendbeam_render_tabs( $tabs, $current, $slug, $label ) {
+	echo '<nav class="sb-tabs" aria-label="' . esc_attr( $label ) . '">';
+	foreach ( $tabs as $key => $text ) {
+		printf(
+			'<a class="sb-tab%1$s" href="%2$s"%3$s>%4$s</a>',
+			esc_attr( $key === $current ? ' is-active' : '' ),
+			esc_url( add_query_arg( 'tab', $key, sendbeam_page_url( $slug ) ) ),
+			$key === $current ? ' aria-current="page"' : '',
+			esc_html( $text )
+		);
+	}
+	echo '</nav>';
 }
 
 /**

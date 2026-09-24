@@ -259,3 +259,49 @@ class SendBeam_Stub_Db {
 		return empty( $db['posts'] ) ? null : 1;
 	}
 }
+
+// ── The admin menu ──────────────────────────────────────────────────────
+/**
+ * Menu registration. The stubs record what was registered rather than
+ * building a menu, because what the test needs to know is which slugs exist,
+ * what they are called and which callback answers for them — which is exactly
+ * what a wrong `add_submenu_page()` argument order gets wrong.
+ */
+function add_menu_page( $page_title, $menu_title, $cap, $slug, $cb = '', $icon = '', $position = null ) {
+	$GLOBALS['stub']['menu'][ $slug ] = array(
+		'page_title' => $page_title,
+		'menu_title' => $menu_title,
+		'cap'        => $cap,
+		'callback'   => $cb,
+		'icon'       => $icon,
+		'position'   => $position,
+		'parent'     => null,
+	);
+	return 'toplevel_page_' . $slug;
+}
+function add_submenu_page( $parent, $page_title, $menu_title, $cap, $slug, $cb = '', $position = null ) {
+	// WordPress registers a top-level page's first submenu item under the
+	// same slug, to rename it; recording both in one bucket would hide the
+	// top-level registration behind it.
+	$GLOBALS['stub']['submenu'][ $slug ] = array(
+		'page_title' => $page_title,
+		'menu_title' => $menu_title,
+		'cap'        => $cap,
+		'callback'   => $cb,
+		'parent'     => $parent,
+		'position'   => $position,
+	);
+	return ( $parent ? 'sendbeam_page_' : 'admin_page_' ) . $slug;
+}
+function get_current_screen() {
+	return isset( $GLOBALS['stub']['screen'] ) ? (object) array( 'id' => $GLOBALS['stub']['screen'] ) : null;
+}
+function settings_errors( $setting = '', $sanitize = false, $hide_on_update = false ) {}
+function _n( $single, $plural, $number, $domain = null ) { return 1 === (int) $number ? $single : $plural; }
+function _x( $text, $context, $domain = null ) { return $text; }
+function esc_textarea( $text ) { return esc_html( $text ); }
+function disabled( $a, $b = true, $echo = true ) { return $a == $b ? ' disabled="disabled"' : ''; }
+function wp_enqueue_media( $args = array() ) {}
+function get_admin_page_title() { return 'SendBeam'; }
+function submit_button_wrapper() {}
+function esc_attr_e( $s, $d = null ) { echo esc_attr( $s ); }

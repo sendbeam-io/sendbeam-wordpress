@@ -813,7 +813,7 @@ function sendbeam_connect_workspace_name() {
  *                          leave them staring at nothing.
  */
 function sendbeam_connect_render_result( $connected, $heading, $detail, $is_popup = true ) {
-	$overview = admin_url( 'options-general.php?page=sendbeam' );
+	$overview = sendbeam_tab_url( 'overview' );
 	$origin   = sendbeam_connect_site_origin();
 
 	nocache_headers();

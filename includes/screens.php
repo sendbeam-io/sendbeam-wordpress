@@ -96,19 +96,6 @@ function sendbeam_screen_overview() {
 	sendbeam_card_close();
 
 	echo '</div>';
-
-	// A pasted key still gets its own card: there is a field to edit. A key
-	// that arrived through Connect has nothing to edit, and its Disconnect
-	// button lives in step 1 where someone looking at the connection will
-	// actually find it — the old card was below the fold and titled
-	// "Connect", which read as an invitation to connect something.
-	if ( $connected && ! sendbeam_connected_via_connect() ) {
-		sendbeam_card_open( __( 'API key', 'sendbeam' ) );
-		sendbeam_form_open( 'connect' );
-		do_settings_sections( 'sendbeam_connect_page' );
-		sendbeam_form_close();
-		sendbeam_card_close();
-	}
 }
 
 /**
@@ -222,7 +209,9 @@ function sendbeam_overview_step_panel( $step, $status, $connected ) {
 			}
 			break;
 		case 'domain':
-			sendbeam_overview_domain_panel( $status, $connected );
+			if ( $connected ) {
+				sendbeam_domain_panel( $status );
+			}
 
 			/*
 			 * The domain this site sends from is chosen on the consent page,
@@ -273,14 +262,12 @@ function sendbeam_overview_step_panel( $step, $status, $connected ) {
  * something to retype, and **Check now** is right there so they can find out
  * whether it worked without leaving wp-admin.
  *
- * @param array $status    Normalised Connect status.
- * @param bool  $connected Whether the key works.
+ * @param array $status     Normalised Connect status.
+ * @param bool  $standalone True on the Settings page, where the panel is the
+ *                          whole subject rather than one step in a checklist
+ *                          that has already explained itself.
  */
-function sendbeam_overview_domain_panel( $status, $connected ) {
-	if ( ! $connected ) {
-		return;
-	}
-
+function sendbeam_domain_panel( $status, $standalone = false ) {
 	$domain   = $status['domain'];
 	$verified = ! empty( $domain['verified'] );
 	$state    = sendbeam_connect_domain_state( $status );
@@ -637,6 +624,51 @@ function sendbeam_connect_connected_panel( $status = null ) {
 }
 
 /**
+ * What the Connection card says when the key was pasted rather than granted.
+ *
+ * There is no workspace name to print — a key pasted by hand arrives with
+ * nothing but itself — so the card says what it does know: that the key
+ * works, what SendBeam answers to it, and where the field to change it is.
+ *
+ * @param array $status Normalised Connect status.
+ */
+function sendbeam_connect_pasted_panel( $status ) {
+	$connection = sendbeam_connection();
+	$workspace  = is_array( $status ) ? (string) $status['workspace']['name'] : '';
+
+	if ( '' !== $workspace ) {
+		/* translators: %s: the SendBeam workspace name */
+		echo '<p style="margin-top:0"><strong>' . esc_html( sprintf( __( 'Connected to %s', 'sendbeam' ), $workspace ) ) . '</strong></p>';
+	} else {
+		echo '<p style="margin-top:0"><strong>' . esc_html__( 'Connected with a pasted API key.', 'sendbeam' ) . '</strong></p>';
+	}
+
+	if ( sendbeam_key_in_config() ) {
+		echo '<p class="sb-note">' . esc_html__( 'The key is the one defined as SENDBEAM_API_KEY in wp-config.php. Change it there.', 'sendbeam' ) . '</p>';
+	}
+
+	if ( 'no_scope' === $connection['state'] && '' !== $connection['message'] ) {
+		echo '<p class="sb-msg sb-msg--warn">' . esc_html( $connection['message'] ) . '</p>';
+	}
+
+	echo '<div class="sb-actions">';
+	printf(
+		'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a>',
+		esc_url( add_query_arg( 'tab', 'advanced', sendbeam_page_url( 'sendbeam-settings' ) ) ),
+		esc_html__( 'Change the key', 'sendbeam' )
+	);
+	if ( ! sendbeam_key_in_config() ) {
+		printf(
+			'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a>',
+			esc_url( sendbeam_connect_start_url( true ) ),
+			esc_html__( 'Connect properly instead', 'sendbeam' )
+		);
+	}
+	echo '</div>';
+	echo '<p class="sb-note">' . esc_html__( 'Connecting replaces the pasted key with one SendBeam issues for this site, and tells the plugin which permissions it has — which is what lets the sending domain, the form list and the checklist say anything useful.', 'sendbeam' ) . '</p>';
+}
+
+/**
  * The permissions this site's key holds, in the consent page's own words.
  *
  * @return string[]
@@ -772,6 +804,8 @@ function sendbeam_screen_forms() {
 		echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'Paste a shortcode anywhere, or add the SendBeam Form block and pick the form from its dropdown. Every form on this list can be used as many times as you like, on as many pages as you like.', 'sendbeam' ) . '</p>';
 	}
 	sendbeam_card_close();
+
+	sendbeam_placing_forms_card();
 }
 
 /* -------------------------------------------------------------- Audience */
@@ -1070,6 +1104,8 @@ function sendbeam_screen_popup() {
 	echo '</template>';
 
 	sendbeam_card_close();
+
+	sendbeam_placing_forms_card();
 }
 
 /**
@@ -1345,7 +1381,123 @@ function sendbeam_screen_ecommerce() {
 	}
 }
 
-/* ------------------------------------------------------------------ Docs */
+/* -------------------------------------------------------------- Settings */
+
+/**
+ * Which Settings tab is showing.
+ *
+ * @return string
+ */
+function sendbeam_settings_tab() {
+	$tabs = array_keys( sendbeam_settings_tabs() );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only navigation.
+	$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
+	return in_array( $tab, $tabs, true ) ? $tab : 'connection';
+}
+
+/**
+ * The three things this page is for.
+ *
+ * @return array<string,string>
+ */
+function sendbeam_settings_tabs() {
+	return array(
+		'connection' => __( 'Connection', 'sendbeam' ),
+		'domain'     => __( 'Sending domain', 'sendbeam' ),
+		'advanced'   => __( 'Advanced', 'sendbeam' ),
+	);
+}
+
+/**
+ * Settings: the connection itself, the domain it sends from, and the key.
+ *
+ * Everything on this page is about the account rather than about the site —
+ * which is why the forms, the pop-ups and the site email settings are not
+ * here. A settings page that holds every setting in the plugin is a settings
+ * page nobody can find anything on.
+ */
+function sendbeam_screen_settings() {
+	$tab       = sendbeam_settings_tab();
+	$connected = sendbeam_is_connected();
+	$status    = $connected ? sendbeam_connect_status() : sendbeam_connect_empty_status();
+
+	sendbeam_render_tabs( sendbeam_settings_tabs(), $tab, 'sendbeam-settings', __( 'Settings sections', 'sendbeam' ) );
+
+	if ( 'domain' === $tab ) {
+		sendbeam_settings_domain_card( $status, $connected );
+		return;
+	}
+	if ( 'advanced' === $tab ) {
+		sendbeam_settings_advanced_card();
+		return;
+	}
+	sendbeam_settings_connection_card( $status, $connected );
+}
+
+/**
+ * Settings → Connection: one card, in the shape every connect screen has.
+ *
+ * @param array $status    Normalised Connect status.
+ * @param bool  $connected Whether the key works.
+ */
+function sendbeam_settings_connection_card( $status, $connected ) {
+	sendbeam_card_open( __( 'Connection', 'sendbeam' ), __( 'This site and the SendBeam workspace it talks to.', 'sendbeam' ) );
+	if ( $connected && sendbeam_connected_via_connect() ) {
+		sendbeam_connect_connected_panel( $status );
+	} elseif ( $connected ) {
+		sendbeam_connect_pasted_panel( $status );
+	} else {
+		sendbeam_connect_panel();
+	}
+	sendbeam_card_close();
+}
+
+/**
+ * Settings → Sending domain: the records and the two ways to finish them.
+ *
+ * @param array $status    Normalised Connect status.
+ * @param bool  $connected Whether the key works.
+ */
+function sendbeam_settings_domain_card( $status, $connected ) {
+	sendbeam_card_open( __( 'Sending domain', 'sendbeam' ), __( 'The domain this site\'s email is sent from.', 'sendbeam' ) );
+	if ( ! $connected ) {
+		echo '<p>' . esc_html__( 'Connect this site first and SendBeam will set the domain up and show you the records to add.', 'sendbeam' ) . '</p>';
+		printf(
+			'<p><a class="sb-btn" href="%s">%s</a></p>',
+			esc_url( add_query_arg( 'tab', 'connection', sendbeam_page_url( 'sendbeam-settings' ) ) ),
+			esc_html__( 'Go to Connection', 'sendbeam' )
+		);
+		sendbeam_card_close();
+		return;
+	}
+	sendbeam_domain_panel( $status, true );
+	sendbeam_card_close();
+}
+
+/**
+ * Settings → Advanced: the key, where it can live, and what uninstalling takes with it.
+ */
+function sendbeam_settings_advanced_card() {
+	sendbeam_card_open( __( 'API key', 'sendbeam' ), __( 'For a key you already have, or one you would rather keep out of the database.', 'sendbeam' ) );
+	if ( sendbeam_key_in_config() ) {
+		echo '<p>' . esc_html__( 'This site sends with the key defined as SENDBEAM_API_KEY in wp-config.php. It wins over anything saved here, so there is nothing to paste: change it in wp-config.php, or remove that line to manage the key from this screen.', 'sendbeam' ) . '</p>';
+	} else {
+		sendbeam_form_open( 'connect' );
+		do_settings_sections( 'sendbeam_connect_page' );
+		sendbeam_form_close();
+	}
+	sendbeam_card_close();
+
+	sendbeam_card_open( __( 'When this plugin is deleted', 'sendbeam' ) );
+	echo '<ul class="sb-bullets">';
+	echo '<li>' . esc_html__( 'Everything this plugin stored on this site is removed: the settings, the saved key, the pop-up rules, the recent email and event logs, and the cached answers from SendBeam.', 'sendbeam' ) . '</li>';
+	echo '<li>' . esc_html__( 'Nothing is removed from your SendBeam workspace. Your lists, forms, subscribers and sending domain stay exactly as they are.', 'sendbeam' ) . '</li>';
+	echo '<li>' . esc_html__( 'Deactivating changes nothing at either end. Only deleting the plugin clears this site\'s settings.', 'sendbeam' ) . '</li>';
+	echo '</ul>';
+	sendbeam_card_close();
+}
+
+/* ------------------------------------------------------------------ Help */
 
 /**
  * A reference that works without leaving WordPress.
@@ -1380,9 +1532,9 @@ function sendbeam_doc_snippet( $code, $what ) {
 }
 
 /**
- * Docs tab: the shortcodes, the API key permissions, and links to the full documentation.
+ * Help: the documentation, the shortcodes, and what each permission is for.
  */
-function sendbeam_screen_docs() {
+function sendbeam_screen_help() {
 	sendbeam_card_open( __( 'Documentation', 'sendbeam' ) );
 	echo '<div class="sb-doc">';
 	echo '<p>' . esc_html__( 'The essentials are below. The full documentation is kept with SendBeam itself, so it stays current with the product rather than with whichever version of this plugin you happen to have installed.', 'sendbeam' ) . '</p>';

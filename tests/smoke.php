@@ -1998,7 +1998,7 @@ lacks( $ov, '[sendbeam_form]', 'overview: and does not hand out a shortcode that
 // started in a wp-admin checklist and expected to come back and see the step
 // ticked.
 $ov = sb_overview( $sb_connected, $sb_unverified );
-has( $ov, 'return_to=' . rawurlencode( 'https://www.example-site.test/wp-admin/options-general.php?page=sendbeam&tab=overview' ), 'automatic DNS: the one-click link tells SendBeam where to send the owner back to' );
+has( $ov, 'return_to=' . rawurlencode( 'https://www.example-site.test/wp-admin/admin.php?page=sendbeam' ), 'automatic DNS: the one-click link tells SendBeam where to send the owner back to' );
 has( $ov, 'https://sendbeam.io/dc/1?return_to=', 'automatic DNS: and is otherwise the link SendBeam sent' );
 
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
@@ -2054,6 +2054,159 @@ delete_transient( 'sendbeam_remote_forms' );
 delete_transient( 'sendbeam_remote_lists' );
 delete_transient( 'sendbeam_subscriber_count' );
 update_option( 'sendbeam_settings', array() );
+
+/* ─────────────────────────── The admin menu ────────────────────────────
+ * SendBeam lived under Settings → SendBeam with seven invisible tabs. Every
+ * section is now a real menu item, and every old URL still goes somewhere.
+ */
+$GLOBALS['stub']['menu']    = array();
+$GLOBALS['stub']['submenu'] = array();
+sendbeam_admin_menu();
+$menu = $GLOBALS['stub']['menu'];
+$subs = $GLOBALS['stub']['submenu'];
+
+ok( isset( $menu['sendbeam'] ) && null === $menu['sendbeam']['parent'], 'menu: SendBeam is a top-level menu, not a Settings submenu' );
+ok( 'SendBeam' === $menu['sendbeam']['menu_title'], 'menu: the menu is called SendBeam' );
+ok( 58.9 === $menu['sendbeam']['position'], 'menu: it sits below Settings at 58.9' );
+has( $menu['sendbeam']['icon'], 'data:image/svg+xml;base64,', 'menu: the icon is a base64 SVG data URI, not a dashicon' );
+has( base64_decode( substr( $menu['sendbeam']['icon'], strlen( 'data:image/svg+xml;base64,' ) ) ), '#a7aaad', 'menu: the mark is drawn in the grey wp-admin gives every other menu icon' );
+ok( substr_count( base64_decode( substr( $menu['sendbeam']['icon'], strlen( 'data:image/svg+xml;base64,' ) ) ), '<rect' ) === 3, 'menu: the icon is the three-square mark' );
+
+$sendbeam_expected = array(
+	'sendbeam'           => 'Overview',
+	'sendbeam-forms'     => 'Forms',
+	'sendbeam-popups'    => 'Pop-ups',
+	'sendbeam-audience'  => 'Audience',
+	'sendbeam-mail'      => 'Site email',
+	'sendbeam-ecommerce' => 'E-commerce',
+	'sendbeam-settings'  => 'Settings',
+	'sendbeam-help'      => 'Help',
+);
+foreach ( $sendbeam_expected as $sendbeam_slug => $sendbeam_label ) {
+	ok( isset( $subs[ $sendbeam_slug ] ), "menu: $sendbeam_slug is registered as a submenu item" );
+	ok( $sendbeam_label === $subs[ $sendbeam_slug ]['menu_title'], "menu: $sendbeam_slug is labelled $sendbeam_label" );
+	ok( 'manage_options' === $subs[ $sendbeam_slug ]['cap'], "menu: $sendbeam_slug needs manage_options" );
+	ok( 'sendbeam_render_admin_page' === $subs[ $sendbeam_slug ]['callback'], "menu: $sendbeam_slug is rendered by the one router" );
+	ok( 'sendbeam' === $subs[ $sendbeam_slug ]['parent'], "menu: $sendbeam_slug hangs off the SendBeam menu" );
+}
+ok( ! isset( $subs['sendbeam-docs'] ), 'menu: the Docs tab is gone; Help replaced it' );
+ok( count( $subs ) === count( sendbeam_pages() ), 'menu: every page in the table is registered, and nothing else is' );
+
+// Every page in the table renders, and renders something.
+foreach ( sendbeam_pages() as $sendbeam_slug => $sendbeam_page ) {
+	ok( function_exists( $sendbeam_page['render'] ), "router: {$sendbeam_page['render']}() exists for $sendbeam_slug" );
+}
+
+// The router picks the screen off `page`, and falls back to the Overview
+// rather than fataling on a slug that is not ours.
+$_GET = array( 'page' => 'sendbeam-mail' );
+ok( 'sendbeam-mail' === sendbeam_current_page(), 'router: the current page comes from the query string' );
+$_GET = array( 'page' => 'sendbeam-nonsense' );
+ok( 'sendbeam' === sendbeam_current_page(), 'router: an unknown page falls back to the Overview' );
+$_GET = array();
+
+ok( 'https://www.example-site.test/wp-admin/admin.php?page=sendbeam-forms' === sendbeam_page_url( 'sendbeam-forms' ), 'router: page URLs are admin.php?page=<slug>' );
+
+// Screen detection, which decides where the styles and the notice appear.
+ok( sendbeam_is_our_screen( 'toplevel_page_sendbeam' ), 'screens: the Overview is one of ours' );
+ok( sendbeam_is_our_screen( 'sendbeam_page_sendbeam-help' ), 'screens: a submenu page is one of ours' );
+ok( ! sendbeam_is_our_screen( 'dashboard' ), 'screens: the Dashboard is not' );
+ok( ! sendbeam_is_our_screen( 'plugins' ), 'screens: the Plugins screen is not' );
+ok( ! sendbeam_is_our_screen( '' ), 'screens: nothing is not' );
+
+// Old URLs. Every tab that existed goes somewhere, permanently.
+$sendbeam_moves = array(
+	''          => 'sendbeam',
+	'overview'  => 'sendbeam',
+	'forms'     => 'sendbeam-forms',
+	'audience'  => 'sendbeam-audience',
+	'popup'     => 'sendbeam-popups',
+	'mail'      => 'sendbeam-mail',
+	'ecommerce' => 'sendbeam-ecommerce',
+	'docs'      => 'sendbeam-help',
+);
+foreach ( $sendbeam_moves as $sendbeam_tab => $sendbeam_to ) {
+	$GLOBALS['pagenow'] = 'options-general.php';
+	$_GET               = array( 'page' => 'sendbeam' );
+	if ( '' !== $sendbeam_tab ) {
+		$_GET['tab'] = $sendbeam_tab;
+	}
+	unset( $GLOBALS['stub']['redirect'] );
+	try {
+		sendbeam_redirect_old_urls();
+	} catch ( SendBeamStubExit $e ) {
+		unset( $e );
+	}
+	ok( isset( $GLOBALS['stub']['redirect'] ), "old URL: tab=$sendbeam_tab redirects" );
+	ok( 301 === $GLOBALS['stub']['redirect']['status'], "old URL: tab=$sendbeam_tab moves permanently" );
+	ok( sendbeam_page_url( $sendbeam_to ) === $GLOBALS['stub']['redirect']['url'], "old URL: tab=$sendbeam_tab lands on $sendbeam_to" );
+}
+
+// A notice the old URL carried has to survive the move, or every handler that
+// redirects with one goes silent.
+$GLOBALS['pagenow'] = 'options-general.php';
+$_GET               = array(
+	'page'          => 'sendbeam',
+	'tab'           => 'mail',
+	'sendbeam_test' => 'ok',
+	'sendbeam_note' => 'Sent to a@b.test.',
+);
+unset( $GLOBALS['stub']['redirect'] );
+try {
+	sendbeam_redirect_old_urls();
+} catch ( SendBeamStubExit $e ) {
+	unset( $e );
+}
+has( $GLOBALS['stub']['redirect']['url'], 'sendbeam_test=ok', 'old URL: the notice on the old address is carried to the new one' );
+has( $GLOBALS['stub']['redirect']['url'], 'sendbeam_note=Sent%20to%20a%40b.test.', 'old URL: a carried value is encoded, so a space cannot split the URL' );
+
+// Someone else's options-general.php page is left alone.
+$GLOBALS['pagenow'] = 'options-general.php';
+$_GET               = array( 'page' => 'not-sendbeam' );
+unset( $GLOBALS['stub']['redirect'] );
+sendbeam_redirect_old_urls();
+ok( ! isset( $GLOBALS['stub']['redirect'] ), 'old URL: another plugin\'s settings page is not hijacked' );
+$GLOBALS['pagenow'] = 'admin.php';
+$_GET               = array();
+
+/*
+ * Every page renders. No test could see an .astro page in the app and no test
+ * could see one of these either: a screen function that calls something that
+ * does not exist is a white page on a live wp-admin, and the only way to find
+ * out was to load it.
+ */
+$GLOBALS['stub']['caps']['manage_options'] = true;
+foreach ( array_keys( sendbeam_pages() ) as $sendbeam_slug ) {
+	$_GET = array( 'page' => $sendbeam_slug );
+	ob_start();
+	sendbeam_render_admin_page();
+	$sendbeam_html = ob_get_clean();
+	has( $sendbeam_html, 'class="wrap sendbeam-app"', "render: $sendbeam_slug sits in a .wrap" );
+	has( $sendbeam_html, 'class="screen-reader-text"', "render: $sendbeam_slug has a real h1 for screen readers" );
+	has( $sendbeam_html, 'sb-head', "render: $sendbeam_slug carries the header band" );
+	ok( strlen( $sendbeam_html ) > 800, "render: $sendbeam_slug renders a screenful, not an empty shell" );
+}
+
+// The header band names the section, so eight pages do not all say "SendBeam".
+$_GET = array( 'page' => 'sendbeam-mail' );
+ob_start();
+sendbeam_render_admin_page();
+$sendbeam_html = ob_get_clean();
+has( $sendbeam_html, '<span class="sb-head__title">Site email</span>', 'render: the header band names the section' );
+has( $sendbeam_html, 'SendBeam — Site email', 'render: the screen-reader heading names the section too' );
+
+// Someone without the capability gets nothing, not a partial page.
+$GLOBALS['stub']['caps']['manage_options'] = false;
+ob_start();
+sendbeam_render_admin_page();
+ok( '' === ob_get_clean(), 'render: a user who cannot manage options sees nothing at all' );
+$GLOBALS['stub']['caps']['manage_options'] = true;
+$_GET = array();
+
+// The Plugins-screen link goes to the Settings page, not to a dashboard.
+$sendbeam_links = sendbeam_action_links( array() );
+has( $sendbeam_links[0], 'admin.php?page=sendbeam-settings', 'plugins screen: the Settings link points at the Settings page' );
+lacks( $sendbeam_links[0], 'options-general.php', 'plugins screen: the Settings link does not point at the old address' );
 
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor

@@ -440,8 +440,7 @@ function sendbeam_setup_notice() {
 		return;
 	}
 
-	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-	if ( $screen && 'settings_page_sendbeam' === $screen->id ) {
+	if ( sendbeam_is_our_screen() ) {
 		return; // They are already here.
 	}
 
@@ -453,7 +452,7 @@ function sendbeam_setup_notice() {
 		return; // Resolved: the notice removes itself.
 	}
 
-	$settings_url = admin_url( 'options-general.php?page=sendbeam' );
+	$settings_url = sendbeam_page_url( 'sendbeam' );
 	$dismiss_url  = wp_nonce_url( admin_url( 'admin-post.php?action=sendbeam_dismiss_setup' ), 'sendbeam_dismiss_setup' );
 	?>
 	<div class="notice notice-info is-dismissible">

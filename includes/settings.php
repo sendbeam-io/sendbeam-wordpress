@@ -1,43 +1,34 @@
 <?php
 /**
- * Settings → SendBeam.
+ * The settings themselves: one option, registered through the Settings API.
  *
  * One option (`sendbeam_settings`, an array) holds everything, registered
  * through the Settings API so nonces, capability checks and the "Settings
- * saved" notice come for free.
+ * saved" notice come for free. The menu and the router that renders these
+ * fields live in menu.php.
  *
  * @package SendBeam
  */
 
 defined( 'ABSPATH' ) || exit;
 
-add_action( 'admin_menu', 'sendbeam_admin_menu' );
 add_action( 'admin_init', 'sendbeam_admin_init' );
 add_filter( 'plugin_action_links_' . plugin_basename( SENDBEAM_FILE ), 'sendbeam_action_links' );
 add_action( 'admin_enqueue_scripts', 'sendbeam_admin_assets' );
 add_action( 'admin_post_sendbeam_refresh', 'sendbeam_handle_refresh' );
 
 /**
- * Add the page under Settings.
- */
-function sendbeam_admin_menu() {
-	add_options_page(
-		__( 'SendBeam', 'sendbeam' ),
-		__( 'SendBeam', 'sendbeam' ),
-		'manage_options',
-		'sendbeam',
-		'sendbeam_render_settings_page'
-	);
-}
-
-/**
  * "Settings" link on the Plugins screen.
+ *
+ * It points at the Settings page, not at the Overview: somebody pressing
+ * "Settings" beside a plugin is looking for its settings, and sending them to
+ * a dashboard instead is the small lie every plugin that does this tells.
  *
  * @param string[] $links Existing links.
  * @return string[]
  */
 function sendbeam_action_links( $links ) {
-	$url = admin_url( 'options-general.php?page=sendbeam' );
+	$url = sendbeam_page_url( 'sendbeam-settings' );
 	array_unshift( $links, '<a href="' . esc_url( $url ) . '">' . esc_html__( 'Settings', 'sendbeam' ) . '</a>' );
 	return $links;
 }
@@ -499,55 +490,21 @@ function sendbeam_field_select( $args ) {
 }
 
 /**
- * The page itself.
- */
-function sendbeam_render_settings_page() {
-	if ( ! current_user_can( 'manage_options' ) ) {
-		return;
-	}
-	$tab     = sendbeam_current_tab();
-	$screens = array(
-		'overview'  => 'sendbeam_screen_overview',
-		'forms'     => 'sendbeam_screen_forms',
-		'audience'  => 'sendbeam_screen_audience',
-		'popup'     => 'sendbeam_screen_popup',
-		'mail'      => 'sendbeam_screen_mail',
-		'ecommerce' => 'sendbeam_screen_ecommerce',
-		'docs'      => 'sendbeam_screen_docs',
-	);
-	?>
-	<div class="wrap sendbeam-app">
-		<h1 class="screen-reader-text"><?php esc_html_e( 'SendBeam', 'sendbeam' ); ?></h1>
-		<?php sendbeam_render_header(); ?>
-		<div class="sb-wrap">
-			<?php
-			settings_errors( 'sendbeam_settings' );
-			call_user_func( $screens[ $tab ] );
-
-			if ( 'forms' === $tab || 'popup' === $tab ) {
-				sendbeam_card_open( __( 'Placing forms', 'sendbeam' ) );
-				echo '<ul style="list-style:disc;padding-left:1.3em;margin:0">';
-				echo '<li>' . wp_kses( __( 'Add the <strong>SendBeam Form</strong> block to any post or page and pick the form from its dropdown — search "SendBeam" in the block inserter.', 'sendbeam' ), array( 'strong' => array() ) ) . '</li>';
-				echo '<li>' . wp_kses( __( '<code>[sendbeam_form id="…"]</code> places any form, as often as you like. <code>height="600"</code> sets a different height.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
-				echo '<li>' . wp_kses( __( '<code>[sendbeam_contact]</code> shows the contact form chosen above.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
-				echo '<li>' . wp_kses( __( '<code>[sendbeam_popup_button label="Subscribe"]</code> opens the pop-up on click, on pages where it is not shown by itself.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
-				echo '</ul>';
-				sendbeam_card_close();
-			}
-			?>
-		</div>
-	</div>
-	<?php
-}
-
-/**
- * A three-line "where am I" at the top of the page.
+ * The "how do I put a form on a page" card, under Forms and under Pop-ups.
  *
- * Not a wizard with its own screens: the steps link to the sections already
- * below them. Someone who knows what they are doing scrolls straight past;
- * someone who does not gets an order of operations. That is the whole of the
- * onboarding, deliberately.
+ * It was appended by the old page renderer to two of its seven tabs. Now that
+ * each section is its own page, the two screens that need it ask for it.
  */
+function sendbeam_placing_forms_card() {
+	sendbeam_card_open( __( 'Placing forms', 'sendbeam' ) );
+	echo '<ul class="sb-bullets">';
+	echo '<li>' . wp_kses( __( 'Add the <strong>SendBeam Form</strong> block to any post or page and pick the form from its dropdown — search "SendBeam" in the block inserter.', 'sendbeam' ), array( 'strong' => array() ) ) . '</li>';
+	echo '<li>' . wp_kses( __( '<code>[sendbeam_form id="…"]</code> places any form, as often as you like. <code>height="600"</code> sets a different height.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
+	echo '<li>' . wp_kses( __( '<code>[sendbeam_contact]</code> shows the contact form chosen above.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
+	echo '<li>' . wp_kses( __( '<code>[sendbeam_popup_button label="Subscribe"]</code> opens the pop-up on click, on pages where it is not shown by itself.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
+	echo '</ul>';
+	sendbeam_card_close();
+}
 
 /** Intro for the Connect section: the live state of the key. */
 function sendbeam_section_connect_intro() {
@@ -605,7 +562,7 @@ function sendbeam_handle_refresh() {
 	check_admin_referer( 'sendbeam_refresh' );
 	sendbeam_flush_cache();
 	sendbeam_connection( true );
-	wp_safe_redirect( admin_url( 'options-general.php?page=sendbeam' ) );
+	wp_safe_redirect( sendbeam_page_url( 'sendbeam-settings' ) );
 	exit;
 }
 
@@ -615,13 +572,13 @@ function sendbeam_handle_refresh() {
  * @param string $hook Current admin page.
  */
 function sendbeam_admin_assets( $hook ) {
-	if ( 'settings_page_sendbeam' !== $hook ) {
+	if ( ! sendbeam_is_our_screen( $hook ) ) {
 		return;
 	}
 
-	// The pop-up tab offers a picture; that is the only screen that needs the
+	// The pop-up screen offers a picture; that is the only one that needs the
 	// media frame, so it is the only one that loads it.
-	if ( 'popup' === sendbeam_current_tab() ) {
+	if ( 'sendbeam-popups' === sendbeam_current_page() ) {
 		wp_enqueue_media();
 	}
 
