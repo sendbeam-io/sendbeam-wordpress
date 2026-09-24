@@ -1630,6 +1630,25 @@ ok( 'popup' === sendbeam_form_placement( true ), 'popups: and the checklist says
 unset( $GLOBALS['stub']['options']['sendbeam_popups'] );
 delete_transient( 'sendbeam_form_placed' );
 
+// ── #9 "Connected by: A pasted key" on a site with no key ───────────────
+// The support block is the first thing anyone reads on a support request, and
+// on a disconnected site it said a key had been pasted, with "API key: Not
+// set" directly above it and the sending-domain state blank.
+sb_seed_settings( array( 'api_key' => '' ) );
+sendbeam_connect_cache_status( sendbeam_connect_empty_status() );
+$sb_report = sendbeam_status_report();
+has( $sb_report, 'API key: Not set', 'support block: it says there is no key' );
+lacks( $sb_report, 'Connected by: A pasted key', 'support block: so it does not claim one was pasted' );
+has( $sb_report, 'Connected by: Nothing', 'support block: it says nothing connected this site' );
+ok( false === strpos( $sb_report, "Sending domain state: \n" ) && false === strpos( $sb_report, 'Sending domain state:' . PHP_EOL ), 'support block: the sending domain state is never blank' );
+has( $sb_report, 'Sending domain state: Not asked', 'support block: it says why there is no state' );
+
+// With a key the two original answers are unchanged.
+sb_seed_settings( array( 'api_key' => 'sb_live_pastedkeypastedkey' ) );
+has( sendbeam_status_report(), 'Connected by: A pasted key', 'support block: a pasted key still reads as pasted' );
+sb_seed_settings( array( 'api_key' => 'sb_live_pastedkeypastedkey', 'sendbeam_connected_via' => 'connect' ) );
+has( sendbeam_status_report(), 'Connected by: The Connect button', 'support block: and a Connect key as Connect' );
+
 /* ─────────────────────────────────────────────────────────────────────────
  * QA regressions that need a site with no API key at all. They have to sit
  * above the define() below: once SENDBEAM_API_KEY exists in this process,

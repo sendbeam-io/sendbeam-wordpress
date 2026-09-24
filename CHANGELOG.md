@@ -66,6 +66,8 @@
 
 - **`[sendbeam_contact]` takes an `id` now**, because the Forms screen offered a Copy button on every contact row and told the owner to "place it by shortcode". There was one shortcode for all of them and it always rendered the default, so copying the one beside "Wholesale enquiry" put the Contact-us form on the page. Every row names its own form; a bare `[sendbeam_contact]` still renders the default, so nothing already on a page changes.
 
+- **"Connected by: A pasted key" on a site with no key.** The Help page's system status — the block a site owner pastes into a support request, so the first thing support reads — answered a two-way ternary about how the key arrived without a third case for there being no key, directly under "API key: Not set". The sending-domain state was blank on the same block. Both say what is true now, and no field in that block is ever empty.
+
 ### Connect
 
 - **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.

@@ -227,6 +227,39 @@ function sendbeam_test_domain() {
 }
 
 /**
+ * How this site's key arrived, in words, including "it did not".
+ *
+ * @return string
+ */
+function sendbeam_connected_by_label() {
+	if ( '' === sendbeam_api_key() ) {
+		return __( 'Nothing — this site has no key', 'sendbeam' );
+	}
+	return sendbeam_connected_via_connect()
+		? __( 'The Connect button', 'sendbeam' )
+		: __( 'A pasted key', 'sendbeam' );
+}
+
+/**
+ * The sending domain's state, never blank.
+ *
+ * @param array $status Normalised status.
+ * @return string
+ */
+function sendbeam_domain_state_label( $status ) {
+	if ( ! empty( $status['domain']['verified'] ) ) {
+		return 'verified';
+	}
+	$state = trim( (string) $status['domain_state'] );
+	if ( '' !== $state ) {
+		return $state;
+	}
+	return '' === sendbeam_api_key()
+		? __( 'Not asked — this site has no key', 'sendbeam' )
+		: __( 'Not reported', 'sendbeam' );
+}
+
+/**
  * Is this site's email actually going through SendBeam, safely?
  *
  * The interesting failure is the middle one: the relay on with an unverified
@@ -340,7 +373,11 @@ function sendbeam_debug_information( $info ) {
 		),
 		'connected_via' => array(
 			'label' => __( 'Connected by', 'sendbeam' ),
-			'value' => sendbeam_connected_via_connect() ? __( 'The Connect button', 'sendbeam' ) : __( 'A pasted key', 'sendbeam' ),
+			// Three cases, not two. This block is what somebody pastes into a
+			// support request, so "Connected by: A pasted key" on a site with
+			// no key at all is the first thing support reads and the first
+			// thing that sends them the wrong way.
+			'value' => sendbeam_connected_by_label(),
 		),
 		'state'         => array(
 			'label' => __( 'Connection state', 'sendbeam' ),
@@ -360,7 +397,9 @@ function sendbeam_debug_information( $info ) {
 		),
 		'domain_state'  => array(
 			'label' => __( 'Sending domain state', 'sendbeam' ),
-			'value' => ! empty( $status['domain']['verified'] ) ? 'verified' : (string) $status['domain_state'],
+			// domain_state is empty on a site that has never asked, and a
+			// blank value in a support paste reads as a bug in the report.
+			'value' => sendbeam_domain_state_label( $status ),
 		),
 		'domain_check'  => array(
 			'label' => __( 'Sending domain last checked', 'sendbeam' ),
