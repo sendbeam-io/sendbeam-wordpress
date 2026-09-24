@@ -462,17 +462,31 @@ function sendbeam_overview_form_panel( $step, $connected ) {
 	}
 
 	$settings = sendbeam_settings();
-	if ( '' === (string) $settings['default_form'] && '' === (string) $settings['contact_form'] ) {
+	$chosen   = '' !== (string) $settings['default_form'] || '' !== (string) $settings['contact_form'];
+	$forms    = sendbeam_remote_forms();
+
+	/*
+	 * The override is the answer for a form this site cannot find — one in a
+	 * page builder's own storage, or on a page behind a login. That is not
+	 * conditional on a *default* form being chosen: the form on the page may
+	 * be named in its own shortcode, and this step was leaving those sites
+	 * with an untickable step and no way to say so. Any form in the workspace
+	 * is enough of a reason to offer it.
+	 */
+	if ( ! $chosen && ! ( is_array( $forms ) && $forms ) ) {
 		return;
 	}
 
-	echo '<div class="sb-actions"><code>[sendbeam_form]</code>';
-	printf(
-		'<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-copy" data-copy="%1$s" data-done="%2$s">%3$s</button>',
-		esc_attr( '[sendbeam_form]' ),
-		esc_attr__( 'Copied', 'sendbeam' ),
-		esc_html__( 'Copy', 'sendbeam' )
-	);
+	echo '<div class="sb-actions">';
+	if ( $chosen ) {
+		echo '<code>[sendbeam_form]</code>';
+		printf(
+			'<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-copy" data-copy="%1$s" data-done="%2$s">%3$s</button>',
+			esc_attr( '[sendbeam_form]' ),
+			esc_attr__( 'Copied', 'sendbeam' ),
+			esc_html__( 'Copy', 'sendbeam' )
+		);
+	}
 	printf(
 		'<a class="sb-btn sb-btn--small sb-btn--ghost" href="%s">%s</a>',
 		esc_url( sendbeam_form_placed_url() ),

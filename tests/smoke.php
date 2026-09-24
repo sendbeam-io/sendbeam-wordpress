@@ -1847,9 +1847,10 @@ has( sendbeam_connect_admin_js(), 'sb-connect-popup', 'pop-up: the script sets t
  * @param array $settings Saved settings.
  * @param array $status   Status payload, as the API would send it.
  * @param array $get      Query arguments on the screen.
+ * @param array $forms    The forms this key can see in the workspace.
  * @return string
  */
-function sb_overview( $settings, $status, $get = array() ) {
+function sb_overview( $settings, $status, $get = array(), $forms = array() ) {
 	$GLOBALS['stub']['caps']['manage_options'] = true;
 	$GLOBALS['stub']['user_id']                = 7;
 	$GLOBALS['stub']['current_user']           = array( 'email' => 'admin@example-site.test' );
@@ -1857,7 +1858,7 @@ function sb_overview( $settings, $status, $get = array() ) {
 	$_GET                                      = $get;
 	update_option( 'sendbeam_settings', $settings );
 	set_transient( 'sendbeam_connection', array( 'state' => '' === (string) ( $settings['api_key'] ?? '' ) ? 'none' : 'ok', 'message' => '', 'count' => 1 ) );
-	set_transient( 'sendbeam_remote_forms', array() );
+	set_transient( 'sendbeam_remote_forms', $forms );
 	set_transient( 'sendbeam_remote_lists', array() );
 	set_transient( 'sendbeam_subscriber_count', 0 );
 	sendbeam_connect_cache_status( sendbeam_connect_normalise_status( $status ) );
@@ -1967,6 +1968,17 @@ $ov = sb_overview( array(), array( 'workspace' => array( 'id' => 'ws_1' ), 'doma
 lacks( $ov, 'Sending from the wrong domain?', 'overview: a site that has not connected is not offered a reconnection' );
 $ov = sb_overview( $sb_connected, $sb_verified );
 has( $ov, '>Reconnect<', 'overview: the connected card offers a plain Reconnect beside Disconnect' );
+
+// The form step's override exists for a form nothing on this site can read:
+// one stored by a page builder, or on a page behind a login. That does not
+// depend on a *default* form being chosen — the form on the page may name
+// itself — so any form in the workspace is reason enough to offer it.
+$ov = sb_overview( $sb_connected, $sb_unverified );
+lacks( $ov, 'I&#039;ve placed it elsewhere', 'overview: no override while the workspace has no form to have placed' );
+$sb_one_form = array( array( 'id' => $form, 'name' => 'Newsletter signup', 'kind' => 'signup' ) );
+$ov          = sb_overview( $sb_connected, $sb_unverified, array(), $sb_one_form );
+has( $ov, 'I&#039;ve placed it elsewhere', 'overview: a workspace with a form offers the override even when no default is chosen' );
+lacks( $ov, '[sendbeam_form]', 'overview: and does not hand out a shortcode that names no form' );
 
 // ── Back from the registrar ────────────────────────────────────────────
 // Automatic DNS used to end on SendBeam's own sending settings: a reasonable
