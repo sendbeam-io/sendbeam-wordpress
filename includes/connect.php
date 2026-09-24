@@ -159,11 +159,16 @@ function sendbeam_connect_transient_key( $user_id ) {
  * otherwise cut the query in half and SendBeam would read the wrong return
  * address.
  *
- * @param string[] $scopes Approved scope names.
- * @param string   $state  The CSRF token.
+ * @param string[] $scopes       Approved scope names.
+ * @param string   $state        The CSRF token.
+ * @param string   $sending_host The domain this site already sends from, so
+ *                               the consent page offers it back rather than
+ *                               deriving one from site_url. Empty on a first
+ *                               connect, and on the one link whose whole
+ *                               point is choosing a different domain.
  * @return string Empty when this site cannot be connected (bad origin).
  */
-function sendbeam_connect_consent_url( $scopes, $state ) {
+function sendbeam_connect_consent_url( $scopes, $state, $sending_host = '' ) {
 	$origin = sendbeam_connect_site_origin();
 	if ( '' === $origin || ! sendbeam_connect_origin_ok( $origin ) ) {
 		return '';
@@ -177,17 +182,60 @@ function sendbeam_connect_consent_url( $scopes, $state ) {
 		$name = substr( $name, 0, 80 );
 	}
 
-	return add_query_arg(
-		array(
-			'site_url'  => rawurlencode( $origin ),
-			'site_name' => rawurlencode( $name ),
-			'email'     => rawurlencode( isset( $user->user_email ) ? (string) $user->user_email : '' ),
-			'scopes'    => rawurlencode( implode( ',', $scopes ) ),
-			'state'     => rawurlencode( $state ),
-			'return_to' => rawurlencode( sendbeam_connect_return_url() ),
-		),
-		sendbeam_app_url() . '/connect/wordpress'
+	$args = array(
+		'site_url'  => rawurlencode( $origin ),
+		'site_name' => rawurlencode( $name ),
+		'email'     => rawurlencode( isset( $user->user_email ) ? (string) $user->user_email : '' ),
+		'scopes'    => rawurlencode( implode( ',', $scopes ) ),
+		'state'     => rawurlencode( $state ),
+		'return_to' => rawurlencode( sendbeam_connect_return_url() ),
 	);
+
+	/*
+	 * The domain this site already sends from, so the consent page prefills
+	 * SEND FROM with it rather than with this site's host. Without it,
+	 * pressing Reconnect for any other reason — more permissions, a changed
+	 * workspace, a key rotation — re-set the sending domain to the default
+	 * and took the existing one, and its DNS records, out of the workspace.
+	 * Nothing warned anybody: an owner half-way through entering three CNAMEs
+	 * simply found them gone.
+	 */
+	$sending_host = sendbeam_connect_clean_host( $sending_host );
+	if ( '' !== $sending_host ) {
+		$args['sending_host'] = rawurlencode( $sending_host );
+	}
+
+	return add_query_arg( $args, sendbeam_app_url() . '/connect/wordpress' );
+}
+
+/**
+ * A hostname, or ''. Nothing else goes out in a consent request.
+ *
+ * @param string $host Candidate.
+ * @return string
+ */
+function sendbeam_connect_clean_host( $host ) {
+	$host = strtolower( trim( (string) $host ) );
+	if ( '' === $host || strlen( $host ) > 253 ) {
+		return '';
+	}
+	return preg_match( '/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/', $host ) ? $host : '';
+}
+
+/**
+ * The sending domain this site already has, from the cached status body.
+ *
+ * The status body and not the site's host: the owner chooses the sending host
+ * at consent time and it is often not this site's domain at all.
+ *
+ * @return string Empty when this site has no sending domain.
+ */
+function sendbeam_connect_current_sending_host() {
+	if ( ! sendbeam_is_connected() ) {
+		return '';
+	}
+	$status = sendbeam_connect_status();
+	return sendbeam_connect_clean_host( isset( $status['domain']['name'] ) ? $status['domain']['name'] : '' );
 }
 
 /**
@@ -201,13 +249,17 @@ function sendbeam_connect_consent_url( $scopes, $state ) {
  * it asks for are decided here: everything, or exactly what this site's key
  * already carries.
  *
- * @param bool $all_scopes True to preselect every permission. False asks for
- *                         the ones the key already holds, which is what a
- *                         plain Reconnect means; a key pasted by hand records
- *                         none, so that falls back to everything too.
+ * @param bool $all_scopes  True to preselect every permission. False asks for
+ *                          the ones the key already holds, which is what a
+ *                          plain Reconnect means; a key pasted by hand records
+ *                          none, so that falls back to everything too.
+ * @param bool $keep_domain True to offer the sending domain this site already
+ *                          has back to the consent page, which is what every
+ *                          reconnect should do. False only for the one link
+ *                          whose purpose is choosing a different domain.
  * @return string
  */
-function sendbeam_connect_start_url( $all_scopes = false ) {
+function sendbeam_connect_start_url( $all_scopes = false, $keep_domain = true ) {
 	$scopes = array_keys( sendbeam_connect_scopes() );
 
 	if ( ! $all_scopes ) {
@@ -219,16 +271,19 @@ function sendbeam_connect_start_url( $all_scopes = false ) {
 		}
 	}
 
-	return wp_nonce_url(
-		add_query_arg(
-			array(
-				'action'          => 'sendbeam_connect_start',
-				'sendbeam_scopes' => rawurlencode( implode( ',', $scopes ) ),
-			),
-			admin_url( 'admin-post.php' )
-		),
-		'sendbeam_connect_start'
+	$args = array(
+		'action'          => 'sendbeam_connect_start',
+		'sendbeam_scopes' => rawurlencode( implode( ',', $scopes ) ),
 	);
+
+	// Keeping the site's existing sending domain is the default, because
+	// every reconnect but one is being done for some other reason entirely.
+	// The exception says so here, and the handler reads it.
+	if ( ! $keep_domain ) {
+		$args['sendbeam_new_domain'] = '1';
+	}
+
+	return wp_nonce_url( add_query_arg( $args, admin_url( 'admin-post.php' ) ), 'sendbeam_connect_start' );
 }
 
 /**
@@ -295,7 +350,9 @@ function sendbeam_connect_start() {
 
 	// Built before anything is remembered: a site that cannot be connected at
 	// all should not be left holding a pending connection it can never finish.
-	$url = sendbeam_connect_consent_url( $scopes, $state );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the nonce is checked at the top of this handler.
+	$keep_domain = empty( $_REQUEST['sendbeam_new_domain'] );
+	$url         = sendbeam_connect_consent_url( $scopes, $state, $keep_domain ? sendbeam_connect_current_sending_host() : '' );
 	if ( '' === $url ) {
 		wp_die( esc_html__( 'This site has no https address, so it cannot be connected to SendBeam. Add a certificate, or paste an API key instead.', 'sendbeam' ) );
 	}

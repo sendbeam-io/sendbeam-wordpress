@@ -357,7 +357,9 @@ function sendbeam_overview_step_panel( $step, $status, $connected ) {
 			if ( $connected ) {
 				printf(
 					'<p class="sb-note"><a href="%s">%s</a></p>',
-					esc_url( sendbeam_connect_start_url() ),
+					// The one link that must NOT offer the current domain
+					// back: choosing a different one is the entire point.
+					esc_url( sendbeam_connect_start_url( false, false ) ),
 					esc_html__( 'Sending from the wrong domain? Reconnect and enter the one you want.', 'sendbeam' )
 				);
 			}

@@ -4506,6 +4506,74 @@ has( sendbeam_key_removal_note(), 'only forgotten here', 'advanced: and that a p
 sb_connect_reset();
 sb_seed_settings( array() );
 
+// ── #12 Reconnect destroyed the sending domain the site already had ─────
+// The consent page prefilled SEND FROM from site_url on every run, so pressing
+// Reconnect for any other reason — more permissions, a changed workspace, a
+// key rotation — re-set the sending domain to this site's host. The domain the
+// owner chose, and the three CNAMEs they may have been half-way through
+// entering, simply vanished from the workspace with no warning.
+sb_connect_reset();
+sb_seed_settings(
+	array(
+		'api_key'                  => SENDBEAM_API_KEY,
+		'sendbeam_connected_via'   => 'connect',
+		'sendbeam_connect_granted' => 'forms,domain',
+	)
+);
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'mail.wp-test.sendbeam.io', 'verified' => false, 'records' => array() ),
+		)
+	)
+);
+ok( 'mail.wp-test.sendbeam.io' === sendbeam_connect_current_sending_host(), 'reconnect: the site knows the domain it already sends from' );
+
+/** The consent URL one of the three links produces. */
+function sb_consent_for( $url ) {
+	parse_str( (string) wp_parse_url( $url, PHP_URL_QUERY ), $q );
+	$keep = empty( $q['sendbeam_new_domain'] );
+	parse_str(
+		(string) wp_parse_url(
+			sendbeam_connect_consent_url( array( 'forms' ), 'statestatestate', $keep ? sendbeam_connect_current_sending_host() : '' ),
+			PHP_URL_QUERY
+		),
+		$c
+	);
+	return $c;
+}
+
+// 1. The connected card's plain Reconnect.
+$sb_c = sb_consent_for( sendbeam_connect_start_url() );
+ok( 'mail.wp-test.sendbeam.io' === rawurldecode( $sb_c['sending_host'] ), 'reconnect: a plain Reconnect offers the existing domain back' );
+
+// 2. "Reconnect with more permissions".
+$sb_c = sb_consent_for( sendbeam_connect_start_url( true ) );
+ok( 'mail.wp-test.sendbeam.io' === rawurldecode( $sb_c['sending_host'] ), 'reconnect: so does reconnecting for more permissions' );
+
+// 3. "Sending from the wrong domain? Reconnect and enter the one you want."
+$sb_wrong = sendbeam_connect_start_url( false, false );
+has( $sb_wrong, 'sendbeam_new_domain=1', 'reconnect: the wrong-domain link says it wants a different one' );
+$sb_c = sb_consent_for( $sb_wrong );
+ok( ! isset( $sb_c['sending_host'] ), 'reconnect: and passes no domain, because choosing another is the point' );
+
+// A first connect has no domain to offer, so it offers none.
+sb_connect_reset();
+sb_seed_settings( array( 'api_key' => '' ) );
+sendbeam_connect_cache_status( sendbeam_connect_empty_status() );
+ok( '' === sendbeam_connect_current_sending_host(), 'reconnect: a site with no key has no domain to keep' );
+$sb_c = sb_consent_for( sendbeam_connect_start_url() );
+ok( ! isset( $sb_c['sending_host'] ), 'reconnect: so a first connect sends no sending_host at all' );
+
+// Only a hostname ever goes out.
+ok( '' === sendbeam_connect_clean_host( 'not a host' ), 'reconnect: a value that is not a hostname is dropped' );
+ok( '' === sendbeam_connect_clean_host( 'https://example.com/path' ), 'reconnect: a URL is not a hostname' );
+ok( '' === sendbeam_connect_clean_host( str_repeat( 'a', 250 ) . '.example.com' ), 'reconnect: and nothing over 253 characters' );
+ok( 'mail.example.co.uk' === sendbeam_connect_clean_host( ' MAIL.Example.CO.UK ' ), 'reconnect: a real host is trimmed and lowercased' );
+sb_connect_reset();
+sb_seed_settings( array() );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.
