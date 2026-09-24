@@ -518,7 +518,14 @@ function sendbeam_setup_steps() {
 			'done'      => $verified,
 			'label'     => __( 'Verify your sending domain', 'sendbeam' ),
 			'detail'    => $domain_detail,
-			'target'    => sendbeam_app_link( '/settings/domains' ),
+
+			/*
+			 * The step points at the plugin's own Sending domain screen, where
+			 * the records live: an owner pressing it was being sent to the
+			 * SendBeam app instead, as if the plugin could not do this. Only a
+			 * site with no domain at all is sent to where one is added.
+			 */
+			'target'    => ! empty( $domain['name'] ) ? add_query_arg( 'tab', 'domain', sendbeam_page_url( 'sendbeam-settings' ) ) : sendbeam_app_link( '/settings/domains' ),
 			'reconnect' => $domain_reconnect,
 		),
 		array(

@@ -5042,3 +5042,10 @@ has( $sb_css, '.sb-scroll{overflow-x:auto;display:block;width:100%;min-width:0;'
 lacks( $sb_css, '.sb-steps li{', 'records: the checklist row rule is scoped to its own items, not every list inside a step' );
 has( $sb_css, '.sb-numbered>li{display:list-item;', 'records: a numbered list inside a step stays a list' );
 has( $sb_css, '.sb-scroll>.sb-dns{width:100%}', 'records: and the table fills the wrapper' );
+
+// Step 2 points at the plugin's own Sending domain screen while a domain exists, and at SendBeam only to add one.
+$ov = sb_overview( $sb_connected, $sb_unverified );
+has( $ov, 'page=sendbeam-settings', 'overview: step 2 sends the owner to the plugin, not the app' );
+has( $ov, 'tab=domain', 'overview: to its own Sending domain screen' );
+$ov = sb_overview( $sb_connected, $sb_nodomain );
+has( $ov, '/settings/domains', 'overview: a site with no domain is still sent to where one is added' );
