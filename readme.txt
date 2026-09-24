@@ -182,6 +182,8 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 == Changelog ==
 
 = 1.8.3 =
+* The DNS records show on the Overview at every width. A styling rule for the checklist had leaked into the numbered list inside step 2 and squeezed the records table to two pixels, so a site connecting a second domain saw the instructions and nothing to add.
+* The sending-domain step on the Overview opens the plugin's own Sending domain screen, where the records are, rather than the SendBeam app; SendBeam is only where you go to add a domain when the site has none.
 * The opt-in box and the order event now work on the block checkout WooCommerce installs by default, not only the classic one.
 * Order placed sends once an order is paid, once per order — not at checkout for an order that might never be paid.
 * Pop-ups never open on the cart, checkout or account pages, whatever a rule says, so nothing sits over Place order.

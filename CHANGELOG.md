@@ -2,6 +2,9 @@
 
 ## 1.8.3
 
+- The DNS records are visible on the Overview at every width; a checklist styling rule had squeezed the table to two pixels inside step 2.
+- The sending-domain step opens the plugin's own Sending domain screen rather than the SendBeam app.
+
 - WooCommerce's block checkout now gets the opt-in box (registered as an additional checkout field) and fires the order event; both were classic-checkout only.
 - Order placed fires when an order is paid (payment complete, processing or completed), once per order, instead of at checkout before payment.
 - Pop-ups are never shown on the cart, checkout or account pages.
