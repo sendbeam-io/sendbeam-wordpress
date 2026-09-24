@@ -80,6 +80,8 @@
 
 - **Every "you do not have permission" was served as HTTP 500.** `wp_die()` with no status argument defaults to a server error, so all sixteen of the plugin's admin-post actions answered an Editor's POST with a 500 — a correct refusal, logged everywhere as a fault in the plugin. They answer 403. (The nonce refusals were already right: `check_admin_referer()` sends 403 itself.)
 
+- **Tap targets on a phone were 26–36px.** Apple asks for 44pt and Android for 48dp; the 26px "I already have an API key" disclosure on the Overview is the one an owner reaches for first and misses. Buttons are 44px below 782px, small buttons 40px, and the disclosures and button-shaped links are sized with them. Desktop metrics are unchanged.
+
 ### Connect
 
 - **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.

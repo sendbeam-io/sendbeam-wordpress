@@ -526,6 +526,17 @@ function sendbeam_admin_css() {
 	}
 
 	@media (max-width:782px){
+		/* Touch sizes. Apple asks for 44pt and Android for 48dp; the buttons
+		   on a phone were 26-36px, and the 26px disclosure on the Overview is
+		   the first thing an owner reaches for and the one they miss. The
+		   padding grows with the height so a wider target is not a taller
+		   sliver, and full-width primaries stay full width. */
+		.sendbeam-app .sb-btn{min-height:44px;padding:0 18px}
+		.sendbeam-app .sb-btn--small{min-height:40px;padding:0 14px}
+		/* The confirm\'s summary already wears .sb-btn, so it is covered
+		   above; the paste disclosure is a plain summary and is not. */
+		.sb-paste>summary{padding:12px 0;min-height:44px;display:flex;align-items:center}
+		.sendbeam-app .sb-link{min-height:44px;display:inline-flex;align-items:center}
 		.sendbeam-app{margin:10px}
 		.sb-head{padding:14px}
 		.sb-mark{margin-right:36px}

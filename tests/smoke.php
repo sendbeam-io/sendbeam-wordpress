@@ -4723,6 +4723,22 @@ foreach ( glob( dirname( __DIR__ ) . '/includes/*.php' ) as $sb_file ) {
 }
 ok( array() === $sb_bad, 'refusal: no wp_die() is left on the 500 default — ' . implode( ', ', $sb_bad ) );
 
+// ── #17 Phone tap targets were 26-36px ──────────────────────────────────
+// Apple asks for 44pt and Android for 48dp. Every button on every SendBeam
+// screen measured 26-36px at 393px, and the 26px "I already have an API key"
+// disclosure on the Overview is the one an owner reaches for first.
+$sb_css   = sendbeam_admin_css();
+$sb_phone = substr( $sb_css, strpos( $sb_css, '@media (max-width:782px)' ) );
+has( $sb_phone, '.sendbeam-app .sb-btn{min-height:44px', 'touch: buttons are 44px on a phone' );
+has( $sb_phone, '.sendbeam-app .sb-btn--small{min-height:40px', 'touch: and the small ones grow too' );
+has( $sb_phone, '.sb-paste>summary{padding:12px 0;min-height:44px', 'touch: so does the paste-a-key disclosure' );
+has( $sb_phone, '.sendbeam-app .sb-link{min-height:44px', 'touch: and a link that acts as a button' );
+
+// The desktop metrics are untouched: this is a phone problem.
+$sb_desk = substr( $sb_css, 0, strpos( $sb_css, '@media (max-width:782px)' ) );
+has( $sb_desk, '.sendbeam-app .sb-btn{display:inline-flex', 'touch: the desktop button rule is still there' );
+has( $sb_desk, 'min-height:36px', 'touch: at its original 36px' );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.
