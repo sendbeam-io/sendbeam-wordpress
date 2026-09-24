@@ -625,6 +625,14 @@ has( $sb_ov, 'I already have an API key', 'overview: pasting a key is still poss
 lacks( $sb_ov, 'Check now', 'overview: nothing offers to check a domain that does not exist' );
 lacks( $sb_ov, 'value="sendbeam_disconnect"', 'overview: nothing offers to disconnect what is not connected' );
 has( $sb_ov, 'Connect the site first', 'overview: the domain step says to connect first' );
+// Step 1 names the thing it is asking for. It pointed at the paste field,
+// which is the one way of connecting this plugin no longer leads with, so
+// anything following the checklist walked straight past the button to the
+// fallback folded away underneath it.
+has( $sb_panel, 'id="sendbeam-connect"', 'panel: the Connect panel is something a link can land on' );
+$sb_steps = sendbeam_setup_steps();
+has( $sb_steps[0]['target'], '#sendbeam-connect', 'steps: step 1 points at the Connect panel' );
+lacks( $sb_steps[0]['target'], '#sendbeam_api_key', 'steps: not at the paste field underneath it' );
 
 sb_connect_reset();
 sendbeam_connect_forget_status();
@@ -637,6 +645,10 @@ update_option( 'sendbeam_settings', array() );
 // wp-config constant wins over the option.
 define( 'SENDBEAM_API_KEY', 'sb_const_0123456789abcdef' );
 ok( sendbeam_api_key() === 'sb_const_0123456789abcdef', 'constant wins' );
+// With the key pinned there is no Connect panel and no paste field either,
+// so step 1 keeps the anchor of the one key field a site can still have: the
+// card a pasted key gets.
+has( sendbeam_setup_steps()[0]['target'], '#sendbeam_api_key', 'steps: a pinned key leaves step 1 pointing at the key field' );
 
 // ── Connect ────────────────────────────────────────────────────────────
 //

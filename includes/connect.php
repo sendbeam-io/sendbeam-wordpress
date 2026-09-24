@@ -875,6 +875,13 @@ function sendbeam_connect_panel() {
 	$origin = sendbeam_connect_site_origin();
 
 	/*
+	 * The id is what step 1 links to. It is on the wrapper rather than on the
+	 * button, so every version of this panel — the button, the note about
+	 * wp-config.php, the note about http — is what the link lands on.
+	 */
+	echo '<div id="sendbeam-connect">';
+
+	/*
 	 * A key defined in wp-config.php beats anything stored here, everywhere.
 	 * Connecting on such a site mints a key, stores it, and then never uses
 	 * it — a real key sitting unused in a database, which is the worst of
@@ -882,12 +889,12 @@ function sendbeam_connect_panel() {
 	 * live key actually is.
 	 */
 	if ( sendbeam_key_in_config() ) {
-		echo '<p class="sb-note">' . esc_html__( 'This site sends with the key defined as SENDBEAM_API_KEY in wp-config.php. That key wins over anything saved here, so connecting would store a second key nothing would ever use. Change it in wp-config.php, or remove that line to connect from this screen instead.', 'sendbeam' ) . '</p>';
+		echo '<p class="sb-note">' . esc_html__( 'This site sends with the key defined as SENDBEAM_API_KEY in wp-config.php. That key wins over anything saved here, so connecting would store a second key nothing would ever use. Change it in wp-config.php, or remove that line to connect from this screen instead.', 'sendbeam' ) . '</p></div>';
 		return;
 	}
 
 	if ( ! sendbeam_connect_origin_ok( $origin ) ) {
-		echo '<p class="sb-note">' . esc_html__( 'This site is not served over https, so SendBeam cannot connect to it. Paste an API key below instead.', 'sendbeam' ) . '</p>';
+		echo '<p class="sb-note">' . esc_html__( 'This site is not served over https, so SendBeam cannot connect to it. Paste an API key below instead.', 'sendbeam' ) . '</p></div>';
 		return;
 	}
 
@@ -926,6 +933,7 @@ function sendbeam_connect_panel() {
 		esc_html__( 'Connect SendBeam', 'sendbeam' )
 	);
 	echo '</form>';
+	echo '</div>';
 }
 
 /**

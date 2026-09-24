@@ -232,7 +232,7 @@ function sendbeam_overview_step_panel( $step, $status, $connected ) {
 			 */
 			if ( $connected ) {
 				printf(
-					'<p class="sb-note sb-step__swap"><a href="%s">%s</a></p>',
+					'<p class="sb-note"><a href="%s">%s</a></p>',
 					esc_url( sendbeam_connect_start_url() ),
 					esc_html__( 'Sending from the wrong domain? Reconnect and enter the one you want.', 'sendbeam' )
 				);

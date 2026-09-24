@@ -398,7 +398,11 @@ function sendbeam_setup_steps() {
 			'done'   => $connected,
 			'label'  => __( 'Connect your SendBeam account', 'sendbeam' ),
 			'detail' => sendbeam_connect_step_sentence( $connected ),
-			'target' => sendbeam_tab_url( 'overview' ) . '#sendbeam_api_key',
+			// The button, where there is one. A site whose key is pinned in
+			// wp-config.php has no Connect panel and no paste field either,
+			// so the old anchor is kept for the one screen that still has a
+			// key field on it: a key pasted by hand.
+			'target' => sendbeam_tab_url( 'overview' ) . ( sendbeam_key_in_config() ? '#sendbeam_api_key' : '#sendbeam-connect' ),
 		),
 		array(
 			'key'       => 'domain',
