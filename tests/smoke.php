@@ -642,6 +642,179 @@ delete_transient( 'sendbeam_remote_lists' );
 delete_transient( 'sendbeam_subscriber_count' );
 update_option( 'sendbeam_settings', array() );
 
+/* ─────────────────────────── The setup wizard ──────────────────────────
+ * One redirect, once, guarded three ways, into a page that can be left from
+ * every step. The guards are the whole of the argument for doing this at all:
+ * a redirect that fires twice, or during a bulk activation, is the behaviour
+ * that makes people hate first-run wizards.
+ */
+$GLOBALS['stub']['user_id'] = 7;
+$GLOBALS['stub']['caps']['manage_options'] = true;
+delete_option( 'sendbeam_setup_done' );
+update_option( 'sendbeam_settings', array() );
+sendbeam_flush_cache();
+
+/** Drive the redirect guard and say where it sent us, or '' for nowhere. */
+function sb_wizard_redirect() {
+	unset( $GLOBALS['stub']['redirect'] );
+	try {
+		sendbeam_maybe_redirect_to_wizard();
+	} catch ( SendBeamStubExit $e ) {
+		unset( $e );
+	}
+	return isset( $GLOBALS['stub']['redirect'] ) ? $GLOBALS['stub']['redirect']['url'] : '';
+}
+
+// Activation arms it, and the very next admin page load spends it.
+$GLOBALS['stub']['transients'] = array();
+sendbeam_on_activate();
+ok( 1 === get_transient( SENDBEAM_WIZARD_FLAG ), 'wizard: activation arms the redirect' );
+has( sb_wizard_redirect(), 'page=sendbeam-setup', 'wizard: the first admin page load after activating lands on the wizard' );
+ok( '' === sb_wizard_redirect(), 'wizard: and the load after that does not — it fires once' );
+
+// Twenty plugins at once must not throw somebody at this one's welcome page.
+sendbeam_on_activate();
+$_GET = array( 'activate-multi' => 'true' );
+ok( '' === sb_wizard_redirect(), 'wizard: a bulk activation is left alone' );
+$_GET = array();
+
+// A site that already has a key has already done this.
+sendbeam_on_activate();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_alreadysetupkey' ) );
+ok( '' === sb_wizard_redirect(), 'wizard: a site that already has a key is not walked through setup' );
+update_option( 'sendbeam_settings', array() );
+
+// A site that has been through it, or walked out of it, is not sent back.
+sendbeam_on_activate();
+update_option( 'sendbeam_setup_done', 1 );
+ok( '' === sb_wizard_redirect(), 'wizard: a site that has finished setup is not sent back' );
+delete_option( 'sendbeam_setup_done' );
+
+// And a host that never wants it can say so.
+sendbeam_on_activate();
+add_filter( 'sendbeam_setup_wizard', '__return_false' );
+ok( '' === sb_wizard_redirect(), 'wizard: the sendbeam_setup_wizard filter switches the redirect off' );
+add_filter( 'sendbeam_setup_wizard', '__return_true' );
+
+// ── The four steps ──────────────────────────────────────────────────────
+$GLOBALS['stub']['remote_reply'] = array(
+	'response' => array( 'code' => 200 ),
+	'body'     => wp_json_encode( array( 'forms' => array() ) ),
+);
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_wizardkeywizardkey' ) );
+sendbeam_flush_cache();
+
+$sendbeam_wizard_headings = array(
+	1 => 'Connect your SendBeam account',
+	2 => 'Verify the domain your email is sent from',
+	3 => 'Send this site&#039;s email through SendBeam',
+	4 => 'Put a form on the site',
+);
+foreach ( $sendbeam_wizard_headings as $sendbeam_n => $sendbeam_heading ) {
+	$_GET = array( 'page' => 'sendbeam-setup', 'step' => (string) $sendbeam_n );
+	ob_start();
+	sendbeam_render_admin_page();
+	$html = ob_get_clean();
+	has( $html, $sendbeam_heading, "wizard: step $sendbeam_n renders its own heading" );
+	has( $html, 'Step ' . $sendbeam_n . ' of 4', "wizard: step $sendbeam_n says which step it is" );
+	has( $html, 'sb-rail', "wizard: step $sendbeam_n shows the progress rail" );
+	has( $html, 'Go back to the Dashboard', "wizard: step $sendbeam_n offers the way out" );
+	has( $html, 'name="step" value="' . $sendbeam_n . '"', "wizard: step $sendbeam_n posts its own number" );
+	if ( $sendbeam_n < 4 ) {
+		has( $html, 'Skip this step', "wizard: step $sendbeam_n can be skipped" );
+		has( $html, '>Continue<', "wizard: step $sendbeam_n moves on" );
+	} else {
+		has( $html, '>Finish<', 'wizard: the last step finishes rather than continuing' );
+		lacks( $html, 'Skip this step', 'wizard: there is nothing left to skip on the last step' );
+	}
+}
+
+// The rail marks what is behind you and what you are standing on.
+$_GET = array( 'page' => 'sendbeam-setup', 'step' => '3' );
+ob_start();
+sendbeam_render_admin_page();
+$html = ob_get_clean();
+has( $html, 'sb-rail__step is-done', 'wizard: a finished step is marked done on the rail' );
+has( $html, 'sb-rail__step is-current" aria-current="step"', 'wizard: the step you are on is marked current' );
+
+// The steps reuse the panels the settings screens use, rather than a second
+// copy of the Connect button and a second copy of the records table.
+update_option( 'sendbeam_settings', array() );
+sendbeam_flush_cache();
+$_GET = array( 'page' => 'sendbeam-setup', 'step' => '1' );
+ob_start();
+sendbeam_render_admin_page();
+$html = ob_get_clean();
+has( $html, 'id="sendbeam-connect"', 'wizard: step 1 is the Connect panel itself, not a copy of it' );
+has( $html, 'Connect SendBeam', 'wizard: step 1 offers the one Connect button this plugin has' );
+
+$_GET = array( 'page' => 'sendbeam-setup', 'step' => '2' );
+ob_start();
+sendbeam_render_admin_page();
+$html = ob_get_clean();
+has( $html, 'This step needs a connected site', 'wizard: a step that cannot run yet says why, rather than rendering an empty panel' );
+
+// ── Skip, continue, finish, leave ───────────────────────────────────────
+delete_option( 'sendbeam_setup_done' );
+delete_user_meta( 7, SENDBEAM_WIZARD_STEP );
+
+/** Post the wizard's footer form and say where it sent us. */
+function sb_wizard_post( $step, $go ) {
+	$_POST    = array( 'step' => (string) $step, 'go' => $go, '_wpnonce' => 'nonce:sendbeam_wizard_step' );
+	$_REQUEST = $_POST;
+	unset( $GLOBALS['stub']['redirect'] );
+	try {
+		sendbeam_handle_wizard_step();
+	} catch ( SendBeamStubExit $e ) {
+		unset( $e );
+	}
+	$_POST    = array();
+	$_REQUEST = array();
+	return isset( $GLOBALS['stub']['redirect'] ) ? $GLOBALS['stub']['redirect']['url'] : '';
+}
+
+has( sb_wizard_post( 1, 'next' ), 'page=sendbeam-setup&step=2', 'wizard: Skip advances to the next step' );
+ok( 2 === (int) get_user_meta( 7, SENDBEAM_WIZARD_STEP, true ), 'wizard: and the step is remembered' );
+ok( 2 === sendbeam_wizard_current_step(), 'wizard: coming back with no step in the URL resumes where you were' );
+has( sb_wizard_post( 2, 'next' ), 'step=3', 'wizard: and again' );
+has( sb_wizard_post( 4, 'finish' ), 'page=sendbeam', 'wizard: finishing lands on the Overview' );
+ok( sendbeam_wizard_done(), 'wizard: finishing marks the site set up' );
+ok( '' === get_user_meta( 7, SENDBEAM_WIZARD_STEP, true ), 'wizard: and stops remembering a half-finished run' );
+
+delete_option( 'sendbeam_setup_done' );
+$sendbeam_left = sb_wizard_post( 3, 'exit' );
+ok( 'https://www.example-site.test/wp-admin/' === $sendbeam_left, 'wizard: leaving goes to the Dashboard' );
+ok( ! sendbeam_wizard_done(), 'wizard: leaving is not finishing' );
+ok( 3 === (int) get_user_meta( 7, SENDBEAM_WIZARD_STEP, true ), 'wizard: leaving keeps your place, so the Overview link picks it up' );
+
+// A step number nobody registered cannot render a step that is not there.
+$_GET = array( 'step' => '99' );
+ok( 3 === sendbeam_wizard_current_step(), 'wizard: an out-of-range step falls back to where you were' );
+$_GET = array( 'step' => '0' );
+ok( 3 === sendbeam_wizard_current_step(), 'wizard: and so does a nonsense one' );
+$_GET = array();
+
+// Without the nonce, nothing moves.
+$_POST    = array( 'step' => '1', 'go' => 'finish' );
+$_REQUEST = $_POST;
+delete_option( 'sendbeam_setup_done' );
+$threw = false;
+try {
+	sendbeam_handle_wizard_step();
+} catch ( SendBeamStubExit $e ) {
+	$threw = true;
+}
+ok( $threw, 'wizard: a step posted without a nonce is refused' );
+ok( ! sendbeam_wizard_done(), 'wizard: and nothing was marked finished' );
+$_POST    = array();
+$_REQUEST = array();
+
+delete_user_meta( 7, SENDBEAM_WIZARD_STEP );
+delete_option( 'sendbeam_setup_done' );
+update_option( 'sendbeam_settings', array() );
+$GLOBALS['stub']['remote_reply'] = null;
+sendbeam_flush_cache();
+
 // wp-config constant wins over the option.
 define( 'SENDBEAM_API_KEY', 'sb_const_0123456789abcdef' );
 ok( sendbeam_api_key() === 'sb_const_0123456789abcdef', 'constant wins' );
@@ -2181,7 +2354,7 @@ foreach ( array_keys( sendbeam_pages() ) as $sendbeam_slug ) {
 	ob_start();
 	sendbeam_render_admin_page();
 	$sendbeam_html = ob_get_clean();
-	has( $sendbeam_html, 'class="wrap sendbeam-app"', "render: $sendbeam_slug sits in a .wrap" );
+	has( $sendbeam_html, 'class="wrap sendbeam-app', "render: $sendbeam_slug sits in a .wrap" );
 	has( $sendbeam_html, 'class="screen-reader-text"', "render: $sendbeam_slug has a real h1 for screen readers" );
 	has( $sendbeam_html, 'sb-head', "render: $sendbeam_slug carries the header band" );
 	ok( strlen( $sendbeam_html ) > 800, "render: $sendbeam_slug renders a screenful, not an empty shell" );
@@ -2407,6 +2580,23 @@ ok( false === sendbeam_set_screen_option( false, 'another_plugin_per_page', '50'
 
 sendbeam_flush_cache();
 $GLOBALS['stub']['remote_reply'] = null;
+
+/*
+ * A site whose key is pinned in wp-config.php has already been set up by
+ * whoever pinned it. This runs down here because the constant, once defined,
+ * cannot be undefined — which is exactly why the wizard has to cope with it.
+ */
+$GLOBALS['stub']['transients'] = array();
+delete_option( 'sendbeam_setup_done' );
+sendbeam_on_activate();
+unset( $GLOBALS['stub']['redirect'] );
+try {
+	sendbeam_maybe_redirect_to_wizard();
+} catch ( SendBeamStubExit $e ) {
+	unset( $e );
+}
+ok( ! isset( $GLOBALS['stub']['redirect'] ), 'wizard: a site whose key is pinned in wp-config.php is not walked through setup' );
+delete_option( 'sendbeam_setup_done' );
 
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor

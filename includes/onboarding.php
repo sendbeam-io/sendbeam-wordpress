@@ -32,6 +32,15 @@ function sendbeam_on_activate() {
 		add_option( 'sendbeam_activated_at', time(), '', false );
 	}
 	sendbeam_flush_cache();
+
+	/*
+	 * A transient rather than an option, and a short one: the redirect it
+	 * asks for should happen on the very next admin page load or not at all.
+	 * An activation that ends in a fatal, or a WP-CLI activation nobody is
+	 * watching, must not leave a site that hijacks its owner's next visit to
+	 * wp-admin half an hour later.
+	 */
+	set_transient( SENDBEAM_WIZARD_FLAG, 1, 30 );
 }
 
 /**

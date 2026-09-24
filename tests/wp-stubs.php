@@ -94,7 +94,12 @@ function add_query_arg( ...$a ) {
 	foreach ( $query as $k => $v ) { $pairs[] = $k . '=' . $v; }
 	return $parts[0] . ( $pairs ? '?' . implode( '&', $pairs ) : '' );
 }
-function get_user_meta( $user_id, $key = '', $single = false ) { return $single ? '' : array(); }
+function get_user_meta( $user_id, $key = '', $single = false ) {
+	$all = isset( $GLOBALS['stub']['usermeta'][ $user_id ] ) ? $GLOBALS['stub']['usermeta'][ $user_id ] : array();
+	if ( '' === $key ) { return $all; }
+	if ( ! isset( $all[ $key ] ) ) { return $single ? '' : array(); }
+	return $single ? $all[ $key ] : array( $all[ $key ] );
+}
 
 /**
  * Transients. The admin API client caches through these, and the settings
@@ -112,7 +117,7 @@ function wp_remote_get( $url, $args = array() ) {
 	$r = isset( $GLOBALS['stub']['remote_reply'] ) ? $GLOBALS['stub']['remote_reply'] : array( 'response' => array( 'code' => 200 ), 'body' => '{}' );
 	return ( $r instanceof Closure ) ? $r( $url, $args ) : $r;
 }
-function update_user_meta( $user_id, $key, $value ) { return true; }
+function update_user_meta( $user_id, $key, $value ) { $GLOBALS['stub']['usermeta'][ $user_id ][ $key ] = $value; return true; }
 
 // ── Site email stubs ────────────────────────────────────────────────────
 class WP_Error {
@@ -423,3 +428,6 @@ class WP_List_Table {
 
 function wp_strip_all_tags( $string, $remove_breaks = false ) { return strip_tags( (string) $string ); }
 function add_screen_option( $option, $args = array() ) { $GLOBALS['stub']['screen_options'][ $option ] = $args; }
+function delete_user_meta( $user_id, $key, $value = '' ) { unset( $GLOBALS['stub']['usermeta'][ $user_id ][ $key ] ); return true; }
+function __return_false() { return false; }
+function __return_true() { return true; }

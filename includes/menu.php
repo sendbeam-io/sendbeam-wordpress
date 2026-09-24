@@ -28,7 +28,9 @@ const SENDBEAM_MENU_SLUG = 'sendbeam';
 /**
  * Every SendBeam admin page: its slug, its menu label, its heading and what renders it.
  *
- * `hidden` pages are routable and titled but never appear in the menu.
+ * `hidden` pages are routable and titled but never appear in the menu — the
+ * setup wizard is reached from a redirect and from the Overview, not from a
+ * menu item somebody would press a second time.
  *
  * @return array<string,array{menu:string,title:string,render:string,hidden?:bool}>
  */
@@ -76,6 +78,12 @@ function sendbeam_pages() {
 			'menu'   => __( 'Help', 'sendbeam' ),
 			'title'  => __( 'Help', 'sendbeam' ),
 			'render' => 'sendbeam_screen_help',
+		),
+		'sendbeam-setup'     => array(
+			'menu'   => __( 'Set up SendBeam', 'sendbeam' ),
+			'title'  => __( 'Set up SendBeam', 'sendbeam' ),
+			'render' => 'sendbeam_screen_wizard',
+			'hidden' => true,
 		),
 	);
 }
@@ -233,6 +241,13 @@ function sendbeam_render_admin_page() {
 	$slug  = sendbeam_current_page();
 	$pages = sendbeam_pages();
 	$page  = $pages[ $slug ];
+
+	// The wizard supplies its own shell: it has a progress rail where the
+	// other screens have a section name, and no card grid at all.
+	if ( 'sendbeam-setup' === $slug ) {
+		call_user_func( $page['render'] );
+		return;
+	}
 
 	?>
 	<div class="wrap sendbeam-app">

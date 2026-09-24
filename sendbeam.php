@@ -35,5 +35,6 @@ require SENDBEAM_DIR . 'includes/settings.php';
 require SENDBEAM_DIR . 'includes/render.php';
 require SENDBEAM_DIR . 'includes/mail.php';
 require SENDBEAM_DIR . 'includes/onboarding.php';
+require SENDBEAM_DIR . 'includes/wizard.php';
 require SENDBEAM_DIR . 'includes/connect.php';
 require SENDBEAM_DIR . 'includes/connect-status.php';
