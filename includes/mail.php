@@ -886,6 +886,12 @@ function sendbeam_effective_sender( $status = null ) {
 		$host = strtolower( trim( substr( strrchr( $email, '@' ), 1 ) ) );
 	}
 
+	/*
+	 * The site's own verified domain settles it first and settles it for
+	 * good, whatever that domain happens to be a subdomain of. A customer
+	 * sending from a `*.sendbeam.io` domain they have verified is sending
+	 * from their own domain, not from SendBeam's shared address.
+	 */
 	$kind = 'none';
 	if ( '' !== $host ) {
 		if ( '' !== $domain && sendbeam_host_is_within( $host, strtolower( $domain ) ) ) {
@@ -925,27 +931,48 @@ function sendbeam_host_is_within( $host, $parent ) {
 }
 
 /**
- * Is this address on SendBeam's own mail host rather than the site's domain?
+ * The platform's shared sending hosts, and only those.
  *
- * Derived from `sendbeam_app_url()` rather than hardcoded, so a self-hosted
- * SendBeam pointed at with the `sendbeam_app_url` filter classifies its own
- * shared addresses correctly. The two published hosts are kept as a fallback
- * for a site whose filter points somewhere else entirely.
+ * SendBeam sends a workspace's default mail from `post.<app host>`. An
+ * address there is the shared one: it works, and it is not the customer's
+ * domain, which is the distinction the Overview and the test email are built
+ * on.
+ *
+ * Derived from `sendbeam_app_url()` so a self-hosted SendBeam pointed at with
+ * the `sendbeam_app_url` filter recognises its own, with the published pair
+ * kept as a fallback for a filter pointing somewhere else entirely.
+ *
+ * @return string[] Lower-case hosts.
+ */
+function sendbeam_shared_sender_hosts() {
+	$hosts = array( 'post.sendbeam.io', 'mail.sendbeam.io' );
+
+	$app = strtolower( (string) wp_parse_url( sendbeam_app_url(), PHP_URL_HOST ) );
+	if ( '' !== $app ) {
+		$hosts[] = 'post.' . $app;
+		$hosts[] = 'mail.' . $app;
+	}
+
+	return array_values( array_unique( $hosts ) );
+}
+
+/**
+ * Is this address on one of those hosts?
+ *
+ * An exact match, never "somewhere under the app's domain". A customer whose
+ * site is a subdomain of SendBeam's own — which every site on the staging
+ * host is, and which any customer using a `*.sendbeam.io` address would be —
+ * was being told that their own verified domain was SendBeam's shared
+ * address. `post.` and `mail.` are the two hosts the platform actually sends
+ * shared mail from; nothing else under that domain is shared, and a domain
+ * that is the site's own verified sending domain is never reached by this at
+ * all, because the caller settles that first.
  *
  * @param string $host The From address's host.
  * @return bool
  */
 function sendbeam_is_shared_sender_host( $host ) {
-	$app = (string) wp_parse_url( sendbeam_app_url(), PHP_URL_HOST );
-	if ( '' !== $app && sendbeam_host_is_within( $host, strtolower( $app ) ) ) {
-		return true;
-	}
-	foreach ( array( 'post.sendbeam.io', 'mail.sendbeam.io', 'sendbeam.io' ) as $known ) {
-		if ( sendbeam_host_is_within( $host, $known ) ) {
-			return true;
-		}
-	}
-	return false;
+	return in_array( strtolower( (string) $host ), sendbeam_shared_sender_hosts(), true );
 }
 
 /**

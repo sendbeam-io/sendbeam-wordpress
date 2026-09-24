@@ -3561,8 +3561,50 @@ $r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'orders@mail.
 ok( 'own_domain' === $r['kind'], 'sender: and so is one on a subdomain of it' );
 $r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'ws-f7485df7@post.sendbeam.io' ) ), $sb_sender_status );
 ok( 'shared' === $r['kind'], 'sender: an address on SendBeam\'s own host is the shared one' );
-$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'hi@sendbeam.io' ) ), $sb_sender_status );
-ok( 'shared' === $r['kind'], 'sender: including the app host itself' );
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'hi@mail.sendbeam.io' ) ), $sb_sender_status );
+ok( 'shared' === $r['kind'], 'sender: and so is the other host the platform sends shared mail from' );
+
+/*
+ * "Anywhere under sendbeam.io" was the rule, and it was wrong: a customer
+ * whose verified domain is a subdomain of SendBeam's own — which every site
+ * on the staging host is — was told their own domain was the shared address.
+ * post. and mail. are the two hosts the platform actually sends from;
+ * nothing else under that domain is shared.
+ */
+$sb_sub_status = sendbeam_connect_normalise_status(
+	array(
+		'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+		'domain'    => array( 'name' => 'wp-test.sendbeam.io', 'verified' => true, 'records' => array() ),
+		'sender'    => array( 'from_name' => 'WP Test', 'from_email' => 'ws-f7485df7@post.sendbeam.io' ),
+	)
+);
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'hello@wp-test.sendbeam.io' ) ), $sb_sub_status );
+ok( 'own_domain' === $r['kind'], 'sender: a verified domain that happens to sit under SendBeam\'s own is still the site\'s own domain' );
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'ws-x@post.sendbeam.io' ) ), $sb_sub_status );
+ok( 'shared' === $r['kind'], 'sender: while the shared host beside it is still shared' );
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'x@mail.sendbeam.io' ) ), $sb_sub_status );
+ok( 'shared' === $r['kind'], 'sender: and so is the other one' );
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'x@other.sendbeam.io' ) ), $sb_sender_status );
+ok( 'other' === $r['kind'], 'sender: but some third subdomain nobody verified is neither' );
+
+/*
+ * And the state the owner actually saw it in: a DISCONNECTED site, where
+ * there is no verified domain for own_domain to settle it with, so the shared
+ * rule is the only thing deciding. "Anywhere under sendbeam.io" called the
+ * site's own address SendBeam's shared one on the very screen that had just
+ * said the site is not connected.
+ */
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'hello@wp-test.sendbeam.io' ) ), sendbeam_connect_empty_status() );
+ok( 'shared' !== $r['kind'], 'sender: with nothing connected, the site\'s own address is not called SendBeam\'s shared one' );
+ok( 'other' === $r['kind'], 'sender: it is simply a domain this site cannot say anything about yet' );
+$r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'ws-x@post.sendbeam.io' ) ), sendbeam_connect_empty_status() );
+ok( 'shared' === $r['kind'], 'sender: while the genuinely shared host is still recognised without a connection' );
+
+// The two hosts are derived from the app URL, so a self-hosted SendBeam
+// recognises its own rather than SendBeam's.
+ok( in_array( 'post.sendbeam.io', sendbeam_shared_sender_hosts(), true ), 'sender: the shared hosts are post. and mail. of the app host' );
+ok( in_array( 'mail.sendbeam.io', sendbeam_shared_sender_hosts(), true ), 'sender: both of them' );
+ok( ! in_array( 'sendbeam.io', sendbeam_shared_sender_hosts(), true ), 'sender: and the bare app host is not one of them' );
 $r = sb_sender( array_merge( $sb_base, array( 'mail_from_email' => 'hello@somewhere-else.test' ) ), $sb_sender_status );
 ok( 'other' === $r['kind'], 'sender: anywhere else is somewhere SendBeam will refuse' );
 $r = sb_sender( $sb_base, $sb_sender_status );

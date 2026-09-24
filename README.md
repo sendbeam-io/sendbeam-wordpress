@@ -107,7 +107,10 @@ Two settings, easy to confuse and once easy for the plugin to contradict itself 
 proves the domain is yours. **The From address** decides which address a message actually goes out as, and it
 starts as SendBeam's shared `ws-…@post.sendbeam.io`. `sendbeam_effective_sender()` is the one place that works
 out the address the next message would use and classifies it — `own_domain`, `shared`, `other` or `none` — and
-the Overview's connection line, the site-email step and Site Health all read it. Where the domain is verified
+the Overview's connection line, the site-email step and Site Health all read it. `own_domain` is settled first
+and wins outright; `shared` is an exact match on `post.<app host>` or `mail.<app host>` and never "anywhere
+under the app's domain", so a customer whose own domain is a subdomain of SendBeam's is not told it is
+SendBeam's. Where the domain is verified
 and the address is still the shared one, the step says so and offers one press to move it.
 
 **SendBeam → Help → Run the setup guide again** puts the current user back at step 1 of the wizard without
