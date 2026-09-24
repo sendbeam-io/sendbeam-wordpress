@@ -717,35 +717,7 @@ function sendbeam_connect_disconnect() {
 	}
 	check_admin_referer( 'sendbeam_disconnect' );
 
-	/*
-	 * SENDBEAM_API_KEY in wp-config.php beats the stored key everywhere,
-	 * including here — so on a site that defines it, POST /connect/disconnect
-	 * would revoke *that* key, which this button never issued and which is
-	 * very likely shared with something else. A key this site does not store
-	 * is not this site's to revoke: it is left alone, the stored one is
-	 * forgotten, and the screen says where the live one is.
-	 */
-	$stored   = (string) sendbeam_settings()['api_key'];
-	$constant = ( defined( 'SENDBEAM_API_KEY' ) && SENDBEAM_API_KEY ) ? (string) SENDBEAM_API_KEY : '';
-	$note     = 'unreachable';
-
-	if ( '' !== $constant && $constant !== $stored ) {
-		$note = 'constant';
-	} elseif ( ! sendbeam_connected_via_connect() ) {
-		/*
-		 * A key somebody pasted was minted for whatever they minted it for,
-		 * and may well be in use on another site. Revoking it because this
-		 * one is being disconnected would take those down without warning.
-		 * It is forgotten here and left alone there, and the screen says so.
-		 */
-		$note = 'pasted';
-	} elseif ( '' !== sendbeam_api_key() ) {
-		$result = sendbeam_api_post( '/api/v1/connect/disconnect', array(), 10 );
-		// A key SendBeam has already forgotten is a key that is not live, so
-		// 401 counts as revoked rather than as a failure to report.
-		$note = ( $result['ok'] || 401 === $result['status'] ) ? 'ok' : 'unreachable';
-	}
-
+	$note     = sendbeam_connect_release_key();
 	$settings = sendbeam_settings();
 
 	/*
@@ -788,6 +760,48 @@ function sendbeam_connect_disconnect() {
 
 	wp_safe_redirect( add_query_arg( 'sendbeam_disconnected', $note, sendbeam_tab_url( 'overview' ) ) );
 	exit;
+}
+
+/**
+ * Give this site's key back to SendBeam, where that is the right thing to do.
+ *
+ * SENDBEAM_API_KEY in wp-config.php beats the stored key everywhere,
+ * including here — so on a site that defines it, POST /connect/disconnect
+ * would revoke *that* key, which this plugin never issued and which is very
+ * likely shared with something else. A key this site does not store is not
+ * this site's to revoke: it is left alone, the stored one is forgotten, and
+ * the screen says where the live one is.
+ *
+ * Shared by Disconnect and by "Remove the saved key" on Settings → Advanced,
+ * which is a second, quieter door to the same place and used to leave a
+ * Connect-issued key live in the workspace without saying so.
+ *
+ * @return string ok, pasted, constant or unreachable — what to tell the owner.
+ */
+function sendbeam_connect_release_key() {
+	$stored   = (string) sendbeam_settings()['api_key'];
+	$constant = ( defined( 'SENDBEAM_API_KEY' ) && SENDBEAM_API_KEY ) ? (string) SENDBEAM_API_KEY : '';
+
+	if ( '' !== $constant && $constant !== $stored ) {
+		return 'constant';
+	}
+	if ( ! sendbeam_connected_via_connect() ) {
+		/*
+		 * A key somebody pasted was minted for whatever they minted it for,
+		 * and may well be in use on another site. Revoking it because this
+		 * one is being disconnected would take those down without warning.
+		 * It is forgotten here and left alone there, and the screen says so.
+		 */
+		return 'pasted';
+	}
+	if ( '' === sendbeam_api_key() ) {
+		return 'unreachable';
+	}
+
+	$result = sendbeam_api_post( '/api/v1/connect/disconnect', array(), 10 );
+	// A key SendBeam has already forgotten is a key that is not live, so
+	// 401 counts as revoked rather than as a failure to report.
+	return ( $result['ok'] || 401 === $result['status'] ) ? 'ok' : 'unreachable';
 }
 
 /**

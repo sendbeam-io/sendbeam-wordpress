@@ -335,6 +335,15 @@ function sendbeam_sanitize_settings( $input ) {
 	if ( isset( $touch['api_key'] ) ) {
 		$key = isset( $input['api_key'] ) ? trim( sanitize_text_field( wp_unslash( $input['api_key'] ) ) ) : '';
 		if ( ! empty( $input['api_key_remove'] ) ) {
+			/*
+			 * The same door as the Overview's Disconnect, and it has to
+			 * behave the same way through it. This branch used to clear the
+			 * option and stop, so an owner tidying up on the Advanced tab was
+			 * left with a live, unrevoked key for a site that no longer
+			 * exists as far as they are concerned — the exact situation
+			 * Disconnect was written to end.
+			 */
+			sendbeam_connect_release_key();
 			$out['api_key'] = '';
 		} elseif ( '' !== $key ) {
 			if ( ! preg_match( '/^[A-Za-z0-9_\-]{16,200}$/', $key ) ) {
@@ -478,11 +487,29 @@ function sendbeam_field_api_key() {
 	if ( $saved ) {
 		echo ' <label><input type="checkbox" name="sendbeam_settings[api_key_remove]" value="1" /> ' . esc_html__( 'Remove the saved key', 'sendbeam' ) . '</label>';
 		echo '<p class="description">' . esc_html__( 'A key is saved. Paste a new one to replace it, or leave this empty to keep it.', 'sendbeam' ) . '</p>';
+		// What removing it does, before it is removed.
+		echo '<p class="description">' . esc_html( sendbeam_key_removal_note() ) . '</p>';
 	} else {
 		echo '<p class="description">' . esc_html__( 'Stored in this site\'s options table. For a key that never touches the database, define SENDBEAM_API_KEY in wp-config.php.', 'sendbeam' ) . '</p>';
 	}
 }
 
+
+/**
+ * What "Remove the saved key" will actually do to this site's key.
+ *
+ * The two cases are genuinely different — one revokes a key at SendBeam and
+ * one does not — and the owner cannot tell them apart from the Advanced tab,
+ * which said only "A key is saved. Paste a new one to replace it, or leave
+ * this empty to keep it."
+ *
+ * @return string
+ */
+function sendbeam_key_removal_note() {
+	return sendbeam_connected_via_connect()
+		? __( 'This site was connected with the Connect button, so removing the key also revokes it in SendBeam — the same as Disconnect on the Overview.', 'sendbeam' )
+		: __( 'This key was pasted in, so it is only forgotten here. It stays live in SendBeam, where anything else using it keeps working.', 'sendbeam' );
+}
 
 /**
  * Form chooser.

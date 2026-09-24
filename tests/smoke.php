@@ -4469,6 +4469,43 @@ has( do_shortcode_tag( 'sendbeam_contact', array( 'id' => $sb_wholesale ) ), 'se
 lacks( do_shortcode_tag( 'sendbeam_contact', array( 'id' => 'not-an-id' ) ), '/f/', 'contact: a nonsense id embeds no form at all' );
 sb_seed_settings( array() );
 
+// ── #11 "Remove the saved key" left a Connect key live in the workspace ─
+// The Overview's Disconnect revokes a Connect-issued key at SendBeam. The
+// Advanced tab's checkbox is a second, quieter door to the same place, and it
+// cleared the option and stopped — leaving the owner who tidied up there with
+// a live key for a site that no longer exists as far as they are concerned.
+sb_connect_reset();
+sb_seed_settings(
+	array(
+		'api_key'                    => SENDBEAM_API_KEY,
+		'sendbeam_connected_via'     => 'connect',
+		'sendbeam_connect_workspace' => 'Harbour Lane',
+	)
+);
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 204 ), 'body' => '' );
+$sb_removed = sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => '', 'api_key_remove' => '1' ) );
+ok( '' === $sb_removed['api_key'], 'advanced: the key is removed, as it always was' );
+ok( 1 === count( $GLOBALS['stub']['remote'] ), 'advanced: and SendBeam is asked to revoke it' );
+ok( 'https://sendbeam.io/api/v1/connect/disconnect' === $GLOBALS['stub']['remote'][0]['url'], 'advanced: through the same endpoint Disconnect uses' );
+ok( SENDBEAM_API_KEY === $GLOBALS['stub']['remote'][0]['args']['headers']['x-api-key'], 'advanced: the key revokes itself' );
+ok( '' === $sb_removed['sendbeam_connected_via'], 'advanced: and the site stops claiming how it was connected' );
+
+// A pasted key was minted for whatever it was minted for and may be in use
+// elsewhere. It is forgotten here and left alone there, as Disconnect does.
+sb_connect_reset();
+sb_seed_settings( array( 'api_key' => 'sb_live_pastedpastedpasted', 'sendbeam_connected_via' => '' ) );
+$sb_removed = sendbeam_sanitize_settings( array( '_tab' => 'connect', 'api_key' => '', 'api_key_remove' => '1' ) );
+ok( '' === $sb_removed['api_key'], 'advanced: a pasted key is forgotten too' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'advanced: but nothing revokes a key this site did not issue' );
+
+// And the field says which of the two will happen, before it happens.
+sb_seed_settings( array( 'api_key' => SENDBEAM_API_KEY, 'sendbeam_connected_via' => 'connect' ) );
+has( sendbeam_key_removal_note(), 'also revokes it in SendBeam', 'advanced: the field says a Connect key will be revoked' );
+sb_seed_settings( array( 'api_key' => 'sb_live_pastedpastedpasted', 'sendbeam_connected_via' => '' ) );
+has( sendbeam_key_removal_note(), 'only forgotten here', 'advanced: and that a pasted key is only forgotten' );
+sb_connect_reset();
+sb_seed_settings( array() );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.
