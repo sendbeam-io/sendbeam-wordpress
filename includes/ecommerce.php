@@ -50,6 +50,7 @@ add_action( SENDBEAM_CART_CHECK_HOOK, 'sendbeam_ecommerce_check_cart_abandonment
 // WooCommerce. Every callback is a no-op the moment WooCommerce, or the
 // specific function/class it needs, is not there — exactly how sync.php's
 // own checkout hook already degrades.
+
 /*
  * Order placed means PAID. The checkout hook fires while WooCommerce is still
  * creating the order — before any gateway has taken a penny, and whatever

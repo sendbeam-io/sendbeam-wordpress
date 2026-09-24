@@ -281,6 +281,12 @@ function sendbeam_popup_excluded_page() {
 	return false;
 }
 
+/**
+ * The first rule that matches the current page, or null — and never one on
+ * the cart, checkout or account pages.
+ *
+ * @return array<string,mixed>|null
+ */
 function sendbeam_active_popup() {
 	if ( sendbeam_popup_excluded_page() ) {
 		return null;
