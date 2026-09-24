@@ -305,3 +305,121 @@ function wp_enqueue_media( $args = array() ) {}
 function get_admin_page_title() { return 'SendBeam'; }
 function submit_button_wrapper() {}
 function esc_attr_e( $s, $d = null ) { echo esc_attr( $s ); }
+
+// ── WP_List_Table ───────────────────────────────────────────────────────
+/**
+ * Enough of core's list table to render one.
+ *
+ * Not a copy of core: the point is to exercise the parts the plugin's
+ * subclasses override — the columns, the primary column, the row callbacks,
+ * the empty state and the bulk actions — and to produce markup shaped like
+ * core's, so an assertion about `column-primary` or `wp-list-table` is an
+ * assertion about what a browser would actually receive.
+ */
+#[AllowDynamicProperties]
+class WP_List_Table {
+	public $items           = array();
+	public $_args           = array();
+	public $_column_headers = array();
+	public $_pagination     = array();
+
+	public function __construct( $args = array() ) {
+		$this->_args = array_merge(
+			array(
+				'singular' => '',
+				'plural'   => '',
+				'ajax'     => false,
+			),
+			$args
+		);
+	}
+
+	public function get_columns() {
+		return array(); }
+	protected function get_bulk_actions() {
+		return array(); }
+	public function no_items() {
+		echo 'No items.'; }
+	public function get_pagenum() {
+		return isset( $_REQUEST['paged'] ) ? max( 1, (int) $_REQUEST['paged'] ) : 1; }
+	public function set_pagination_args( $args ) {
+		$this->_pagination = $args; }
+	public function current_action() {
+		foreach ( array( 'action', 'action2' ) as $key ) {
+			if ( isset( $_REQUEST[ $key ] ) && '-1' !== $_REQUEST[ $key ] ) {
+				return sanitize_key( $_REQUEST[ $key ] );
+			}
+		}
+		return false;
+	}
+
+	protected function get_primary_column_name() {
+		return method_exists( $this, 'get_default_primary_column_name' ) ? $this->get_default_primary_column_name() : key( $this->get_columns() );
+	}
+
+	protected function row_actions( $actions, $always_visible = false ) {
+		$out = array();
+		foreach ( $actions as $key => $link ) {
+			$out[] = '<span class="' . esc_attr( $key ) . '">' . $link . '</span>';
+		}
+		return '<div class="row-actions">' . implode( ' | ', $out ) . '</div>';
+	}
+
+	public function search_box( $text, $input_id ) {
+		printf(
+			'<p class="search-box"><label class="screen-reader-text" for="%1$s-search-input">%2$s</label>' .
+			'<input type="search" id="%1$s-search-input" name="s" value="%3$s" placeholder="%2$s" />' .
+			'<input type="submit" class="button" value="%2$s" /></p>',
+			esc_attr( $input_id ),
+			esc_attr( $text ),
+			esc_attr( isset( $_REQUEST['s'] ) ? $_REQUEST['s'] : '' )
+		);
+	}
+
+	public function display() {
+		$columns = $this->get_columns();
+		$primary = $this->get_primary_column_name();
+		$bulk    = $this->get_bulk_actions();
+
+		if ( $bulk ) {
+			echo '<div class="tablenav top"><select name="action"><option value="-1">Bulk actions</option>';
+			foreach ( $bulk as $value => $label ) {
+				echo '<option value="' . esc_attr( $value ) . '">' . esc_html( $label ) . '</option>';
+			}
+			echo '</select><input type="submit" class="button action" value="Apply" />';
+			wp_nonce_field( 'bulk-' . $this->_args['plural'] );
+			echo '</div>';
+		}
+
+		echo '<table class="wp-list-table widefat fixed striped table-view-list ' . esc_attr( $this->_args['plural'] ) . '"><thead><tr>';
+		foreach ( $columns as $key => $label ) {
+			$class = 'manage-column column-' . $key . ( $key === $primary ? ' column-primary' : '' );
+			echo '<th scope="col" class="' . esc_attr( $class ) . '">' . $label . '</th>';
+		}
+		echo '</tr></thead><tbody>';
+		if ( ! $this->items ) {
+			echo '<tr class="no-items"><td class="colspanchange" colspan="' . count( $columns ) . '">';
+			$this->no_items();
+			echo '</td></tr>';
+		}
+		foreach ( $this->items as $item ) {
+			echo '<tr>';
+			foreach ( $columns as $key => $label ) {
+				$method = 'column_' . $key;
+				$value  = method_exists( $this, $method ) ? $this->$method( $item ) : $this->column_default( $item, $key );
+				$class  = 'column-' . $key . ( $key === $primary ? ' has-row-actions column-primary' : '' );
+				$tag    = 'cb' === $key ? 'th' : 'td';
+				echo '<' . $tag . ' class="' . esc_attr( $class ) . '" data-colname="' . esc_attr( wp_strip_all_tags( $label ) ) . '">' . $value . '</' . $tag . '>';
+			}
+			echo '</tr>';
+		}
+		echo '</tbody></table>';
+		printf( '<div class="tablenav bottom"><span class="displaying-num">%d items</span></div>', isset( $this->_pagination['total_items'] ) ? (int) $this->_pagination['total_items'] : 0 );
+	}
+
+	protected function column_default( $item, $column ) {
+		return isset( $item[ $column ] ) ? esc_html( (string) $item[ $column ] ) : ''; }
+}
+
+function wp_strip_all_tags( $string, $remove_breaks = false ) { return strip_tags( (string) $string ); }
+function add_screen_option( $option, $args = array() ) { $GLOBALS['stub']['screen_options'][ $option ] = $args; }

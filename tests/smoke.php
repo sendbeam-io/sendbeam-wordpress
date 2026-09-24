@@ -2208,6 +2208,206 @@ $sendbeam_links = sendbeam_action_links( array() );
 has( $sendbeam_links[0], 'admin.php?page=sendbeam-settings', 'plugins screen: the Settings link points at the Settings page' );
 lacks( $sendbeam_links[0], 'options-general.php', 'plugins screen: the Settings link does not point at the old address' );
 
+/* ────────────────────────── The list tables ────────────────────────────
+ * Three hand-rolled tables with no search, no pagination, no empty state and
+ * no phone behaviour became three WP_List_Table subclasses. What matters
+ * here is what a browser gets: the right columns, a primary column core can
+ * collapse a row down to, rows that render, and an empty state that says what
+ * to do rather than nothing at all.
+ */
+$GLOBALS['stub']['caps']['manage_options'] = true;
+$_REQUEST                                  = array();
+
+/** Render one list table the way sendbeam_list_card() does. */
+function sb_render_table( $table ) {
+	$table->prepare_items();
+	ob_start();
+	$table->display();
+	return ob_get_clean();
+}
+
+// ── Forms ───────────────────────────────────────────────────────────────
+$GLOBALS['stub']['remote_reply'] = array(
+	'response' => array( 'code' => 200 ),
+	'body'     => wp_json_encode(
+		array(
+			'forms' => array(
+				array(
+					'id'   => $form,
+					'name' => 'Newsletter signup',
+					'kind' => 'signup',
+				),
+				array(
+					'id'   => $other,
+					'name' => 'Ask us anything',
+					'kind' => 'contact',
+				),
+			),
+		)
+	),
+);
+sendbeam_flush_cache();
+update_option( 'sendbeam_settings', array_merge( sendbeam_settings(), array( 'api_key' => 'sb_live_listtablekey1', 'default_form' => $form, 'contact_form' => '' ) ) );
+
+$forms_table = new SendBeam_Forms_Table();
+$html        = sb_render_table( $forms_table );
+has( $html, 'wp-list-table', 'forms table: it is a core list table' );
+has( $html, 'column-name column-primary', 'forms table: Form is the primary column, so a phone collapses to it' );
+foreach ( array( 'Form', 'Kind', 'Shortcode', 'Placed on' ) as $sendbeam_col ) {
+	has( $html, '>' . $sendbeam_col . '</th>', "forms table: the $sendbeam_col column is there" );
+}
+has( $html, 'Newsletter signup', 'forms table: a form renders as a row' );
+has( $html, 'Ask us anything', 'forms table: every form renders' );
+has( $html, '[sendbeam_form id=&quot;' . $form . '&quot;]', 'forms table: a signup form shows the shortcode that places it' );
+has( $html, '[sendbeam_contact]', 'forms table: a contact form shows its own shortcode' );
+has( $html, 'sb-copy', 'forms table: the shortcode is one click from the clipboard' );
+has( $html, 'row-actions', 'forms table: rows carry actions, as core rows do' );
+has( $html, 'Preview', 'forms table: Preview is a row action' );
+has( $html, 'Default signup form', 'forms table: the default form is marked as the default' );
+lacks( $html, 'name="action"', 'forms table: nothing here can be changed in bulk, so no bulk control is offered' );
+
+// Search narrows it, and says so when it finds nothing.
+$_REQUEST['s'] = 'newsletter';
+has( sb_render_table( new SendBeam_Forms_Table() ), 'Newsletter signup', 'forms table: search keeps what matches' );
+lacks( sb_render_table( new SendBeam_Forms_Table() ), 'Ask us anything', 'forms table: search drops what does not' );
+$_REQUEST['s'] = 'nothing like this';
+has( sb_render_table( new SendBeam_Forms_Table() ), 'No form here matches that', 'forms table: a search with no hits says so' );
+$_REQUEST = array();
+
+// Empty, and unreadable, are different answers.
+$GLOBALS['stub']['remote_reply'] = array(
+	'response' => array( 'code' => 200 ),
+	'body'     => wp_json_encode( array( 'forms' => array() ) ),
+);
+sendbeam_flush_cache();
+has( sb_render_table( new SendBeam_Forms_Table() ), 'Create your first form', 'forms table: an empty workspace is offered a way to fill it' );
+$GLOBALS['stub']['remote_reply'] = array(
+	'response' => array( 'code' => 403 ),
+	'body'     => '{"error":"forbidden"}',
+);
+sendbeam_flush_cache();
+has( sb_render_table( new SendBeam_Forms_Table() ), 'Forms (read) permission', 'forms table: a key that cannot read forms is told which permission is missing' );
+
+// ── The email log ───────────────────────────────────────────────────────
+update_option(
+	'sendbeam_mail_log',
+	array(
+		array( 'at' => 1758700000, 'to' => 'ada@customer.test', 'subject' => 'Order #1001', 'result' => 'sent', 'note' => '' ),
+		array( 'at' => 1758600000, 'to' => 'bob@customer.test', 'subject' => 'Password reset', 'result' => 'failed', 'note' => 'Monthly email limit reached' ),
+		array( 'at' => 1758500000, 'to' => 'cat@customer.test', 'subject' => 'New comment', 'result' => 'fallback', 'note' => 'has attachments' ),
+	)
+);
+$log_table = new SendBeam_Mail_Log_Table();
+$html      = sb_render_table( $log_table );
+has( $html, 'column-date column-primary', 'email log: Date is the primary column' );
+foreach ( array( 'Date', 'To', 'Subject', 'Result', 'Note' ) as $sendbeam_col ) {
+	has( $html, '>' . $sendbeam_col . '</th>', "email log: the $sendbeam_col column is there" );
+}
+has( $html, 'ada@customer.test', 'email log: a sent message is listed' );
+has( $html, 'Sent via SendBeam', 'email log: a sent message says so' );
+has( $html, 'Monthly email limit reached', 'email log: a failure keeps the reason it failed' );
+has( $html, 'Server mailer', 'email log: a fall-back to the server mailer is named as one' );
+has( $html, 'name="message[]"', 'email log: rows can be ticked' );
+has( $html, '<option value="delete">Delete</option>', 'email log: the one bulk action is Delete' );
+
+$_REQUEST['s'] = 'password';
+has( sb_render_table( new SendBeam_Mail_Log_Table() ), 'bob@customer.test', 'email log: search keeps what matches' );
+lacks( sb_render_table( new SendBeam_Mail_Log_Table() ), 'ada@customer.test', 'email log: search drops what does not' );
+$_REQUEST = array();
+
+update_option( 'sendbeam_mail_log', array() );
+has( sb_render_table( new SendBeam_Mail_Log_Table() ), 'Nothing has been sent through SendBeam', 'email log: an empty log says what to do about it' );
+
+// Bulk delete: the rows that were ticked go, and nothing else does.
+update_option(
+	'sendbeam_mail_log',
+	array(
+		array( 'at' => 3, 'to' => 'a@t.test', 'subject' => 'A', 'result' => 'sent', 'note' => '' ),
+		array( 'at' => 2, 'to' => 'b@t.test', 'subject' => 'B', 'result' => 'sent', 'note' => '' ),
+		array( 'at' => 1, 'to' => 'c@t.test', 'subject' => 'C', 'result' => 'sent', 'note' => '' ),
+	)
+);
+$_REQUEST = array(
+	'action'   => 'delete',
+	'message'  => array( 1 ),
+	'_wpnonce' => 'nonce:bulk-sendbeam_messages',
+);
+$table = new SendBeam_Mail_Log_Table();
+$table->process_bulk_action();
+$kept = get_option( 'sendbeam_mail_log' );
+ok( 2 === count( $kept ), 'email log: a bulk delete removes exactly the rows that were ticked' );
+ok( 'a@t.test' === $kept[0]['to'] && 'c@t.test' === $kept[1]['to'], 'email log: the rows that were not ticked are untouched, and stay in order' );
+
+// The same request without the nonce must not delete anything.
+$_REQUEST = array(
+	'action'  => 'delete',
+	'message' => array( 0 ),
+);
+$threw = false;
+try {
+	( new SendBeam_Mail_Log_Table() )->process_bulk_action();
+} catch ( SendBeamStubExit $e ) {
+	$threw = true;
+}
+ok( $threw, 'email log: a bulk delete without a valid nonce is refused' );
+ok( 2 === count( get_option( 'sendbeam_mail_log' ) ), 'email log: and nothing was deleted' );
+$_REQUEST = array();
+update_option( 'sendbeam_mail_log', array() );
+
+// ── Audience lists ──────────────────────────────────────────────────────
+$GLOBALS['stub']['remote_reply'] = function ( $url ) {
+	if ( false !== strpos( $url, '/contacts?limit=1' ) ) {
+		$total = false !== strpos( $url, '/lists/l1/' ) ? 412 : 7;
+		return array(
+			'response' => array( 'code' => 200 ),
+			'body'     => wp_json_encode( array( 'pagination' => array( 'total' => $total ) ) ),
+		);
+	}
+	return array(
+		'response' => array( 'code' => 200 ),
+		'body'     => wp_json_encode(
+			array(
+				'lists' => array(
+					array( 'id' => 'l1', 'name' => 'Subscribers', 'double_optin' => true ),
+					array( 'id' => 'l2', 'name' => 'Trade buyers', 'double_optin' => false ),
+				),
+			)
+		),
+	);
+};
+sendbeam_flush_cache();
+$html = sb_render_table( new SendBeam_Lists_Table() );
+has( $html, 'column-name column-primary', 'lists table: List is the primary column' );
+foreach ( array( 'List', 'Subscribers', 'Confirmation' ) as $sendbeam_col ) {
+	has( $html, '>' . $sendbeam_col . '</th>', "lists table: the $sendbeam_col column is there" );
+}
+has( $html, 'Subscribers', 'lists table: a list renders as a row' );
+has( $html, 'Trade buyers', 'lists table: every list renders' );
+has( $html, '412', 'lists table: the subscriber count is shown' );
+has( $html, 'Double opt-in', 'lists table: a double opt-in list is marked as one' );
+has( $html, 'Single opt-in', 'lists table: and a single opt-in list is too' );
+has( $html, 'Open in SendBeam', 'lists table: the row links through to the list itself' );
+
+$GLOBALS['stub']['remote_reply'] = array(
+	'response' => array( 'code' => 403 ),
+	'body'     => '{"error":"forbidden"}',
+);
+sendbeam_flush_cache();
+has( sb_render_table( new SendBeam_Lists_Table() ), 'Lists (read) permission', 'lists table: a key that cannot read lists is told which permission is missing' );
+
+// ── Screen options ──────────────────────────────────────────────────────
+$GLOBALS['stub']['screen_options'] = array();
+sendbeam_add_per_page_option( 'sendbeam_forms_per_page', 'Forms per page' );
+ok( isset( $GLOBALS['stub']['screen_options']['per_page'] ), 'screen options: a list screen offers a rows-per-page box' );
+ok( 'sendbeam_forms_per_page' === $GLOBALS['stub']['screen_options']['per_page']['option'], 'screen options: it saves against the screen\'s own option' );
+ok( 20 === sendbeam_set_screen_option( false, 'sendbeam_forms_per_page', '20' ), 'screen options: a sane per-page value is kept' );
+ok( 200 === sendbeam_set_screen_option( false, 'sendbeam_forms_per_page', '99999' ), 'screen options: an absurd one is clamped' );
+ok( 1 === sendbeam_set_screen_option( false, 'sendbeam_forms_per_page', '0' ), 'screen options: and so is zero' );
+ok( false === sendbeam_set_screen_option( false, 'another_plugin_per_page', '50' ), 'screen options: another plugin\'s option is left alone' );
+
+sendbeam_flush_cache();
+$GLOBALS['stub']['remote_reply'] = null;
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

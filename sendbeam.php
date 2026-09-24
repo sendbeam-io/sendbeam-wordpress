@@ -28,6 +28,7 @@ require SENDBEAM_DIR . 'includes/sync.php';
 require SENDBEAM_DIR . 'includes/ecommerce.php';
 require SENDBEAM_DIR . 'includes/bridges.php';
 require SENDBEAM_DIR . 'includes/admin-ui.php';
+require SENDBEAM_DIR . 'includes/list-tables.php';
 require SENDBEAM_DIR . 'includes/menu.php';
 require SENDBEAM_DIR . 'includes/screens.php';
 require SENDBEAM_DIR . 'includes/settings.php';

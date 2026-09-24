@@ -756,54 +756,11 @@ function sendbeam_screen_forms() {
 	sendbeam_form_close();
 	sendbeam_card_close();
 
-	$forms = sendbeam_remote_forms();
-
-	sendbeam_card_open( __( 'Your forms', 'sendbeam' ), is_array( $forms ) ? sprintf( /* translators: %d: count */ _n( '%d form', '%d forms', count( $forms ), 'sendbeam' ), count( $forms ) ) : '' );
-
-	if ( null === $forms ) {
-		echo '<p>' . esc_html__( 'Add an API key with the Forms (read) permission on the Overview tab and every form in this workspace will be listed here, ready to drop into a page.', 'sendbeam' ) . '</p>';
-	} elseif ( ! $forms ) {
-		echo '<p>' . wp_kses(
-			sprintf(
-				/* translators: %s: link */
-				__( 'No forms in this workspace yet. %s.', 'sendbeam' ),
-				'<a href="' . esc_url( sendbeam_app_url() . '/forms' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Create your first form', 'sendbeam' ) . '</a>'
-			),
-			array(
-				'a' => array(
-					'href'   => array(),
-					'target' => array(),
-					'rel'    => array(),
-				),
-			)
-		) . '</p>';
-	} else {
-		echo '<table class="sb-table"><thead><tr>';
-		echo '<th>' . esc_html__( 'Form', 'sendbeam' ) . '</th>';
-		echo '<th>' . esc_html__( 'Kind', 'sendbeam' ) . '</th>';
-		echo '<th>' . esc_html__( 'Shortcode', 'sendbeam' ) . '</th>';
-		echo '<th></th></tr></thead><tbody>';
-		foreach ( $forms as $form ) {
-			$id        = (string) $form['id'];
-			$kind      = isset( $form['kind'] ) ? (string) $form['kind'] : 'signup';
-			$name      = isset( $form['name'] ) && '' !== $form['name'] ? (string) $form['name'] : __( '(untitled form)', 'sendbeam' );
-			$shortcode = 'contact' === $kind ? '[sendbeam_contact]' : '[sendbeam_form id="' . $id . '"]';
-			?>
-			<tr>
-				<td><strong><?php echo esc_html( $name ); ?></strong></td>
-				<td><span class="sb-chip sb-chip--<?php echo esc_attr( 'contact' === $kind ? 'contact' : 'signup' ); ?>"><?php echo esc_html( $kind ); ?></span></td>
-				<td><code><?php echo esc_html( $shortcode ); ?></code></td>
-				<td style="text-align:right;white-space:nowrap">
-					<button type="button" class="sb-btn sb-btn--small sb-copy" data-copy="<?php echo esc_attr( $shortcode ); ?>"><?php esc_html_e( 'Copy', 'sendbeam' ); ?></button>
-					<a class="sb-btn sb-btn--small sb-btn--ghost" href="<?php echo esc_url( sendbeam_form_url( $id, false ) ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Preview', 'sendbeam' ); ?></a>
-				</td>
-			</tr>
-			<?php
-		}
-		echo '</tbody></table>';
-		echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'Paste a shortcode anywhere, or add the SendBeam Form block and pick the form from its dropdown. Every form on this list can be used as many times as you like, on as many pages as you like.', 'sendbeam' ) . '</p>';
-	}
-	sendbeam_card_close();
+	sendbeam_list_card(
+		__( 'Your forms', 'sendbeam' ),
+		__( 'Every form in this workspace, ready to drop into a page.', 'sendbeam' ),
+		__( 'Search forms', 'sendbeam' )
+	);
 
 	sendbeam_placing_forms_card();
 }
@@ -816,37 +773,11 @@ function sendbeam_screen_forms() {
 function sendbeam_screen_audience() {
 	$lists = sendbeam_lists();
 
-	sendbeam_card_open( __( 'Lists', 'sendbeam' ), is_array( $lists ) ? sprintf( /* translators: %d: count */ _n( '%d list', '%d lists', count( $lists ), 'sendbeam' ), count( $lists ) ) : '' );
-
-	if ( null === $lists ) {
-		echo '<p>' . esc_html__( 'Your lists cannot be read with the current key. Add the Lists (read) permission to it in SendBeam to see them here.', 'sendbeam' ) . '</p>';
-	} elseif ( ! $lists ) {
-		echo '<p>' . esc_html__( 'This workspace has no lists yet.', 'sendbeam' ) . '</p>';
-	} else {
-		echo '<table class="sb-table"><thead><tr>';
-		echo '<th>' . esc_html__( 'List', 'sendbeam' ) . '</th>';
-		echo '<th>' . esc_html__( 'Subscribers', 'sendbeam' ) . '</th>';
-		echo '<th>' . esc_html__( 'Confirmation', 'sendbeam' ) . '</th>';
-		echo '</tr></thead><tbody>';
-		foreach ( $lists as $list ) {
-			?>
-			<tr>
-				<td><strong><?php echo esc_html( $list['name'] ); ?></strong></td>
-				<td class="sb-mono"><?php echo null === $list['count'] ? '&mdash;' : esc_html( number_format_i18n( $list['count'] ) ); ?></td>
-				<td>
-					<?php if ( $list['double_optin'] ) : ?>
-						<span class="sb-chip"><?php esc_html_e( 'Double opt-in', 'sendbeam' ); ?></span>
-					<?php else : ?>
-						<span class="sb-note"><?php esc_html_e( 'Single opt-in', 'sendbeam' ); ?></span>
-					<?php endif; ?>
-				</td>
-			</tr>
-			<?php
-		}
-		echo '</tbody></table>';
-	}
-	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'Which list a form subscribes people to is set on the form itself, in SendBeam.', 'sendbeam' ) . '</p>';
-	sendbeam_card_close();
+	sendbeam_list_card(
+		__( 'Lists', 'sendbeam' ),
+		__( 'Which list a form subscribes people to is set on the form itself, in SendBeam.', 'sendbeam' ),
+		__( 'Search lists', 'sendbeam' )
+	);
 
 	sendbeam_screen_sync( $lists );
 	sendbeam_screen_form_plugins( $lists );
@@ -1279,25 +1210,53 @@ function sendbeam_screen_mail() {
 	<?php
 	sendbeam_card_close();
 
-	$log = get_option( 'sendbeam_mail_log', array() );
-	if ( is_array( $log ) && $log ) {
-		sendbeam_card_open( __( 'Recent site email', 'sendbeam' ) );
-		echo '<table class="sb-table"><thead><tr>';
-		echo '<th>' . esc_html__( 'When', 'sendbeam' ) . '</th><th>' . esc_html__( 'To', 'sendbeam' ) . '</th>';
-		echo '<th>' . esc_html__( 'Subject', 'sendbeam' ) . '</th><th>' . esc_html__( 'Result', 'sendbeam' ) . '</th>';
-		echo '</tr></thead><tbody>';
-		foreach ( $log as $row ) {
-			$result = 'sent' === $row['result'] ? __( 'Sent via SendBeam', 'sendbeam' ) : ( 'fallback' === $row['result'] ? __( 'Server mailer', 'sendbeam' ) : __( 'Failed', 'sendbeam' ) );
-			echo '<tr>';
-			echo '<td class="sb-mono">' . esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $row['at'] ) ) . '</td>';
-			echo '<td>' . esc_html( $row['to'] ) . '</td>';
-			echo '<td>' . esc_html( $row['subject'] ) . '</td>';
-			echo '<td>' . esc_html( $result . ( $row['note'] ? ' — ' . $row['note'] : '' ) ) . '</td>';
-			echo '</tr>';
-		}
-		echo '</tbody></table>';
+	sendbeam_list_card(
+		__( 'Email log', 'sendbeam' ),
+		__( 'The last few messages this site handed to SendBeam, and what became of each.', 'sendbeam' ),
+		__( 'Search the log', 'sendbeam' )
+	);
+}
+
+/**
+ * A card whose body is the screen's list table.
+ *
+ * One function because all three are the same shape: a heading, a sentence,
+ * the search box, and core's table. The table itself was prepared on
+ * `load-<hook>` — before any of this ran — so a bulk action has already been
+ * applied by the time the rows are read.
+ *
+ * @param string $title  Card heading.
+ * @param string $note   The sentence under it.
+ * @param string $search Placeholder and label for the search box.
+ */
+function sendbeam_list_card( $title, $note, $search ) {
+	$table = function_exists( 'sendbeam_list_table' ) ? sendbeam_list_table() : null;
+
+	sendbeam_card_open( $title );
+	echo '<p style="margin-top:0">' . esc_html( $note ) . '</p>';
+
+	if ( ! $table ) {
+		echo '<p class="sb-note">' . esc_html__( 'This list cannot be shown on this version of WordPress.', 'sendbeam' ) . '</p>';
 		sendbeam_card_close();
+		return;
 	}
+
+	// GET, because a search is a place you can link to and come back to. The
+	// hidden `page` keeps the search on this screen rather than throwing it
+	// at the admin dashboard.
+	echo '<form method="get">';
+	printf( '<input type="hidden" name="page" value="%s" />', esc_attr( sendbeam_current_page() ) );
+	$table->search_box( $search, 'sendbeam-search' );
+	echo '</form>';
+
+	// POST, for the bulk actions and their nonce. Core prints both inside
+	// display(); the form around it is ours to provide.
+	echo '<form method="post">';
+	printf( '<input type="hidden" name="page" value="%s" />', esc_attr( sendbeam_current_page() ) );
+	$table->display();
+	echo '</form>';
+
+	sendbeam_card_close();
 }
 
 /* ------------------------------------------------------------ E-commerce */

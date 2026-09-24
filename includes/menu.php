@@ -43,6 +43,7 @@ function sendbeam_pages() {
 			'menu'   => __( 'Forms', 'sendbeam' ),
 			'title'  => __( 'Forms', 'sendbeam' ),
 			'render' => 'sendbeam_screen_forms',
+			'list'   => array( 'SendBeam_Forms_Table', 'sendbeam_forms_per_page', __( 'Forms per page', 'sendbeam' ) ),
 		),
 		'sendbeam-popups'    => array(
 			'menu'   => __( 'Pop-ups', 'sendbeam' ),
@@ -53,11 +54,13 @@ function sendbeam_pages() {
 			'menu'   => __( 'Audience', 'sendbeam' ),
 			'title'  => __( 'Audience', 'sendbeam' ),
 			'render' => 'sendbeam_screen_audience',
+			'list'   => array( 'SendBeam_Lists_Table', 'sendbeam_lists_per_page', __( 'Lists per page', 'sendbeam' ) ),
 		),
 		'sendbeam-mail'      => array(
 			'menu'   => __( 'Site email', 'sendbeam' ),
 			'title'  => __( 'Site email', 'sendbeam' ),
 			'render' => 'sendbeam_screen_mail',
+			'list'   => array( 'SendBeam_Mail_Log_Table', 'sendbeam_mail_log_per_page', __( 'Messages per page', 'sendbeam' ) ),
 		),
 		'sendbeam-ecommerce' => array(
 			'menu'   => __( 'E-commerce', 'sendbeam' ),
@@ -117,18 +120,53 @@ function sendbeam_admin_menu() {
 		if ( ! empty( $page['hidden'] ) ) {
 			// Registered with no parent: routable, capability-checked and
 			// titled, but absent from the menu.
-			add_submenu_page( '', $page['title'], $page['menu'], 'manage_options', $slug, 'sendbeam_render_admin_page' );
-			continue;
+			$hook = add_submenu_page( '', $page['title'], $page['menu'], 'manage_options', $slug, 'sendbeam_render_admin_page' );
+		} else {
+			$hook = add_submenu_page(
+				SENDBEAM_MENU_SLUG,
+				$page['title'],
+				$page['menu'],
+				'manage_options',
+				$slug,
+				'sendbeam_render_admin_page'
+			);
 		}
-		add_submenu_page(
-			SENDBEAM_MENU_SLUG,
-			$page['title'],
-			$page['menu'],
-			'manage_options',
-			$slug,
-			'sendbeam_render_admin_page'
-		);
+		if ( $hook && ! empty( $page['list'] ) ) {
+			add_action( 'load-' . $hook, 'sendbeam_load_list_screen' );
+		}
 	}
+}
+
+/**
+ * Prepare a screen that has a list on it, before anything is rendered.
+ *
+ * Three things have to happen here rather than in the screen function:
+ * Screen Options is built before the page body, a bulk action has to be acted
+ * on before the rows are read, and `WP_List_Table` wants constructing while
+ * `get_current_screen()` is the screen it belongs to.
+ */
+function sendbeam_load_list_screen() {
+	$pages = sendbeam_pages();
+	$slug  = sendbeam_current_page();
+	if ( empty( $pages[ $slug ]['list'] ) || ! sendbeam_load_list_table() ) {
+		return;
+	}
+	list( $class, $option, $label ) = $pages[ $slug ]['list'];
+
+	sendbeam_add_per_page_option( $option, $label );
+
+	$GLOBALS['sendbeam_list_table'] = new $class();
+	$GLOBALS['sendbeam_list_table']->process_bulk_action();
+	$GLOBALS['sendbeam_list_table']->prepare_items();
+}
+
+/**
+ * The list table this screen prepared, if it has one.
+ *
+ * @return WP_List_Table|null
+ */
+function sendbeam_list_table() {
+	return isset( $GLOBALS['sendbeam_list_table'] ) ? $GLOBALS['sendbeam_list_table'] : null;
 }
 
 /**
