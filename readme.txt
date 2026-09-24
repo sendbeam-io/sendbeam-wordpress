@@ -17,7 +17,7 @@ Newsletter signup forms, pop-ups, opt-ins at registration and checkout, and your
 This plugin puts your SendBeam forms on a WordPress site without copying embed code around:
 
 * **SendBeam Form block** — pick a form, set a height, done. Works in posts, pages, templates and the site editor.
-* **Shortcodes** — `[sendbeam_form id="…"]`, `[sendbeam_contact]` and `[sendbeam_popup_button]` for widgets, page builders and the classic editor.
+* **Shortcodes** — `[sendbeam_form id="…"]`, `[sendbeam_contact id="…"]` and `[sendbeam_popup_button]` for widgets, page builders and the classic editor.
 * **Pop-up** — show a signup form in a modal after a delay or from a floating button, on every page, posts only, pages only or the home page; hidden for a day, a week or for good once a visitor closes it.
 * **Pop-up styles** — four looks for the modal: split with image, editorial, bold colour and slide-in, each with its own image, eyebrow, button label and optional subscriber count, chosen per pop-up.
 * **A default form** — set it once under SendBeam → Forms and every block and shortcode without an ID uses it.

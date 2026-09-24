@@ -64,6 +64,8 @@
 
 - **"A SendBeam pop-up is live on the site" with every rule switched off.** The checklist asked whether any pop-up rule had ever been saved. A rule that is unticked, or has no form chosen, puts nothing on the site — the front end serves no loader at all — so the step ticked itself on evidence the visitor could not see. There is one helper for "could this actually show somebody a pop-up", and the checklist uses it.
 
+- **`[sendbeam_contact]` takes an `id` now**, because the Forms screen offered a Copy button on every contact row and told the owner to "place it by shortcode". There was one shortcode for all of them and it always rendered the default, so copying the one beside "Wholesale enquiry" put the Contact-us form on the page. Every row names its own form; a bare `[sendbeam_contact]` still renders the default, so nothing already on a page changes.
+
 ### Connect
 
 - **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.

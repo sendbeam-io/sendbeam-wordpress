@@ -3360,7 +3360,7 @@ foreach ( array( 'Form', 'Kind', 'Shortcode', 'Placed on' ) as $sendbeam_col ) {
 has( $html, 'Newsletter signup', 'forms table: a form renders as a row' );
 has( $html, 'Ask us anything', 'forms table: every form renders' );
 has( $html, '[sendbeam_form id=&quot;' . $form . '&quot;]', 'forms table: a signup form shows the shortcode that places it' );
-has( $html, '[sendbeam_contact]', 'forms table: a contact form shows its own shortcode' );
+has( $html, '[sendbeam_contact id=&quot;', 'forms table: a contact form shows the shortcode that places THAT form' );
 has( $html, 'sb-copy', 'forms table: the shortcode is one click from the clipboard' );
 has( $html, 'row-actions', 'forms table: rows carry actions, as core rows do' );
 has( $html, 'Preview', 'forms table: Preview is a row action' );
@@ -4408,6 +4408,25 @@ sendbeam_connect_cache_status( $sb_dead );
 $sb_step = sendbeam_setup_steps()[1];
 has( $sb_step['detail'], 'could not be reached', 'step 2: a failed request still says so' );
 lacks( $sb_step['detail'], 'already registered', 'step 2: and does not pass off a stale note as this answer' );
+sb_seed_settings( array() );
+
+// ── #7 Copy on a contact row handed you a different form ────────────────
+// Every contact row offered a bare [sendbeam_contact], which renders
+// $settings['contact_form'] and nothing else. The Placed on column said "Not
+// a default — place it by shortcode", and the shortcode it gave could not
+// carry out that instruction for any contact form but the chosen default.
+$sb_wholesale = 'aaaaaaaa-1111-2222-3333-444444444444';
+$sb_default   = '14dad6b8-6998-4f1f-8924-3ebd79524c94';
+sb_seed_settings( array_merge( sendbeam_settings(), array( 'contact_form' => $sb_default ) ) );
+
+ok( false !== strpos( do_shortcode_tag( 'sendbeam_contact' ), '/f/' . $sb_default ), 'contact: a bare shortcode still renders the chosen default' );
+ok( false !== strpos( do_shortcode_tag( 'sendbeam_contact', array( 'id' => $sb_wholesale ) ), '/f/' . $sb_wholesale ), 'contact: and a named one renders the form it names' );
+ok( false === strpos( do_shortcode_tag( 'sendbeam_contact', array( 'id' => $sb_wholesale ) ), '/f/' . $sb_default ), 'contact: not the default instead of it' );
+has( do_shortcode_tag( 'sendbeam_contact', array( 'id' => $sb_wholesale ) ), 'sendbeam-contact-wrap', 'contact: still the contact wrapper, so existing styling holds' );
+
+// An id that is not a form id embeds nothing at all, rather than quietly
+// falling back to the default and placing the wrong form.
+lacks( do_shortcode_tag( 'sendbeam_contact', array( 'id' => 'not-an-id' ) ), '/f/', 'contact: a nonsense id embeds no form at all' );
 sb_seed_settings( array() );
 
 // One version number, five files. 1.6.2 shipped with the block's asset

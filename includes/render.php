@@ -120,15 +120,29 @@ function sendbeam_shortcode_form( $atts ) {
 }
 
 /**
- * [sendbeam_contact height="640"]
+ * [sendbeam_contact id="…" height="640"]
+ *
+ * `id` names one contact form; without it the default chosen under Forms is
+ * used, which is what every existing page holding a bare [sendbeam_contact]
+ * expects. It exists because the Forms screen offers a Copy button on every
+ * contact row and told the owner to "place it by shortcode": without an id
+ * there was only one shortcode for all of them, so copying the one beside
+ * "Wholesale enquiry" put the default contact form on the page instead.
  *
  * @param array|string $atts Shortcode attributes.
  * @return string
  */
 function sendbeam_shortcode_contact( $atts ) {
 	$settings = sendbeam_settings();
-	$atts     = shortcode_atts( array( 'height' => 640 ), $atts, 'sendbeam_contact' );
-	$html     = sendbeam_form_html( $settings['contact_form'], (int) $atts['height'], __( 'Contact form', 'sendbeam' ) );
+	$atts     = shortcode_atts(
+		array(
+			'id'     => $settings['contact_form'],
+			'height' => 640,
+		),
+		$atts,
+		'sendbeam_contact'
+	);
+	$html     = sendbeam_form_html( strtolower( trim( (string) $atts['id'] ) ), (int) $atts['height'], __( 'Contact form', 'sendbeam' ) );
 	if ( '' === $html ) {
 		return sendbeam_editor_notice( __( 'SendBeam: no contact form chosen under Settings → SendBeam.', 'sendbeam' ) );
 	}

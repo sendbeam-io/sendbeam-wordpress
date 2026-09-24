@@ -8,7 +8,7 @@ Full documentation: **[sendbeam.io/docs/wordpress](https://sendbeam.io/docs/word
 | To do this | Use |
 | --- | --- |
 | A signup form in a post, page or template | `SendBeam Form` block, or `[sendbeam_form id="…"]` |
-| A contact form | `[sendbeam_contact]` |
+| A contact form | `[sendbeam_contact]`, or `[sendbeam_contact id="…"]` for a particular one |
 | A pop-up | SendBeam → Pop-ups |
 | Your own button that opens a pop-up | `[sendbeam_popup_button label="Subscribe"]`, or any element with `data-sendbeam-open="<form id>"` |
 | Ask people to subscribe while they register, comment or check out | SendBeam → Audience |

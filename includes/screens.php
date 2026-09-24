@@ -2123,6 +2123,7 @@ function sendbeam_help_shortcodes_card() {
 	sendbeam_doc_snippet( '[sendbeam_form]', __( 'The default signup form', 'sendbeam' ) );
 	sendbeam_doc_snippet( '[sendbeam_form id="8f3c1a2e-…"]', __( 'Any form, as often as you like', 'sendbeam' ) );
 	sendbeam_doc_snippet( '[sendbeam_contact]', __( 'The contact form chosen under Forms', 'sendbeam' ) );
+	sendbeam_doc_snippet( '[sendbeam_contact id="8f3c1a2e-…"]', __( 'Any contact form, as often as you like', 'sendbeam' ) );
 	sendbeam_doc_snippet( '[sendbeam_popup_button label="Subscribe"]', __( 'A button that opens a pop-up', 'sendbeam' ) );
 	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'A height attribute works on all of them, but you rarely want one: an embedded form measures itself and the frame follows.', 'sendbeam' ) . '</p>';
 	echo '</div>';

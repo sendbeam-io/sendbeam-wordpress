@@ -182,8 +182,12 @@ class SendBeam_Forms_Table extends WP_List_Table {
 	 * @return string
 	 */
 	public function column_shortcode( $item ) {
+		// Named, both kinds. The column tells the owner to place this form by
+		// shortcode, and a shortcode that places a different form cannot
+		// carry out its own instruction.
 		$kind      = isset( $item['kind'] ) ? (string) $item['kind'] : 'signup';
-		$shortcode = 'contact' === $kind ? '[sendbeam_contact]' : '[sendbeam_form id="' . (string) $item['id'] . '"]';
+		$tag       = 'contact' === $kind ? 'sendbeam_contact' : 'sendbeam_form';
+		$shortcode = '[' . $tag . ' id="' . (string) $item['id'] . '"]';
 		return '<code>' . esc_html( $shortcode ) . '</code> '
 			. sprintf(
 				'<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-copy" data-copy="%1$s" data-done="%2$s">%3$s</button>',
