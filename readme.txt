@@ -169,7 +169,7 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 
 == Screenshots ==
 
-1. The SendBeam Form block, showing the real form as it will appear on the page.
+1. The SendBeam Form block on a page: the real form, as visitors see it.
 2. SendBeam → Overview: what this site is connected to, how far through set-up it is, and what the workspace holds.
 3. SendBeam → Set up, the four-step guide a new site sees once. Every step can be skipped and the whole thing can be left.
 4. SendBeam → Forms: the default forms, their colours, and every form in the workspace as a list you can search.
@@ -182,6 +182,7 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 == Changelog ==
 
 = 1.8.3 =
+* **The SendBeam Form block shows a card in the editor, not the form.** Its live preview was rendering the hosted form in a nested iframe with no origin of its own, so SendBeam — which serves a form only to the sites its owner has listed, and decides that from the referrer — answered "This form can only be shown on the sites its owner has listed" on a site that is listed. The editor now shows which form the block will place, a line saying the form appears there on the published page, and a **Preview** link that opens the real one in a tab. The published page is unchanged: it embeds the form exactly as before.
 * **SendBeam has its own menu.** It lived at Settings → SendBeam behind seven tabs that appeared nowhere in the admin menu: to reach the pop-up settings you had to know the plugin was under Settings and then know the tab existed. There is now a top-level menu with a page for each section — Overview, Forms, Pop-ups, Audience, Site email, E-commerce, Settings and Help. Every old address redirects permanently to the page that replaced it, so bookmarks and links in old support replies still work, and the Plugins-screen "Settings" link goes to the settings rather than to a dashboard.
 * **A four-step guide the first time you activate it**: connect, verify your sending domain, switch on site email, place a form. It appears once, never when you activate several plugins at once, and never on a site that already has a key. Every step can be skipped, **Go back to the Dashboard** leaves it, and where you got to is remembered. Hosts and agencies can switch it off with the `sendbeam_setup_wizard` filter.
 * **Your forms, your lists and the email log are proper WordPress list tables** — search, a rows-per-screen setting under Screen Options, and bulk delete on the log — so they behave like the Posts screen and collapse the way core does on a phone. That last part fixed the two screens that scrolled sideways on a phone.

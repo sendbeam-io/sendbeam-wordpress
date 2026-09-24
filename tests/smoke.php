@@ -4910,6 +4910,44 @@ has( $sb_phone, '.sb-tab{height:44px;min-height:44px}', 'touch: and so is the Se
 lacks( $sb_phone, 'min-height:40px', 'touch: nothing on a phone is left at 40px' );
 lacks( $sb_phone, 'min-height:42px', 'touch: or at 42px' );
 
+// ── The block editor shows a placeholder, not the hosted form ───────────
+// The form is a cross-origin iframe and SendBeam serves it only to the sites
+// its owner has listed, which it decides from the referrer. The block editor
+// renders inside a nested iframe with an opaque origin, so there is no
+// referrer to send and the hosted page answered "This form can only be shown
+// on the sites its owner has listed" — on a site that is listed, and whose
+// published page rendered the same form perfectly.
+$sb_editor_js = file_get_contents( dirname( __DIR__ ) . '/blocks/form/index.js' );
+lacks( $sb_editor_js, 'ServerSideRender', 'block: the editor does not try to render the hosted form' );
+has( $sb_editor_js, 'The form appears here on the published page.', 'block: it says where the form will be instead' );
+has( $sb_editor_js, "__( 'Preview', 'sendbeam' )", 'block: and offers to open the real one in a tab' );
+has( $sb_editor_js, 'config.previewBase + effectiveId', 'block: the Preview link points at the form itself' );
+
+// The dependency that only existed for the live preview goes with it.
+$sb_asset = require dirname( __DIR__ ) . '/blocks/form/index.asset.php';
+ok( ! in_array( 'wp-server-side-render', $sb_asset['dependencies'], true ), 'block: and the editor stops loading a script nothing uses' );
+foreach ( array( 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n', 'wp-api-fetch' ) as $sb_dep ) {
+	ok( in_array( $sb_dep, $sb_asset['dependencies'], true ), "block: $sb_dep is still a dependency" );
+}
+
+// The editor is told where a preview lives, and it is the hosted form on the
+// app's own host — never the embed, which is the thing that cannot be shown.
+$GLOBALS['stub']['inline'] = array();
+sendbeam_editor_defaults();
+$sb_inline = '';
+foreach ( $GLOBALS['stub']['inline'] as $sb_one ) {
+	$sb_inline .= is_array( $sb_one ) ? implode( ' ', array_map( 'strval', $sb_one ) ) : (string) $sb_one;
+}
+has( $sb_inline, 'window.sendbeamBlock', 'block: the editor is given its configuration' );
+has( $sb_inline, '"previewBase":"https:\\/\\/sendbeam.io\\/f\\/"', 'block: including where a preview of one form lives' );
+lacks( $sb_inline, 'embed=1', 'block: which is the hosted form, not the embed' );
+
+// The front end is untouched: that is the half that works.
+sb_seed_settings( array_merge( sendbeam_settings(), array( 'default_form' => '9da94d34-86f8-4fbc-9333-45c0b4c16d6a' ) ) );
+has( do_shortcode_tag( 'sendbeam_form' ), 'iframe class="sendbeam-form"', 'block: a published page still embeds the real form' );
+has( do_shortcode_tag( 'sendbeam_form' ), 'embed=1', 'block: with the embed flag the hosted page expects' );
+sb_seed_settings( array() );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

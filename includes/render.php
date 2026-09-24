@@ -38,6 +38,11 @@ function sendbeam_editor_defaults() {
 			array(
 				'defaultForm' => $settings['default_form'],
 				'formsUrl'    => sendbeam_app_link( '/forms' ),
+				// Where the editor's Preview link goes. The hosted form itself,
+				// not the embed: the editor cannot render the embed (see the
+				// note on the placeholder in blocks/form/index.js) and a
+				// preview that opens in a tab has a real referrer.
+				'previewBase' => sendbeam_app_url() . '/f/',
 			)
 		) . ';',
 		'before'
