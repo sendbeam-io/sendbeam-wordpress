@@ -42,6 +42,7 @@ add_action( 'comment_post', 'sendbeam_sync_on_comment', 10, 2 );
 // WooCommerce.
 add_action( 'woocommerce_review_order_before_submit', 'sendbeam_sync_checkout_field' );
 add_action( 'woocommerce_checkout_order_processed', 'sendbeam_sync_on_checkout', 10, 1 );
+
 /*
  * The two hooks above belong to the classic, shortcode checkout. The checkout
  * WooCommerce installs by default is the block one, which renders through the
@@ -197,6 +198,11 @@ function sendbeam_sync_on_block_checkout( $order ) {
 	sendbeam_subscribe( $email, $order->get_billing_first_name(), $order->get_billing_last_name(), 'woocommerce-checkout' );
 }
 
+/**
+ * Did the submitter tick the opt-in box on a classic form?
+ *
+ * @return bool
+ */
 function sendbeam_sync_consented() {
 	// A passenger on a form WordPress or WooCommerce has already validated and
 	// nonce-checked. We read one checkbox and never act on it alone: the caller
