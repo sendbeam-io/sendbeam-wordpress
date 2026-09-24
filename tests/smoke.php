@@ -1570,6 +1570,49 @@ ok( '' === sendbeam_settings()['api_key'], 'disconnect: but this site forgets it
 ok( '' === sendbeam_settings()['sendbeam_connected_via'], 'disconnect: and stops claiming how it was connected' );
 has( $GLOBALS['stub']['redirect']['url'], 'sendbeam_disconnected=pasted', 'disconnect: and the notice says which of the two happened' );
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * QA regressions that need a site with no API key at all. They have to sit
+ * above the define() below: once SENDBEAM_API_KEY exists in this process,
+ * sendbeam_api_key() answers with it and no amount of seeding makes a site
+ * keyless again.
+ * ────────────────────────────────────────────────────────────────────── */
+
+// ── #2 Site email switched on with no API key ───────────────────────────
+// Disconnect leaves mail_enabled = 1, which is right — reconnecting should
+// not make the owner find the switch again — so this state is reached the
+// ordinary way. Nothing goes near SendBeam in it, and three screens said
+// otherwise: the test email told the owner to tick a box already ticked,
+// and Site Health raised a critical alarm about email that never leaves the
+// server's own mailer.
+sb_seed_settings( array( 'api_key' => 'sb_live_blockedblockedblocked', 'mail_enabled' => 1 ) );
+ok( '' === sendbeam_mail_blocked(), 'mail: on with a key is not blocked' );
+sb_seed_settings( array( 'api_key' => '', 'mail_enabled' => 1 ) );
+ok( 'no_key' === sendbeam_mail_blocked(), 'mail: on with no key is blocked on the key, not the switch' );
+ok( ! sendbeam_mail_enabled(), 'mail: and site email is not actually running' );
+sb_seed_settings( array( 'api_key' => 'sb_live_blockedblockedblocked', 'mail_enabled' => 0 ) );
+ok( 'off' === sendbeam_mail_blocked(), 'mail: unticked is blocked on the switch' );
+
+// Site Health must not shout about a sender that is not sending anything.
+sb_seed_settings( array( 'api_key' => '', 'mail_enabled' => 1 ) );
+sendbeam_connect_cache_status( sendbeam_connect_empty_status() );
+$sb_relay = sendbeam_test_mail_relay();
+ok( 'critical' !== $sb_relay['status'], 'site health: site email on with no key is not a critical alarm' );
+ok( 'recommended' === $sb_relay['status'], 'site health: it is a recommendation to connect the site' );
+lacks( $sb_relay['label'], 'unverified domain', 'site health: and it does not blame an unverified domain' );
+has( $sb_relay['description'], 'no SendBeam API key', 'site health: it names the missing key' );
+
+// The ticked box says why it cannot act, where it is ticked.
+ob_start();
+sendbeam_field_checkbox( array( 'key' => 'mail_enabled', 'label' => 'Send this site\'s email through SendBeam' ) );
+$sb_box = ob_get_clean();
+has( $sb_box, 'checked', 'mail: the box is still ticked, because that is what was saved' );
+has( $sb_box, 'no SendBeam API key', 'mail: and it says the site has no key' );
+sb_seed_settings( array( 'api_key' => 'sb_live_blockedblockedblocked', 'mail_enabled' => 1 ) );
+ob_start();
+sendbeam_field_checkbox( array( 'key' => 'mail_enabled', 'label' => 'Send this site\'s email through SendBeam' ) );
+lacks( ob_get_clean(), 'no SendBeam API key', 'mail: and says nothing of the sort once there is one' );
+sb_seed_settings( array() );
+
 // wp-config constant wins over the option.
 define( 'SENDBEAM_API_KEY', 'sb_const_0123456789abcdef' );
 ok( sendbeam_api_key() === 'sb_const_0123456789abcdef', 'constant wins' );

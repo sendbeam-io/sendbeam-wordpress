@@ -448,6 +448,14 @@ function sendbeam_field_checkbox( $args ) {
 		checked( ! empty( $settings[ $key ] ), true, false ),
 		esc_html( $args['label'] )
 	);
+
+	// A ticked box that cannot do anything has to say so where it is ticked.
+	// Otherwise the screen reads as switched on, the test email says to tick
+	// the box that is already ticked, and nothing says the key is missing.
+	if ( 'mail_enabled' === $key && 'no_key' === sendbeam_mail_blocked() ) {
+		echo '<p class="description sb-warn">' . esc_html__( 'This site has no SendBeam API key, so its email is still going out through the web server\'s own mailer. Connect the site on the Overview to start using this.', 'sendbeam' ) . '</p>';
+	}
+
 	if ( ! empty( $args['help'] ) ) {
 		echo '<p class="description">' . esc_html( $args['help'] ) . '</p>';
 	}

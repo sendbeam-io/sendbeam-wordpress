@@ -43,6 +43,29 @@ function sendbeam_mail_enabled() {
 }
 
 /**
+ * Why site email is not running, in one word.
+ *
+ * The setting and the ability are two different things, and every screen that
+ * conflated them said something untrue about the other. A site that
+ * disconnects keeps `mail_enabled = 1` — which is right, because reconnecting
+ * should not make the owner find the switch again — and with no key
+ * sendbeam_pre_wp_mail() never short-circuits, so every message goes out the
+ * server's own mailer exactly as it did before the plugin was installed.
+ * Nothing is broken; the screens simply have to say which of the two is
+ * missing rather than blaming the one that is not.
+ *
+ * @return string '' when it is running, 'off' when the box is unticked,
+ *                'no_key' when it is ticked with no key to send with.
+ */
+function sendbeam_mail_blocked() {
+	$settings = sendbeam_settings();
+	if ( empty( $settings['mail_enabled'] ) ) {
+		return 'off';
+	}
+	return '' === sendbeam_api_key() ? 'no_key' : '';
+}
+
+/**
  * Turn wp_mail()'s headers (string or array) into what the API wants.
  *
  * @param string|string[] $headers Raw headers.
@@ -703,17 +726,36 @@ function sendbeam_handle_test_mail() {
 	$sender = sendbeam_effective_sender( $status );
 	$facts  = sendbeam_mail_facts( $status );
 
-	if ( ! sendbeam_mail_enabled() ) {
-		$outcome = array(
-			'ok'     => false,
-			'title'  => __( 'Site email is not switched on yet', 'sendbeam' ),
-			'means'  => __( 'Nothing was sent, because this site is still handing its email to the web server\'s own mailer.', 'sendbeam' ),
-			'do'     => __( 'Tick "Send this site\'s email through SendBeam" above, save, and try again. It needs a working API key with the "Send site email" permission.', 'sendbeam' ),
-			'to'     => $to,
-			'bundle' => sendbeam_mail_error_bundle( 'site email is switched off', 0 ),
-			'at'     => time(),
+	$blocked = sendbeam_mail_blocked();
+
+	// Two different reasons, and telling somebody to tick a box they have
+	// just ticked is a loop with no way out of it.
+	if ( 'no_key' === $blocked ) {
+		sendbeam_finish_test_mail(
+			array(
+				'ok'     => false,
+				'title'  => __( 'This site is not connected to SendBeam', 'sendbeam' ),
+				'means'  => __( 'Site email is switched on, but there is no API key to send with, so this site is still handing its email to the web server\'s own mailer. Nothing was sent.', 'sendbeam' ),
+				'do'     => __( 'Connect the site on the Overview, or paste a key under Settings → Advanced. The key needs the "Send site email" permission.', 'sendbeam' ),
+				'to'     => $to,
+				'bundle' => sendbeam_mail_error_bundle( 'no API key is saved', 0 ),
+				'at'     => time(),
+			)
 		);
-		sendbeam_finish_test_mail( $outcome );
+	}
+
+	if ( 'off' === $blocked ) {
+		sendbeam_finish_test_mail(
+			array(
+				'ok'     => false,
+				'title'  => __( 'Site email is not switched on yet', 'sendbeam' ),
+				'means'  => __( 'Nothing was sent, because this site is still handing its email to the web server\'s own mailer.', 'sendbeam' ),
+				'do'     => __( 'Tick "Send this site\'s email through SendBeam" above, save, and try again. It needs a working API key with the "Send site email" permission.', 'sendbeam' ),
+				'to'     => $to,
+				'bundle' => sendbeam_mail_error_bundle( 'site email is switched off', 0 ),
+				'at'     => time(),
+			)
+		);
 	}
 
 	$result = sendbeam_api_send(

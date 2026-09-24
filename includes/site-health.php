@@ -239,12 +239,33 @@ function sendbeam_test_mail_relay() {
 	$settings = sendbeam_settings();
 	$link     = sendbeam_health_link( 'sendbeam-mail', __( 'Open the site email settings', 'sendbeam' ) );
 
-	if ( empty( $settings['mail_enabled'] ) ) {
+	$blocked = sendbeam_mail_blocked();
+
+	if ( 'off' === $blocked ) {
 		return sendbeam_health_result(
 			__( 'This site\'s email does not go through SendBeam', 'sendbeam' ),
 			'good',
 			'blue',
 			esc_html__( 'Site email is switched off, so WordPress sends its own email the way it did before this plugin was installed. This is not a fault; it is optional.', 'sendbeam' ),
+			$link,
+			'sendbeam-mail'
+		);
+	}
+
+	/*
+	 * Switched on with no key. The critical alarm below is about email being
+	 * handed to an unverified sender, and none of this site's email goes near
+	 * SendBeam at all: sendbeam_pre_wp_mail() cannot short-circuit without a
+	 * key, so every message leaves by the server's own mailer exactly as it
+	 * did before. Raising a red flag about a thing that is not happening is
+	 * how a Site Health page teaches people to ignore it.
+	 */
+	if ( 'no_key' === $blocked ) {
+		return sendbeam_health_result(
+			__( 'This site\'s email does not go through SendBeam yet', 'sendbeam' ),
+			'recommended',
+			'blue',
+			esc_html__( 'Site email is switched on, but this site has no SendBeam API key, so WordPress is still sending its own email the way it did before. Connect the site and it will start going through SendBeam.', 'sendbeam' ),
 			$link,
 			'sendbeam-mail'
 		);

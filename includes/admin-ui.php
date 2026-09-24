@@ -243,6 +243,9 @@ function sendbeam_admin_css() {
 	.sb-card__action{flex:0 0 auto}
 	.sb-card__body{padding:16px}
 	.sb-note{font-size:13px;color:var(--ink-60)}
+	/* A setting that is switched on and cannot act. Amber, not red: nothing
+	   is broken, something is simply not connected yet. */
+	.sendbeam-app .description.sb-warn{color:var(--ink);border-left:3px solid var(--a);padding-left:10px;margin:6px 0 0}
 
 	/* ── Type ─────────────────────────────────────────────────────────── */
 	.sb-label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin:0 0 5px}
