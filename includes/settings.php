@@ -680,11 +680,38 @@ function sendbeam_admin_assets( $hook ) {
 			if ( no ) { no.addEventListener( "click", function () { shut(); ask.focus(); } ); }
 		} );
 
+		/*
+		 * A DNS value is a textarea so that it can wrap on a phone, and a
+		 * textarea with one row shows one row however many it needs. This
+		 * gives each one the height of its own content, and again when the
+		 * window changes width — the value that fits on one line at 1280px
+		 * takes three at 393px.
+		 */
+		function fitFields() {
+			document.querySelectorAll( ".sb-copy-field" ).forEach( function ( field ) {
+				field.style.height = "auto";
+				field.style.height = field.scrollHeight + "px";
+			} );
+		}
+		if ( document.querySelector( ".sb-copy-field" ) ) {
+			fitFields();
+			var fitTimer = null;
+			window.addEventListener( "resize", function () {
+				clearTimeout( fitTimer );
+				fitTimer = setTimeout( fitFields, 120 );
+			} );
+			// A records table folded away in a <details> has no height to
+			// measure until it is opened.
+			document.addEventListener( "toggle", function ( e ) {
+				if ( e.target && "DETAILS" === e.target.tagName ) { fitFields(); }
+			}, true );
+		}
+
 		document.addEventListener( "click", function ( e ) {
 			var btn = e.target.closest( ".sb-copy" );
 			if ( ! btn ) { return; }
 			var text = btn.getAttribute( "data-copy" ), done = btn.getAttribute( "data-done" ) || "Copied";
-			var isField = "INPUT" === btn.tagName;
+			var isField = "INPUT" === btn.tagName || "TEXTAREA" === btn.tagName;
 			function flash() {
 				/*
 				 * A DNS value is a read-only input, not a button: it has no

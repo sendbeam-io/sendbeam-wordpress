@@ -299,41 +299,167 @@ function sendbeam_pre_wp_mail( $short_circuit, $atts ) {
 /**
  * What the site owner should know about the connection, at the moment of asking.
  *
- * Gathered once and used twice: it is the body of the test email, and — when
- * the send fails — the bundle the failure card offers to copy. Collecting it
- * at failure time rather than at render time is the whole point: a support
- * request that describes the state of the site half an hour later describes a
- * different site.
+ * Gathered once and used three times: the body of the test email, the note on
+ * the in-page result, and — when the send fails — the bundle the failure card
+ * offers to copy. Collecting it at the moment of the send rather than at
+ * render time is the whole point: a support request that describes the state
+ * of the site half an hour later describes a different site.
  *
+ * Every row that can mislead is qualified. "From address
+ * ws-…@post.sendbeam.io" two rows above "Sending domain harbourlane.co.uk —
+ * verified" told a reader their domain was verified *and in use* when only
+ * the first half was true, under a headline saying the site could send.
+ *
+ * @param array|null $status Normalised Connect status, fetched if omitted.
  * @return array<string,string>
  */
-function sendbeam_mail_facts() {
+function sendbeam_mail_facts( $status = null ) {
 	$settings = sendbeam_settings();
-	$status   = sendbeam_is_connected() ? sendbeam_connect_status() : sendbeam_connect_empty_status();
-	$domain   = $status['domain'];
+	if ( ! is_array( $status ) ) {
+		$status = sendbeam_is_connected() ? sendbeam_connect_status() : sendbeam_connect_empty_status();
+	}
+	$sender = sendbeam_effective_sender( $status );
+	$domain = $status['domain'];
 
-	$domain_line = __( 'None set up', 'sendbeam' );
-	if ( '' !== $domain['name'] ) {
-		$domain_line = $domain['name'] . ' — ' . ( $domain['verified'] ? __( 'verified', 'sendbeam' ) : __( 'not verified yet', 'sendbeam' ) );
-	} elseif ( '' !== (string) $status['domain_state'] ) {
-		$domain_line = sprintf(
-			/* translators: %s: a SendBeam domain state, e.g. not_granted */
-			__( 'None set up (%s)', 'sendbeam' ),
-			(string) $status['domain_state']
+	$from_name = '' !== (string) $settings['mail_from_name'] ? (string) $settings['mail_from_name'] : (string) $status['sender']['from_name'];
+
+	$rows = array(
+		__( 'Site', 'sendbeam' ) => get_bloginfo( 'name' ) . ' — ' . home_url(),
+	);
+
+	if ( 'none' === $sender['kind'] ) {
+		$rows[ __( 'From address', 'sendbeam' ) ] = __( 'Your workspace sender — this site has not set one of its own', 'sendbeam' );
+	} else {
+		$rows[ __( 'From name', 'sendbeam' ) ]    = '' !== $from_name ? $from_name : __( 'the workspace sender', 'sendbeam' );
+		$rows[ __( 'From address', 'sendbeam' ) ] = sendbeam_from_address_row( $sender );
+		// So a reader can compare this with the sending-domain row at a
+		// glance: this is the domain that actually authenticated the message.
+		$rows[ __( 'Signed by', 'sendbeam' ) ] = $sender['host'];
+	}
+
+	$rows[ __( 'Sending domain', 'sendbeam' ) ] = sendbeam_sending_domain_row( $sender, $domain );
+	$rows[ __( 'Workspace', 'sendbeam' ) ]      = '' !== (string) $status['workspace']['name'] ? (string) $status['workspace']['name'] : __( 'not reported', 'sendbeam' );
+	$rows[ __( 'Sent', 'sendbeam' ) ]           = wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ) );
+	$rows[ __( 'Plugin', 'sendbeam' ) ]         = 'SendBeam ' . SENDBEAM_VERSION;
+
+	return $rows;
+}
+
+/**
+ * The From address, and what kind of address it is.
+ *
+ * @param array $sender From sendbeam_effective_sender().
+ * @return string
+ */
+function sendbeam_from_address_row( $sender ) {
+	if ( 'own_domain' === $sender['kind'] ) {
+		return $sender['email'];
+	}
+	if ( 'shared' === $sender['kind'] ) {
+		/* translators: %s: the From address */
+		return sprintf( __( '%s — SendBeam\'s shared address, not your domain', 'sendbeam' ), $sender['email'] );
+	}
+	if ( 'other' === $sender['kind'] ) {
+		return sprintf(
+			/* translators: 1: the From address, 2: its domain */
+			__( '%1$s — %2$s is not a domain verified in this workspace', 'sendbeam' ),
+			$sender['email'],
+			$sender['host']
+		);
+	}
+	return __( 'the workspace sender', 'sendbeam' );
+}
+
+/**
+ * The sending domain, and whether this message actually used it.
+ *
+ * @param array $sender From sendbeam_effective_sender().
+ * @param array $domain The domain from the status body.
+ * @return string
+ */
+function sendbeam_sending_domain_row( $sender, $domain ) {
+	$name = (string) $domain['name'];
+	if ( '' === $name ) {
+		return __( 'None set up', 'sendbeam' );
+	}
+	if ( empty( $domain['verified'] ) ) {
+		/* translators: %s: the sending domain */
+		return sprintf( __( '%s — not verified yet', 'sendbeam' ), $name );
+	}
+	if ( 'own_domain' === $sender['kind'] ) {
+		/* translators: %s: the sending domain */
+		return sprintf( __( '%s — verified and in use', 'sendbeam' ), $name );
+	}
+	/* translators: %s: the sending domain */
+	return sprintf( __( '%s — verified, but not in use yet', 'sendbeam' ), $name );
+}
+
+/**
+ * The one line at the top of the test email.
+ *
+ * @param array $sender From sendbeam_effective_sender().
+ * @return string
+ */
+function sendbeam_test_mail_headline( $sender ) {
+	if ( 'own_domain' === $sender['kind'] ) {
+		return sprintf(
+			/* translators: %s: the sending domain */
+			__( 'Your site can send email through SendBeam from %s', 'sendbeam' ),
+			$sender['host']
+		);
+	}
+	if ( 'shared' === $sender['kind'] ) {
+		return __( 'Your site can send email through SendBeam (from the shared address for now)', 'sendbeam' );
+	}
+	return __( 'Your site can send email through SendBeam', 'sendbeam' );
+}
+
+/**
+ * What to do next, when there is something.
+ *
+ * A message that arrives is not the same as a message that arrives from you,
+ * and this is the difference between the two said in one block.
+ *
+ * @param array      $sender From sendbeam_effective_sender().
+ * @param array|null $status Normalised Connect status, for the domain.
+ * @return array{title:string,text:string,label:string,url:string}|null
+ */
+function sendbeam_test_mail_next_step( $sender, $status = null ) {
+	if ( 'own_domain' === $sender['kind'] || 'none' === $sender['kind'] ) {
+		return null;
+	}
+
+	if ( 'other' === $sender['kind'] ) {
+		return array(
+			'title' => __( 'Next step', 'sendbeam' ),
+			'text'  => sprintf(
+				/* translators: %s: the From address's domain */
+				__( '%s is not a domain this workspace has verified, so SendBeam refuses messages from it. Change the From address to one on your verified sending domain, or verify that domain.', 'sendbeam' ),
+				$sender['host']
+			),
+			'label' => __( 'Open Site email', 'sendbeam' ),
+			'url'   => sendbeam_page_url( 'sendbeam-mail' ),
 		);
 	}
 
-	$from_email = '' !== (string) $settings['mail_from_email'] ? (string) $settings['mail_from_email'] : (string) $status['sender']['from_email'];
-	$from_name  = '' !== (string) $settings['mail_from_name'] ? (string) $settings['mail_from_name'] : (string) $status['sender']['from_name'];
+	if ( ! empty( $sender['verified'] ) ) {
+		return array(
+			'title' => __( 'Next step', 'sendbeam' ),
+			'text'  => sprintf(
+				/* translators: %s: the verified sending domain */
+				__( 'Send from your own domain: open Site email in wp-admin and press Send from %s. Mail from your own domain is what mailbox providers trust.', 'sendbeam' ),
+				$sender['domain']
+			),
+			'label' => __( 'Open Site email', 'sendbeam' ),
+			'url'   => sendbeam_page_url( 'sendbeam-mail' ),
+		);
+	}
 
 	return array(
-		__( 'Site', 'sendbeam' )           => get_bloginfo( 'name' ) . ' — ' . home_url(),
-		__( 'From name', 'sendbeam' )      => '' !== $from_name ? $from_name : __( 'the workspace sender', 'sendbeam' ),
-		__( 'From address', 'sendbeam' )   => '' !== $from_email ? $from_email : __( 'the workspace sender', 'sendbeam' ),
-		__( 'Sending domain', 'sendbeam' ) => $domain_line,
-		__( 'Workspace', 'sendbeam' )      => '' !== (string) $status['workspace']['name'] ? (string) $status['workspace']['name'] : __( 'not reported', 'sendbeam' ),
-		__( 'Sent', 'sendbeam' )           => wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ) ),
-		__( 'Plugin', 'sendbeam' )         => 'SendBeam ' . SENDBEAM_VERSION,
+		'title' => __( 'Next step', 'sendbeam' ),
+		'text'  => __( 'Add the DNS records under Settings → Sending domain so SendBeam can send as you. Until then mail goes out from the shared address on your behalf.', 'sendbeam' ),
+		'label' => __( 'Open the sending domain', 'sendbeam' ),
+		'url'   => add_query_arg( 'tab', 'domain', sendbeam_page_url( 'sendbeam-settings' ) ),
 	);
 }
 
@@ -349,67 +475,114 @@ function sendbeam_mail_facts() {
  * colour, which needs no remote request, survives an image-blocking client
  * and cannot be used to tell whether the message was opened.
  *
- * @param array $facts Rows from sendbeam_mail_facts().
+ * Dark mode is declared rather than left to a client's guess. Apple Mail
+ * inverts a message that says nothing, which turns the ink band into paper,
+ * the green check into something unreadable, and every address in the table
+ * into a blue auto-detected link.
+ *
+ * @param array      $facts  Rows from sendbeam_mail_facts().
+ * @param array|null $sender From sendbeam_effective_sender(); derived if omitted.
+ * @param array|null $status Normalised Connect status.
  * @return string
  */
-function sendbeam_test_mail_html( $facts ) {
-	$body = 'margin:0;padding:0;background:#EDEBE6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#121212;';
-	$cell = 'padding:24px 28px;';
+function sendbeam_test_mail_html( $facts, $sender = null, $status = null ) {
+	if ( ! is_array( $sender ) ) {
+		$sender = sendbeam_effective_sender( $status );
+	}
+	$next = sendbeam_test_mail_next_step( $sender, $status );
+
+	$ink   = '#121212';
+	$paper = '#EDEBE6';
+	$rule  = '#e2e0db';
+	$muted = '#5c5c5c';
 
 	$rows = '';
 	foreach ( $facts as $label => $value ) {
 		$rows .= '<tr>'
-			. '<td style="padding:8px 0;border-bottom:1px solid #e2e0db;font-size:13px;color:#5c5c5c;white-space:nowrap;vertical-align:top;">' . esc_html( $label ) . '</td>'
-			. '<td style="padding:8px 0 8px 18px;border-bottom:1px solid #e2e0db;font-size:13px;color:#121212;vertical-align:top;word-break:break-word;">' . esc_html( $value ) . '</td>'
+			. '<td class="sb-k" width="25%" bgcolor="#ffffff" style="padding:8px 0;border-bottom:1px solid ' . $rule . ';font-size:13px;color:' . $muted . ';vertical-align:top;background-color:#ffffff;">' . esc_html( $label ) . '</td>'
+			. '<td class="sb-v" bgcolor="#ffffff" style="padding:8px 0 8px 14px;border-bottom:1px solid ' . $rule . ';font-size:13px;color:' . $ink . ';vertical-align:top;word-break:break-word;overflow-wrap:break-word;background-color:#ffffff;">' . esc_html( $value ) . '</td>'
 			. '</tr>';
 	}
 
-	$log_url = sendbeam_page_url( 'sendbeam-mail' );
+	$step = '';
+	if ( is_array( $next ) ) {
+		$step = '<tr><td class="sb-pad" bgcolor="#FDF6E7" style="padding:20px 28px;background-color:#FDF6E7;border-top:1px solid ' . $ink . ';border-bottom:1px solid ' . $ink . ';">'
+			. '<p style="margin:0 0 8px;font-size:15px;font-weight:700;color:' . $ink . ';">' . esc_html( $next['title'] ) . '</p>'
+			. '<p style="margin:0 0 16px;font-size:14px;line-height:1.5;color:' . $ink . ';">' . esc_html( $next['text'] ) . '</p>'
+			. '<p style="margin:0;"><a href="' . esc_url( $next['url'] ) . '" style="display:inline-block;padding:11px 18px;background-color:#B26B12;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">'
+			. esc_html( $next['label'] ) . '</a></p>'
+			. '</td></tr>';
+	}
+
+	$style = '
+		:root{color-scheme:light dark;supported-color-schemes:light dark}
+		/* Apple Mail turns an address or a domain into a blue link of its own
+		   accord; this puts the table\'s own colour back. */
+		a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important;
+			font-size:inherit!important;font-family:inherit!important;font-weight:inherit!important;line-height:inherit!important}
+		@media only screen and (max-width:620px){.sb-container{width:100%!important}.sb-pad{padding:20px!important}}
+		/* Below 480px the label above its value, because a quarter of 380px is
+		   not enough for "Sending domain" and the URL wrapped mid-word. */
+		@media only screen and (max-width:480px){
+			.sb-k,.sb-v{display:block!important;width:100%!important;border-bottom:0!important;padding-left:0!important}
+			.sb-k{padding-bottom:2px!important}
+			.sb-v{padding-top:0!important;padding-bottom:10px!important;border-bottom:1px solid ' . $rule . '!important}
+		}';
 
 	$html = '<!doctype html><html><head><meta charset="utf-8" />'
 		. '<meta name="viewport" content="width=device-width" />'
+		. '<meta name="color-scheme" content="light dark" />'
+		. '<meta name="supported-color-schemes" content="light dark" />'
 		. '<title>' . esc_html__( 'SendBeam test email', 'sendbeam' ) . '</title>'
-		. '<style>@media only screen and (max-width:620px){.sb-container{width:100%!important}.sb-pad{padding:20px!important}}</style>'
-		. '</head><body style="' . esc_attr( $body ) . '">'
-		. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#EDEBE6;"><tr><td align="center" style="padding:24px 12px;">'
-		. '<table role="presentation" class="sb-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#ffffff;border:1px solid #121212;">'
+		. '<style>' . $style . '</style>'
+		. '</head><body bgcolor="' . $paper . '" style="margin:0;padding:0;background-color:' . $paper . ';color:' . $ink . ';'
+		. 'font-family:-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Roboto,Helvetica,Arial,sans-serif;">'
+		. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="' . $paper . '" style="background-color:' . $paper . ';"><tr><td align="center" style="padding:24px 12px;">'
+		. '<table role="presentation" class="sb-container" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid ' . $ink . ';">'
 
 		// The mark, on the ink band, as three coloured cells.
-		. '<tr><td class="sb-pad" style="' . esc_attr( $cell ) . 'background:#121212;">'
+		. '<tr><td class="sb-pad" bgcolor="' . $ink . '" style="padding:24px 28px;background-color:' . $ink . ';">'
 		. '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
-		. '<td width="14" height="14" style="background:#E2442A;font-size:0;line-height:0;">&nbsp;</td>'
+		. '<td width="14" height="14" bgcolor="#E2442A" style="background-color:#E2442A;font-size:0;line-height:0;">&nbsp;</td>'
 		. '<td width="6" style="font-size:0;line-height:0;">&nbsp;</td>'
-		. '<td width="14" height="14" style="background:#1F3FBF;font-size:0;line-height:0;">&nbsp;</td>'
+		. '<td width="14" height="14" bgcolor="#1F3FBF" style="background-color:#1F3FBF;font-size:0;line-height:0;">&nbsp;</td>'
 		. '<td width="6" style="font-size:0;line-height:0;">&nbsp;</td>'
-		. '<td width="14" height="14" style="background:#3B7D46;font-size:0;line-height:0;">&nbsp;</td>'
-		. '<td style="padding-left:14px;color:#EDEBE6;font-size:17px;font-weight:700;">SendBeam</td>'
+		. '<td width="14" height="14" bgcolor="#3B7D46" style="background-color:#3B7D46;font-size:0;line-height:0;">&nbsp;</td>'
+		. '<td style="padding-left:14px;color:' . $paper . ';font-size:17px;font-weight:700;">SendBeam</td>'
 		. '</tr></table></td></tr>'
 
 		// The verdict.
-		. '<tr><td class="sb-pad" style="' . esc_attr( $cell ) . 'padding-bottom:4px;">'
+		. '<tr><td class="sb-pad" bgcolor="#ffffff" style="padding:24px 28px 4px;background-color:#ffffff;">'
+		// The tick keeps its 26x26 square: in a two-cell row it stretched to
+		// the height of a headline that wraps to three lines on a phone.
 		. '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
-		. '<td width="26" height="26" align="center" style="background:#3B7D46;color:#ffffff;font-size:15px;line-height:26px;">&#10003;</td>'
-		. '<td style="padding-left:12px;font-size:19px;font-weight:700;">' . esc_html__( 'Your site can send email through SendBeam', 'sendbeam' ) . '</td>'
+		. '<td width="26" valign="top" style="width:26px;">'
+		. '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+		. '<td width="26" height="26" align="center" bgcolor="#3B7D46" style="width:26px;height:26px;background-color:#3B7D46;color:#ffffff;font-size:15px;line-height:26px;">&#10003;</td>'
+		. '</tr></table></td>'
+		. '<td valign="top" style="padding-left:12px;font-size:19px;font-weight:700;line-height:1.3;color:' . $ink . ';">' . esc_html( sendbeam_test_mail_headline( $sender ) ) . '</td>'
 		. '</tr></table>'
-		. '<p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#121212;">'
-		. esc_html__( 'This message was sent by your WordPress site, through SendBeam, using the settings below. Nothing else needs doing.', 'sendbeam' )
+		. '<p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:' . $ink . ';">'
+		. esc_html__( 'This message was sent by your WordPress site, through SendBeam, using the settings below.', 'sendbeam' )
 		. '</p></td></tr>'
 
 		// The facts.
-		. '<tr><td class="sb-pad" style="' . esc_attr( $cell ) . 'padding-top:14px;padding-bottom:14px;">'
+		. '<tr><td class="sb-pad" bgcolor="#ffffff" style="padding:14px 28px;background-color:#ffffff;">'
 		. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' . $rows . '</table>'
 		. '</td></tr>'
 
+		. $step
+
 		// What happens now.
-		. '<tr><td class="sb-pad" style="' . esc_attr( $cell ) . 'padding-top:6px;background:#EDEBE6;border-top:1px solid #121212;">'
-		. '<p style="margin:0 0 8px;font-size:15px;font-weight:700;">' . esc_html__( 'What happens now', 'sendbeam' ) . '</p>'
-		. '<p style="margin:0 0 8px;font-size:14px;line-height:1.5;">'
+		. '<tr><td class="sb-pad" bgcolor="' . $paper . '" style="padding:20px 28px;background-color:' . $paper . ';' . ( '' === $step ? 'border-top:1px solid ' . $ink . ';' : '' ) . '">'
+		. '<p style="margin:0 0 8px;font-size:15px;font-weight:700;color:' . $ink . ';">' . esc_html__( 'What happens now', 'sendbeam' ) . '</p>'
+		. '<p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:' . $ink . ';">'
 		. esc_html__( 'Every email this site already sends goes out this way from now on: order confirmations, password resets, and comment and form notifications.', 'sendbeam' )
 		. '</p>'
-		. '<p style="margin:0 0 16px;font-size:14px;line-height:1.5;">'
+		. '<p style="margin:0 0 16px;font-size:14px;line-height:1.5;color:' . $ink . ';">'
 		. esc_html__( 'Each one is recorded in the email log in wp-admin, with whether it was sent, fell back to the server\'s own mailer, or failed.', 'sendbeam' )
 		. '</p>'
-		. '<p style="margin:0;"><a href="' . esc_url( $log_url ) . '" style="display:inline-block;padding:11px 18px;background:#2271b1;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">'
+		. '<p style="margin:0;"><a href="' . esc_url( sendbeam_page_url( 'sendbeam-mail' ) ) . '" style="display:inline-block;padding:11px 18px;background-color:#2271b1;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">'
 		. esc_html__( 'Open the email log', 'sendbeam' ) . '</a></p>'
 		. '</td></tr>'
 
@@ -421,19 +594,34 @@ function sendbeam_test_mail_html( $facts ) {
 /**
  * The same thing in words, for a client that will not render the HTML.
  *
- * @param array $facts Rows from sendbeam_mail_facts().
+ * @param array      $facts  Rows from sendbeam_mail_facts().
+ * @param array|null $sender From sendbeam_effective_sender(); derived if omitted.
+ * @param array|null $status Normalised Connect status.
  * @return string
  */
-function sendbeam_test_mail_text( $facts ) {
+function sendbeam_test_mail_text( $facts, $sender = null, $status = null ) {
+	if ( ! is_array( $sender ) ) {
+		$sender = sendbeam_effective_sender( $status );
+	}
+	$next = sendbeam_test_mail_next_step( $sender, $status );
+
 	$lines = array(
-		__( 'Your site can send email through SendBeam', 'sendbeam' ),
+		sendbeam_test_mail_headline( $sender ),
 		'',
-		__( 'This message was sent by your WordPress site, through SendBeam, using the settings below. Nothing else needs doing.', 'sendbeam' ),
+		__( 'This message was sent by your WordPress site, through SendBeam, using the settings below.', 'sendbeam' ),
 		'',
 	);
 	foreach ( $facts as $label => $value ) {
 		$lines[] = $label . ': ' . $value;
 	}
+
+	if ( is_array( $next ) ) {
+		$lines[] = '';
+		$lines[] = $next['title'];
+		$lines[] = $next['text'];
+		$lines[] = $next['label'] . ': ' . $next['url'];
+	}
+
 	$lines[] = '';
 	$lines[] = __( 'What happens now', 'sendbeam' );
 	$lines[] = __( 'Every email this site already sends goes out this way from now on: order confirmations, password resets, and comment and form notifications.', 'sendbeam' );
@@ -481,9 +669,11 @@ function sendbeam_handle_test_mail() {
 	}
 	check_admin_referer( 'sendbeam_test_mail' );
 
-	$user  = wp_get_current_user();
-	$to    = (string) $user->user_email;
-	$facts = sendbeam_mail_facts();
+	$user   = wp_get_current_user();
+	$to     = (string) $user->user_email;
+	$status = sendbeam_is_connected() ? sendbeam_connect_status() : sendbeam_connect_empty_status();
+	$sender = sendbeam_effective_sender( $status );
+	$facts  = sendbeam_mail_facts( $status );
 
 	if ( ! sendbeam_mail_enabled() ) {
 		$outcome = array(
@@ -502,19 +692,28 @@ function sendbeam_handle_test_mail() {
 		array(
 			'to'      => $to,
 			'subject' => sprintf( /* translators: %s: site name */ __( 'Test email from %s via SendBeam', 'sendbeam' ), get_bloginfo( 'name' ) ),
-			'html'    => sendbeam_test_mail_html( $facts ),
-			'text'    => sendbeam_test_mail_text( $facts ),
+			'html'    => sendbeam_test_mail_html( $facts, $sender, $status ),
+			'text'    => sendbeam_test_mail_text( $facts, $sender, $status ),
 		)
 	);
 
 	sendbeam_mail_log( $to, __( 'Test email', 'sendbeam' ), $result['ok'] ? 'sent' : 'failed', $result['ok'] ? '' : $result['error'] );
 
 	if ( $result['ok'] ) {
+		/*
+		 * Arrived is not the same as arrived from you. A message sent from
+		 * SendBeam's shared address while the site's own domain sits verified
+		 * and unused is a success with something left to do, and the card has
+		 * to say which — WP Mail SMTP words the same case as "might have
+		 * sent, but its deliverability should be improved".
+		 */
 		sendbeam_finish_test_mail(
 			array(
-				'ok' => true,
-				'to' => $to,
-				'at' => time(),
+				'ok'     => true,
+				'to'     => $to,
+				'at'     => time(),
+				'sender' => $sender['kind'],
+				'next'   => sendbeam_test_mail_next_step( $sender, $status ),
 			)
 		);
 	}

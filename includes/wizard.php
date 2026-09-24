@@ -21,6 +21,7 @@ defined( 'ABSPATH' ) || exit;
 
 add_action( 'admin_init', 'sendbeam_maybe_redirect_to_wizard', 9999 );
 add_action( 'admin_post_sendbeam_wizard_step', 'sendbeam_handle_wizard_step' );
+add_action( 'admin_post_sendbeam_wizard_restart', 'sendbeam_handle_wizard_restart' );
 
 /** How long the activation flag lives. Long enough for the next page load, and no longer. */
 const SENDBEAM_WIZARD_FLAG = 'sendbeam_activation_redirect';
@@ -405,4 +406,38 @@ function sendbeam_wizard_step_form() {
 	) . '</p>';
 
 	sendbeam_overview_form_panel( $step, true );
+}
+
+/**
+ * The way back into the guide, once somebody has been through it.
+ *
+ * Every plugin in the field study with a wizard offers one — WooCommerce and
+ * WP Mail SMTP both keep theirs reachable for good — because the first run is
+ * also the best way to check a change, and because somebody setting up a
+ * second site wants the same walk-through on it.
+ *
+ * It resets where *this person* got to and nothing else. `sendbeam_setup_done`
+ * is the site's answer to "has anybody set this up?", which is what keeps the
+ * Dashboard notice away, and re-reading the guide is not un-setting-up a site.
+ *
+ * @return string
+ */
+function sendbeam_wizard_restart_url() {
+	return wp_nonce_url(
+		add_query_arg( 'action', 'sendbeam_wizard_restart', admin_url( 'admin-post.php' ) ),
+		'sendbeam_wizard_restart'
+	);
+}
+
+/** Put this person back at step 1 and open the guide. */
+function sendbeam_handle_wizard_restart() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+	}
+	check_admin_referer( 'sendbeam_wizard_restart' );
+
+	delete_user_meta( get_current_user_id(), SENDBEAM_WIZARD_STEP );
+
+	wp_safe_redirect( sendbeam_wizard_url( 1 ) );
+	exit;
 }

@@ -337,8 +337,22 @@ function sendbeam_admin_css() {
 	/* The DNS records. Values are fields rather than text, so they select on
 	   focus, scroll rather than wrapping, and copy on click. */
 	.sb-dns th{font-size:13px}
-	.sb-dns .sb-copy-field{width:100%;min-width:14ch;font-size:12px;cursor:pointer}
-	.sb-dns__value .sb-copy-field{min-width:26ch}
+	/* Type and Found are as wide as their contents and no wider, so every
+	   pixel left over goes to Value — which is the longest string on the
+	   screen and the one that used to be clipped a character short of its
+	   own end. */
+	.sb-dns th:nth-child(1),.sb-dns td.sb-dns__type{width:5em}
+	.sb-dns th:nth-child(2),.sb-dns td.sb-dns__host{width:30%}
+	.sb-dns th:nth-child(4),.sb-dns td.sb-dns__found{width:9em}
+	.sb-dns td{vertical-align:top}
+
+	/* The field a value is copied out of. Height comes from the line box and
+	   the padding rather than being pinned: a pinned height on a 12px mono
+	   field clips its own descenders, and an underscore in
+	   `resend._domainkey` simply disappeared. */
+	.sendbeam-app .sb-copy-field{display:block;width:100%;min-width:0;font-size:12px;line-height:1.5;
+		height:auto;min-height:0;padding:6px 8px;cursor:pointer;resize:none;overflow:auto;
+		white-space:pre;border:1px solid var(--ink);border-radius:0;background:#fff}
 	.sendbeam-app .sb-copy-field.is-copied{border-color:var(--m);outline:2px solid var(--m);outline-offset:-2px}
 	.sb-dns__found{white-space:nowrap}
 	.sb-verified{margin:0 0 10px;font-weight:600;color:var(--m);display:flex;gap:8px;align-items:center}
@@ -410,6 +424,7 @@ function sendbeam_admin_css() {
 	.sb-result{border:1px solid var(--ink);border-left-width:4px;background:#fff;padding:14px 16px;margin:0 0 16px}
 	.sb-result--ok{border-left-color:var(--m)}
 	.sb-result--bad{border-left-color:var(--v)}
+	.sb-result--warn{border-left-color:var(--a);background:#FDF6E7}
 	.sb-result__title{margin:0 0 8px;font-size:16px;font-weight:700;display:flex;gap:8px;align-items:center}
 	.sb-result p{margin:0 0 10px}
 	.sb-result p:last-child{margin-bottom:0}
@@ -477,11 +492,30 @@ function sendbeam_admin_css() {
 		.sb-doc__row code{flex:1 1 100%}
 		.sb-stats{grid-template-columns:1fr;gap:10px}
 		.sb-stats .sb-fig{font-size:28px}
-		/* A phone gets the records table in full rather than a sideways
-		   scroll: the values live in fields that scroll their own contents
-		   and copy on a tap, so a narrow column loses nothing. */
-		.sb-dns .sb-copy-field,.sb-dns__value .sb-copy-field{min-width:0}
-		.sb-dns th,.sb-dns td{padding-left:6px;padding-right:6px}
+
+		/* The records, stacked. Four columns squeezed into 393px gave the
+		   host and the value about ninety pixels each, which is enough to
+		   read "resend._dc" and nothing else — and reading them is the whole
+		   job on this screen. Each record becomes a block: what it is and
+		   whether it is live on one line, then the host, then the value,
+		   each the full width of the card and each free to wrap. */
+		.sb-dns,.sb-dns thead,.sb-dns tbody,.sb-dns tr,.sb-dns td{display:block;width:auto}
+		.sb-dns thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+		.sb-dns tr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;
+			padding:12px;border-bottom:1px solid var(--ink)}
+		.sb-dns tr:last-child{border-bottom:0}
+		/* The desktop column widths are more specific than the `display:block`
+		   above, so they have to be undone by name or the host field keeps
+		   its 30% and sits at a third of the card. */
+		.sb-dns td,.sb-dns td.sb-dns__type,.sb-dns td.sb-dns__host,
+		.sb-dns td.sb-dns__found{width:auto;padding:0;border:0}
+		.sb-dns td.sb-dns__type{grid-column:1;grid-row:1;font-weight:700;font-size:13px}
+		.sb-dns td.sb-dns__found{grid-column:2;grid-row:1;text-align:right}
+		.sb-dns td.sb-dns__host,.sb-dns td.sb-dns__value{grid-column:1/-1;margin-top:8px}
+		/* The header row is gone, so each field says which one it is. */
+		.sb-dns td.sb-dns__host::before,.sb-dns td.sb-dns__value::before{
+			content:attr(data-label);display:block;font-size:12px;font-weight:600;color:var(--ink-60);margin:0 0 3px}
+		.sendbeam-app .sb-dns .sb-copy-field{white-space:pre-wrap;word-break:break-all;overflow:hidden}
 	}
 	';
 }

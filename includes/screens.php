@@ -562,15 +562,33 @@ function sendbeam_domain_records_table( $records ) {
 
 	foreach ( $records as $i => $record ) {
 		$host = '' !== $record['name'] ? $record['name'] : '@';
-		echo '<tr>';
-		echo '<td class="sb-mono">' . esc_html( $record['type'] ) . '</td>';
+
 		/* translators: %s: a DNS record type, e.g. CNAME */
 		$host_label = sprintf( __( 'Host for the %s record', 'sendbeam' ), $record['type'] );
 		/* translators: %s: a DNS record type, e.g. CNAME */
 		$value_label = sprintf( __( 'Value for the %s record', 'sendbeam' ), $record['type'] );
-		echo '<td>' . sendbeam_copy_field( $host, $host_label, 'sb-dns-host-' . (int) $i ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- every value is escaped inside sendbeam_copy_field().
-		echo '<td class="sb-dns__value">' . sendbeam_copy_field( $record['value'], $value_label, 'sb-dns-value-' . (int) $i ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
-		echo '<td class="sb-dns__found">' . sendbeam_record_verdict( isset( $record['found'] ) ? $record['found'] : null ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped inside sendbeam_record_verdict().
+
+		/*
+		 * Every cell carries the column it belongs to. On a phone the row
+		 * becomes a block and those labels are the only thing left saying
+		 * which field is the host and which is the value — the header row is
+		 * gone by then.
+		 */
+		echo '<tr>';
+		printf(
+			'<td class="sb-dns__type sb-mono" data-label="%1$s">%2$s</td>',
+			esc_attr__( 'Type', 'sendbeam' ),
+			esc_html( $record['type'] )
+		);
+		printf( '<td class="sb-dns__host" data-label="%s">', esc_attr__( 'Host', 'sendbeam' ) );
+		echo sendbeam_copy_field( $host, $host_label, 'sb-dns-host-' . (int) $i ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- every value is escaped inside sendbeam_copy_field().
+		echo '</td>';
+		printf( '<td class="sb-dns__value" data-label="%s">', esc_attr__( 'Value', 'sendbeam' ) );
+		echo sendbeam_copy_field( $record['value'], $value_label, 'sb-dns-value-' . (int) $i ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- as above.
+		echo '</td>';
+		printf( '<td class="sb-dns__found" data-label="%s">', esc_attr__( 'Found', 'sendbeam' ) );
+		echo sendbeam_record_verdict( isset( $record['found'] ) ? $record['found'] : null ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped inside sendbeam_record_verdict().
+		echo '</td>';
 		echo '</tr>';
 	}
 	echo '</tbody></table></div>';
@@ -580,11 +598,14 @@ function sendbeam_domain_records_table( $records ) {
 /**
  * A value somebody has to retype into a registrar, made not-retypeable.
  *
- * A read-only input rather than a `<code>` block: it selects on focus, it
- * scrolls rather than wrapping a 200-character key across four lines, and it
- * is reachable with a keyboard. Clicking it copies; the label says so, and
- * the confirmation replaces the label rather than appearing somewhere else on
- * the page.
+ * A read-only field rather than a `<code>` block: it selects on focus, it is
+ * reachable with a keyboard, and clicking it copies.
+ *
+ * A textarea rather than an `<input>`, for one reason: an input cannot wrap.
+ * On a phone the value column is about ninety pixels wide, and a DKIM host in
+ * a ninety-pixel input reads "resend._dc" — copyable and completely
+ * unreadable, which is the thing somebody checking their DNS most needs to be
+ * able to do. A textarea wraps the whole value onto as many lines as it takes.
  *
  * @param string $value The thing to copy.
  * @param string $label What it is, for screen readers.
@@ -594,13 +615,15 @@ function sendbeam_domain_records_table( $records ) {
 function sendbeam_copy_field( $value, $label, $id ) {
 	return sprintf(
 		'<label class="screen-reader-text" for="%1$s">%2$s</label>' .
-		'<input type="text" class="sb-copy-field sb-copy" id="%1$s" value="%3$s" readonly ' .
-		'data-copy="%3$s" data-done="%4$s" title="%5$s" spellcheck="false" />',
+		'<textarea class="sb-copy-field sb-copy" id="%1$s" rows="1" readonly ' .
+		'data-copy="%3$s" data-done="%4$s" title="%5$s" spellcheck="false" ' .
+		'autocapitalize="off" autocorrect="off">%6$s</textarea>',
 		esc_attr( $id ),
 		esc_html( $label ),
 		esc_attr( $value ),
 		esc_attr__( 'Copied', 'sendbeam' ),
-		esc_attr__( 'Click to copy', 'sendbeam' )
+		esc_attr__( 'Click to copy', 'sendbeam' ),
+		esc_textarea( $value )
 	);
 }
 
@@ -895,21 +918,27 @@ function sendbeam_connect_pasted_panel( $status ) {
 		echo '<p class="sb-msg sb-msg--warn">' . esc_html( $connection['message'] ) . '</p>';
 	}
 
+	/*
+	 * Connecting is the offer, not a correction. "Connect properly instead"
+	 * and "Change the key" both read as though the owner had done something
+	 * wrong by pasting one — which is a perfectly reasonable way to set this
+	 * up and the way the plugin worked for eight versions.
+	 */
 	echo '<div class="sb-actions">';
+	if ( ! sendbeam_key_in_config() ) {
+		printf(
+			'<a class="sb-btn sb-btn--small sb-btn--primary" href="%s">%s</a>',
+			esc_url( sendbeam_connect_start_url( true ) ),
+			esc_html__( 'Connect this site', 'sendbeam' )
+		);
+	}
 	printf(
 		'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a>',
 		esc_url( add_query_arg( 'tab', 'advanced', sendbeam_page_url( 'sendbeam-settings' ) ) ),
-		esc_html__( 'Change the key', 'sendbeam' )
+		esc_html__( 'Replace the key', 'sendbeam' )
 	);
-	if ( ! sendbeam_key_in_config() ) {
-		printf(
-			'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a>',
-			esc_url( sendbeam_connect_start_url( true ) ),
-			esc_html__( 'Connect properly instead', 'sendbeam' )
-		);
-	}
 	echo '</div>';
-	echo '<p class="sb-note">' . esc_html__( 'Connecting replaces the pasted key with one SendBeam issues for this site, and tells the plugin which permissions it has — which is what lets the sending domain, the form list and the checklist say anything useful.', 'sendbeam' ) . '</p>';
+	echo '<p class="sb-note">' . esc_html__( 'Connecting gives this site its own key from SendBeam and tells the plugin which permissions it has, which is what lets the sending domain, the form list and the checklist say anything useful.', 'sendbeam' ) . '</p>';
 }
 
 /**
@@ -1496,6 +1525,27 @@ function sendbeam_test_mail_success( $result ) {
 	) . '</p>';
 	echo '<p class="sb-note">' . esc_html__( 'The message names the sending domain, the From address and the workspace it went through, so it is worth keeping. If it is not there in a minute, look in the spam folder — and then in the log below, which says whether SendBeam accepted it.', 'sendbeam' ) . '</p>';
 	echo '</div>';
+
+	/*
+	 * Sent is not the same as sent from you. A message that went out on
+	 * SendBeam's shared address while this site's own domain sits verified
+	 * and unused arrived — and is not yet doing the thing the domain was set
+	 * up for, which is the difference between a mailbox provider trusting it
+	 * and tolerating it.
+	 */
+	if ( ! empty( $result['next'] ) && is_array( $result['next'] ) ) {
+		$next = $result['next'];
+		echo '<div class="sb-result sb-result--warn">';
+		echo '<p class="sb-result__title">' . esc_html( (string) $next['title'] ) . '</p>';
+		echo '<p>' . esc_html( (string) $next['text'] ) . '</p>';
+		printf(
+			'<p style="margin-bottom:0"><a class="sb-btn sb-btn--small sb-btn--ghost" href="%s">%s</a></p>',
+			esc_url( (string) $next['url'] ),
+			esc_html( (string) $next['label'] )
+		);
+		echo '</div>';
+	}
+
 	sendbeam_test_mail_form( __( 'Send another', 'sendbeam' ) );
 }
 
@@ -1809,11 +1859,31 @@ function sendbeam_doc_snippet( $code, $what ) {
  */
 function sendbeam_screen_help() {
 	sendbeam_help_documentation_card();
+	sendbeam_help_setup_again_card();
 	sendbeam_help_status_card();
 	sendbeam_help_support_card();
 	sendbeam_help_shortcodes_card();
 	sendbeam_help_permissions_card();
 	sendbeam_help_developers_card();
+}
+
+/**
+ * The way back into the four-step guide.
+ *
+ * Every plugin in the field study that has a wizard keeps one reachable, and
+ * for the same two reasons: the first run is the quickest way to check a
+ * change, and somebody setting up their second site wants the same
+ * walk-through on it. It resets where this person got to and nothing else.
+ */
+function sendbeam_help_setup_again_card() {
+	sendbeam_card_open( __( 'Set up SendBeam again', 'sendbeam' ) );
+	echo '<p style="margin-top:0">' . esc_html__( 'The four-step guide a new site sees once: connect, verify the sending domain, switch on site email, place a form. Nothing is undone by opening it — it walks through what is already set up and shows you what is not.', 'sendbeam' ) . '</p>';
+	printf(
+		'<p style="margin-bottom:0"><a class="sb-btn sb-btn--ghost" href="%s">%s</a></p>',
+		esc_url( sendbeam_wizard_restart_url() ),
+		esc_html__( 'Run the setup guide again', 'sendbeam' )
+	);
+	sendbeam_card_close();
 }
 
 /**

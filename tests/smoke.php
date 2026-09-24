@@ -684,6 +684,20 @@ has( $panel, '<th scope="col">Found</th>', 'domain: and the check\'s verdict per
 lacks( $panel, 'Priority', 'domain: every record is a CNAME, so nothing asks for a priority' );
 has( $panel, 'class="sb-copy-field sb-copy"', 'domain: each value is a field that copies when it is clicked' );
 has( $panel, 'readonly', 'domain: and cannot be edited into something wrong' );
+/*
+ * A textarea, not an input. An input cannot wrap, and at 393px the value
+ * column is about ninety pixels wide — enough to read "resend._dc" and
+ * nothing else, on the one screen whose whole job is reading these.
+ */
+has( $panel, '<textarea class="sb-copy-field sb-copy"', 'domain: the field is a textarea, so a long value can wrap instead of being cut off' );
+has( $panel, '>sb1.dkim.sendbeam.io</textarea>', 'domain: with the value as its content' );
+lacks( $panel, '<input type="text" class="sb-copy-field', 'domain: and not an input, which cannot wrap at any width' );
+
+// The header row disappears on a phone, so each cell says which column it is.
+has( $panel, 'class="sb-dns__type sb-mono" data-label="Type"', 'domain: the type cell knows its column' );
+has( $panel, 'class="sb-dns__host" data-label="Host"', 'domain: and the host cell' );
+has( $panel, 'class="sb-dns__value" data-label="Value"', 'domain: and the value cell' );
+has( $panel, 'class="sb-dns__found" data-label="Found"', 'domain: and the verdict cell' );
 has( $panel, 'title="Click to copy"', 'domain: the field says what clicking it does' );
 has( $panel, 'data-done="Copied"', 'domain: and what it did' );
 has( $panel, 'sb1.dkim.sendbeam.io', 'domain: the value a registrar needs is on the screen' );
@@ -723,32 +737,145 @@ sendbeam_connect_cache_status(
 	)
 );
 
-$facts = sendbeam_mail_facts();
-$mail_html = sendbeam_test_mail_html( $facts );
-$mail_text = sendbeam_test_mail_text( $facts );
-has( $mail_html, '<!doctype html>', 'test email: it is a real HTML document' );
-has( $mail_html, '<table', 'test email: laid out in tables, which is the only layout email clients agree on' );
-has( $mail_html, 'width="600"', 'test email: 600px, the width every client renders' );
-has( $mail_html, '@media only screen and (max-width:620px)', 'test email: and it collapses on a phone' );
-has( $mail_html, 'Your site can send email through SendBeam', 'test email: the verdict is the first thing in it' );
-has( $mail_html, '#3B7D46', 'test email: with a green tick, not a wall of text' );
-has( $mail_html, 'hello@harbourlane.co.uk', 'test email: it names the From address the site actually used' );
-has( $mail_html, 'Harbour Lane Roasters', 'test email: and the From name' );
-has( $mail_html, 'harbourlane.co.uk — verified', 'test email: and whether the sending domain is verified' );
-has( $mail_html, 'Harbour Lane', 'test email: and the workspace it went through' );
-has( $mail_html, 'SendBeam ' . SENDBEAM_VERSION, 'test email: and which version of the plugin sent it' );
-has( $mail_html, 'Example Site', 'test email: and which site' );
-has( $mail_html, 'What happens now', 'test email: it says what this changes' );
-has( $mail_html, 'password resets', 'test email: and names the email that will now go this way' );
-has( $mail_html, 'page=sendbeam-mail', 'test email: the one link is the email log' );
-has( $mail_html, 'Open the email log', 'test email: and it says so' );
-lacks( $mail_html, '<img', 'test email: no images, so nothing is blocked and nothing tracks an open' );
-lacks( $mail_html, 'Upgrade', 'test email: no upsell' );
+/**
+ * Render the test email for one set of settings, and hand back both halves
+ * plus the classification it was built from.
+ */
+function sb_testmail( $from_email, $verified = true ) {
+	$status = sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => $verified, 'records' => array() ),
+			'sender'    => array( 'from_name' => 'Harbour Lane Roasters', 'from_email' => 'ws-f7485df7@post.sendbeam.io' ),
+		)
+	);
+	update_option(
+		'sendbeam_settings',
+		array(
+			'api_key'         => 'sb_live_testmailtestmailxx',
+			'mail_enabled'    => 1,
+			'mail_from_name'  => 'Harbour Lane Roasters',
+			'mail_from_email' => $from_email,
+		)
+	);
+	sendbeam_connect_cache_status( $status );
+	$sender = sendbeam_effective_sender( $status );
+	$facts  = sendbeam_mail_facts( $status );
+	return array(
+		'kind' => $sender['kind'],
+		'html' => sendbeam_test_mail_html( $facts, $sender, $status ),
+		'text' => sendbeam_test_mail_text( $facts, $sender, $status ),
+		'next' => sendbeam_test_mail_next_step( $sender, $status ),
+	);
+}
 
-has( $mail_text, 'Your site can send email through SendBeam', 'test email: the plain-text alternative says the same thing' );
-has( $mail_text, 'hello@harbourlane.co.uk', 'test email: and carries the same facts' );
-has( $mail_text, 'page=sendbeam-mail', 'test email: and the same link' );
-lacks( $mail_text, '<', 'test email: the plain-text alternative has no markup in it' );
+/* ── own_domain: the only case where nothing is left to do ── */
+$m = sb_testmail( 'hello@harbourlane.co.uk' );
+ok( 'own_domain' === $m['kind'], 'test email: an address on the verified domain is the site\'s own' );
+has( $m['html'], 'Your site can send email through SendBeam from harbourlane.co.uk', 'test email: the headline names the domain it came from' );
+has( $m['html'], 'harbourlane.co.uk — verified and in use', 'test email: and the domain row says it is actually being used' );
+has( $m['html'], 'Signed by', 'test email: there is a row for the domain that authenticated the message' );
+lacks( $m['html'], 'Next step', 'test email: with nothing left to do, nothing is suggested' );
+ok( null === $m['next'], 'test email: and no next step is generated' );
+
+/* ── shared, verified domain: the case the owner caught ── */
+$m = sb_testmail( 'ws-f7485df7@post.sendbeam.io' );
+ok( 'shared' === $m['kind'], 'test email: the workspace default is SendBeam\'s shared address' );
+has( $m['html'], 'Your site can send email through SendBeam (from the shared address for now)', 'test email: the headline says which address it came from' );
+has( $m['html'], 'ws-f7485df7@post.sendbeam.io — SendBeam&#039;s shared address, not your domain', 'test email: the From row says what kind of address it is' );
+has( $m['html'], 'harbourlane.co.uk — verified, but not in use yet', 'test email: and the domain row no longer implies it was used' );
+lacks( $m['html'], 'harbourlane.co.uk — verified<', 'test email: the bare "verified" that read as "and in use" is gone' );
+has( $m['html'], 'Next step', 'test email: there is a next step' );
+has( $m['html'], 'press Send from harbourlane.co.uk', 'test email: which names the button that fixes it' );
+has( $m['html'], 'what mailbox providers trust', 'test email: and says why it is worth doing' );
+has( $m['html'], 'page=sendbeam-mail', 'test email: with a link straight to the screen' );
+ok( strpos( $m['html'], 'Next step' ) < strpos( $m['html'], 'What happens now' ), 'test email: and it comes before the general explanation' );
+// The rows a reader compares at a glance.
+$sb_from_at   = strpos( $m['html'], 'SendBeam&#039;s shared address, not your domain' );
+$sb_signed_at = strpos( $m['html'], 'post.sendbeam.io</td>' );
+ok( false !== $sb_signed_at, 'test email: "Signed by" reports the domain that actually authenticated it' );
+
+/* ── shared, unverified domain ── */
+$m = sb_testmail( 'ws-f7485df7@post.sendbeam.io', false );
+has( $m['html'], 'harbourlane.co.uk — not verified yet', 'test email: an unverified domain says so' );
+has( $m['html'], 'Add the DNS records under Settings', 'test email: and the next step is to add them' );
+has( $m['html'], 'tab=domain', 'test email: linking to the sending domain screen' );
+has( $m['html'], 'on your behalf', 'test email: saying plainly what is happening meanwhile' );
+
+/* ── other: a domain nothing has verified ── */
+$m = sb_testmail( 'hello@somewhere-else.test' );
+ok( 'other' === $m['kind'], 'test email: an address elsewhere is neither' );
+has( $m['html'], 'somewhere-else.test is not a domain verified in this workspace', 'test email: the From row says so' );
+has( $m['html'], 'SendBeam refuses messages from it', 'test email: and the next step says what happens to those messages' );
+
+/* ── none: nothing to report ── */
+$m = sb_testmail( '' );
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_testmailtestmailxx', 'mail_enabled' => 1 ) );
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ),
+		)
+	)
+);
+$sb_none_status = sendbeam_connect_status();
+$sb_none_sender = sendbeam_effective_sender( $sb_none_status );
+ok( 'none' === $sb_none_sender['kind'], 'test email: a site with no sender at all is classified as none' );
+$sb_none_html = sendbeam_test_mail_html( sendbeam_mail_facts( $sb_none_status ), $sb_none_sender, $sb_none_status );
+has( $sb_none_html, 'Your workspace sender', 'test email: which says the workspace sender will be used' );
+lacks( $sb_none_html, 'Signed by', 'test email: and omits the rows it cannot fill in' );
+lacks( $sb_none_html, 'Next step', 'test email: with nothing to suggest' );
+
+/* ── The shape of the message, whatever it says ── */
+$m = sb_testmail( 'hello@harbourlane.co.uk' );
+has( $m['html'], '<!doctype html>', 'test email: it is a real HTML document' );
+has( $m['html'], '<table', 'test email: laid out in tables, which is the only layout email clients agree on' );
+has( $m['html'], 'width="600"', 'test email: 600px, the width every client renders' );
+has( $m['html'], '@media only screen and (max-width:620px)', 'test email: and it collapses on a phone' );
+has( $m['html'], '@media only screen and (max-width:480px)', 'test email: with the label above its value where a quarter of the width is not enough' );
+has( $m['html'], 'word-break:break-word', 'test email: so a site URL breaks where it can rather than mid-word' );
+has( $m['html'], 'name="color-scheme" content="light dark"', 'test email: dark mode is declared rather than left to the client to guess at' );
+has( $m['html'], 'name="supported-color-schemes"', 'test email: in both of the ways Apple Mail reads' );
+has( $m['html'], 'a[x-apple-data-detectors]', 'test email: and an address is not turned into a blue link of the client\'s own invention' );
+has( $m['html'], 'bgcolor="#ffffff"', 'test email: every cell states its own background, so inverting the message does not swallow it' );
+has( $m['html'], '#3B7D46', 'test email: the green tick' );
+has( $m['html'], 'Harbour Lane Roasters', 'test email: the From name' );
+has( $m['html'], 'SendBeam ' . SENDBEAM_VERSION, 'test email: and which version of the plugin sent it' );
+has( $m['html'], 'Example Site', 'test email: and which site' );
+has( $m['html'], 'What happens now', 'test email: it says what this changes' );
+has( $m['html'], 'password resets', 'test email: and names the email that will now go this way' );
+has( $m['html'], 'Open the email log', 'test email: with a link to the log' );
+lacks( $m['html'], '<img', 'test email: no images, so nothing is blocked and nothing tracks an open' );
+lacks( $m['html'], 'Upgrade', 'test email: no upsell' );
+
+has( $m['text'], 'Your site can send email through SendBeam from harbourlane.co.uk', 'test email: the plain-text alternative says the same thing' );
+has( $m['text'], 'hello@harbourlane.co.uk', 'test email: and carries the same facts' );
+has( $m['text'], 'page=sendbeam-mail', 'test email: and the same link' );
+lacks( $m['text'], '<', 'test email: the plain-text alternative has no markup in it' );
+
+$m = sb_testmail( 'ws-f7485df7@post.sendbeam.io' );
+has( $m['text'], 'Next step', 'test email: the plain-text alternative carries the next step too' );
+has( $m['text'], 'Open Site email: ', 'test email: with the link written out' );
+
+update_option(
+	'sendbeam_settings',
+	array(
+		'api_key'         => 'sb_live_testmailtestmailxx',
+		'mail_enabled'    => 1,
+		'mail_from_name'  => 'Harbour Lane Roasters',
+		'mail_from_email' => 'hello@harbourlane.co.uk',
+	)
+);
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => $sb_records_some ),
+			'sender'    => array( 'from_name' => 'Harbour Lane Roasters', 'from_email' => 'hello@harbourlane.co.uk' ),
+		)
+	)
+);
 
 /** Press the button and take the result the screen would render. */
 function sb_send_test() {
@@ -777,6 +904,34 @@ $card = ob_get_clean();
 has( $card, 'sb-result--ok', 'test email: success renders a success card' );
 has( $card, 'Sent to admin@example-site.test — open your inbox to see it.', 'test email: which says where it went and what to do next' );
 has( $card, 'Send another', 'test email: and offers to do it again' );
+
+/*
+ * Sent is not the same as sent from you. The card has to say which, or the
+ * screen repeats the contradiction the email used to carry.
+ */
+foreach ( array(
+	'hello@harbourlane.co.uk'      => array( false, 'own_domain' ),
+	'ws-f7485df7@post.sendbeam.io' => array( true, 'shared' ),
+	'hello@somewhere-else.test'    => array( true, 'other' ),
+) as $sb_from => $sb_expect ) {
+	list( $sb_wants_note, $sb_kind ) = $sb_expect;
+	sb_testmail( $sb_from );
+	$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{"ok":true}' );
+	$sb_sent                         = sb_send_test();
+	ok( ! empty( $sb_sent['ok'] ), "result card: a send from $sb_kind succeeds" );
+	ok( $sb_kind === $sb_sent['sender'], "result card: and the result records it as $sb_kind" );
+	ob_start();
+	sendbeam_test_mail_success( $sb_sent );
+	$sb_card = ob_get_clean();
+	if ( $sb_wants_note ) {
+		has( $sb_card, 'sb-result--warn', "result card: $sb_kind gets an amber note beside the success" );
+		has( $sb_card, 'Next step', "result card: saying what is left to do for $sb_kind" );
+		has( $sb_card, 'sb-btn', "result card: with a way through to the screen that fixes it" );
+	} else {
+		lacks( $sb_card, 'sb-result--warn', 'result card: own_domain has nothing left to do, so nothing is added' );
+		lacks( $sb_card, 'Next step', 'result card: and no next step is offered' );
+	}
+}
 
 // A failure explains itself, and hands over everything support would ask for.
 $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 403 ), 'body' => '{"error":"domain not verified"}' );
@@ -942,6 +1097,87 @@ update_option( 'sendbeam_settings', array() );
 sendbeam_flush_cache();
 $GLOBALS['stub']['remote_reply'] = null;
 unset( $GLOBALS['stub']['screen'] );
+
+/*
+ * A site connected with a pasted key is offered Connect, not corrected for
+ * having pasted one. "Connect properly instead" read as a telling-off for
+ * the way the plugin worked for eight versions.
+ */
+$GLOBALS['stub']['remote_reply'] = array(
+	'response' => array( 'code' => 200 ),
+	'body'     => wp_json_encode( array( 'forms' => array() ) ),
+);
+$GLOBALS['stub']['user_id']                = 7;
+$GLOBALS['stub']['caps']['manage_options'] = true;
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_pastedkeypastedkey' ) );
+sendbeam_flush_cache();
+sendbeam_connect_cache_status( sendbeam_connect_normalise_status( array( 'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ) ) ) );
+
+ob_start();
+sendbeam_connect_pasted_panel( sendbeam_connect_status() );
+$sendbeam_pasted = ob_get_clean();
+has( $sendbeam_pasted, 'Connect this site', 'pasted key: the offer is to connect this site' );
+has( $sendbeam_pasted, 'sb-btn--primary', 'pasted key: and it is the primary action on the card' );
+has( $sendbeam_pasted, 'Replace the key', 'pasted key: changing the key is the quieter one' );
+lacks( $sendbeam_pasted, 'Connect properly instead', 'pasted key: nothing suggests they did it improperly' );
+lacks( $sendbeam_pasted, 'Change the key', 'pasted key: nor that a key needs changing' );
+has( $sendbeam_pasted, 'Connecting gives this site its own key from SendBeam', 'pasted key: the sentence says what connecting gives, not what it replaces' );
+ok(
+	strpos( $sendbeam_pasted, 'Connect this site' ) < strpos( $sendbeam_pasted, 'Replace the key' ),
+	'pasted key: and the offer comes first'
+);
+
+/*
+ * The way back into the guide. Every plugin in the field study with a wizard
+ * keeps one, and the owner needs it to test a change.
+ */
+$sendbeam_restart = sendbeam_wizard_restart_url();
+has( $sendbeam_restart, 'action=sendbeam_wizard_restart', 'help: there is a way back into the setup guide' );
+has( $sendbeam_restart, '_wpnonce=', 'help: with a nonce' );
+
+$_GET = array( 'page' => 'sendbeam-help' );
+ob_start();
+sendbeam_render_admin_page();
+$sendbeam_help = ob_get_clean();
+$_GET = array();
+has( $sendbeam_help, 'Run the setup guide again', 'help: and the Help page offers it' );
+has( $sendbeam_help, 'action=sendbeam_wizard_restart', 'help: pointing at the handler' );
+has( $sendbeam_help, 'Nothing is undone by opening it', 'help: saying plainly that it changes nothing' );
+
+// It puts this person back at step 1, and leaves the site's own answer alone.
+update_option( 'sendbeam_setup_done', 1 );
+update_user_meta( 7, SENDBEAM_WIZARD_STEP, 3 );
+$_GET     = array( '_wpnonce' => 'nonce:sendbeam_wizard_restart' );
+$_REQUEST = $_GET;
+unset( $GLOBALS['stub']['redirect'] );
+try {
+	sendbeam_handle_wizard_restart();
+} catch ( SendBeamStubExit $e ) {
+	unset( $e );
+}
+$_GET     = array();
+$_REQUEST = array();
+has( $GLOBALS['stub']['redirect']['url'], 'page=sendbeam-setup&step=1', 'help: running it again opens the guide at step 1' );
+ok( '' === get_user_meta( 7, SENDBEAM_WIZARD_STEP, true ), 'help: having forgotten where this person got to' );
+ok( sendbeam_wizard_done(), 'help: and without un-setting-up the site, which is what keeps the Dashboard notice away' );
+
+// Without the nonce, nothing moves.
+update_user_meta( 7, SENDBEAM_WIZARD_STEP, 3 );
+$threw = false;
+try {
+	sendbeam_handle_wizard_restart();
+} catch ( SendBeamStubExit $e ) {
+	$threw = true;
+}
+ok( $threw, 'help: running it again without a nonce is refused' );
+ok( 3 === (int) get_user_meta( 7, SENDBEAM_WIZARD_STEP, true ), 'help: and nothing was reset' );
+
+delete_option( 'sendbeam_setup_done' );
+delete_user_meta( 7, SENDBEAM_WIZARD_STEP );
+update_option( 'sendbeam_settings', array() );
+$GLOBALS['stub']['remote_reply'] = null;
+sendbeam_flush_cache();
+sendbeam_connect_forget_status();
 
 /* ─────────────────────────── The setup wizard ──────────────────────────
  * One redirect, once, guarded three ways, into a page that can be left from
@@ -2966,6 +3202,26 @@ has( $sendbeam_css, 'outline:2px solid var(--brand)', 'design: and focus is the 
 has( $sendbeam_css, '.sendbeam-app .form-table th{font-size:13px', 'design: even core\'s two-column form table is stacked label-above' );
 has( $sendbeam_css, '.sb-scroll{overflow-x:auto', 'design: a table that will not fit scrolls inside its own box' );
 has( $sendbeam_css, '@media (max-width:782px)', 'design: and the whole thing has a phone layout' );
+
+/*
+ * The copy field's height comes from its line box, not from a pinned one: a
+ * pinned height on a 12px mono field clips its own descenders, and the
+ * underscore in `resend._domainkey` simply vanished.
+ */
+has( $sendbeam_css, '.sendbeam-app .sb-copy-field{display:block;width:100%;min-width:0;font-size:12px;line-height:1.5;', 'design: a copy field is a readable 12px with room for its own descenders' );
+has( $sendbeam_css, 'height:auto;min-height:0;padding:6px 8px', 'design: and its height comes from its content, not from a pinned one that clips an underscore' );
+
+// On a phone each record is a block, not four columns in 393px.
+has( $sendbeam_css, '.sb-dns,.sb-dns thead,.sb-dns tbody,.sb-dns tr,.sb-dns td{display:block', 'design: the records table stops being a table on a phone' );
+has( $sendbeam_css, '.sb-dns td.sb-dns__host,.sb-dns td.sb-dns__value{grid-column:1/-1', 'design: where the host and the value each get the full width' );
+// The desktop column widths are more specific than display:block, so they
+// have to be undone by name or the host stays at a third of the card.
+has( $sendbeam_css, '.sb-dns td,.sb-dns td.sb-dns__type,.sb-dns td.sb-dns__host,', 'design: and the desktop column widths are undone by name, not left to lose a specificity fight' );
+has( $sendbeam_css, 'content:attr(data-label)', 'design: and carry their column name, because the header row has gone' );
+has( $sendbeam_css, 'word-break:break-all', 'design: a value too long for the line wraps rather than being cut off' );
+// Desktop keeps the row, with the room going to the column that needs it.
+has( $sendbeam_css, '.sb-dns th:nth-child(2),.sb-dns td.sb-dns__host{width:30%}', 'design: on desktop the host column is pinned' );
+has( $sendbeam_css, '.sb-dns th:nth-child(4),.sb-dns td.sb-dns__found{width:9em}', 'design: so is the verdict, and everything left over goes to the value' );
 
 // Every screen's markup: no core primary button, no leftover uppercase class.
 $GLOBALS['stub']['caps']['manage_options'] = true;

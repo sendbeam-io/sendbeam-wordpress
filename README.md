@@ -98,10 +98,16 @@ out the address the next message would use and classifies it — `own_domain`, `
 the Overview's connection line, the site-email step and Site Health all read it. Where the domain is verified
 and the address is still the shared one, the step says so and offers one press to move it.
 
+**SendBeam → Help → Run the setup guide again** puts the current user back at step 1 of the wizard without
+touching `sendbeam_setup_done`, which is the site's own answer to whether anybody has set it up.
+
 ## Diagnosing a site
 
-**SendBeam → Site email → Send a test email** sends a real, designed message carrying the From name and
-address used, the sending domain and whether it is verified, the workspace, the plugin version and the time.
+**SendBeam → Site email → Send a test email** sends a real, designed message built from the same
+`sendbeam_effective_sender()` answer the Overview uses: the headline says which address it came from, a
+**Signed by** row names the domain that authenticated it, and the sending-domain row distinguishes "verified
+and in use" from "verified, but not in use yet". Where something is left to do it carries a **Next step**
+block with the button that does it, and the in-page result mirrors that with an amber note.
 The result replaces the form in the page: a success card, or a failure card saying what went wrong, what it
 means, what to do about it, and a **Details for support** block captured at the moment of failure — versions,
 where the key is kept (never the key), the domain state, the HTTP status and the raw error — that copies in
