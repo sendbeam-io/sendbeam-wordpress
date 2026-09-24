@@ -3009,6 +3009,14 @@ $sb_done['mail_enabled'] = 1;
 $sb_done['default_form'] = $form;
 update_option( 'sendbeam_form_placed', 1, false );
 
+update_option(
+	'sendbeam_mail_log',
+	array(
+		array( 'at' => 1758700000, 'to' => 'ada@customer.test', 'subject' => 'Order #1001', 'result' => 'sent', 'note' => '' ),
+		array( 'at' => 1758600000, 'to' => 'bob@customer.test', 'subject' => 'Password reset', 'result' => 'failed', 'note' => 'refused' ),
+	)
+);
+
 $ov = sb_overview( $sb_done, $sb_verified );
 has( $ov, '<h2>Connection</h2>', 'overview: the connection is a card of its own, above the checklist' );
 has( $ov, 'Connected to Harbour Lane', 'overview: which names the workspace' );
@@ -3016,6 +3024,20 @@ has( $ov, 'Sends as', 'overview: and the address this site sends from' );
 has( $ov, 'Reconnect', 'overview: with Reconnect' );
 has( $ov, 'Disconnect', 'overview: and Disconnect' );
 has( $ov, 'Open SendBeam', 'overview: and a way through to SendBeam itself' );
+has( $ov, 'class="sb-card__action"', 'overview: whose one secondary action sits in the card header, not adrift in its body' );
+
+// The workspace figures read across, not down a column with a blank card
+// under them.
+has( $ov, '<div class="sb-stats">', 'overview: the three figures are a row' );
+ok( 3 === substr_count( $ov, '<span class="sb-fig">' ), 'overview: three of them' );
+has( $ov, 'Subscribers counts people, not list memberships. Cached for five minutes.', 'overview: with one muted line explaining what a subscriber is' );
+
+// And the card earns its height with what this site has actually done.
+has( $ov, 'Recent site email', 'overview: the workspace card shows what this site has been sending' );
+has( $ov, 'sb-recent__when', 'overview: with a date per row' );
+has( $ov, 'sb-recent__who', 'overview: who it went to' );
+has( $ov, 'sb-recent__what', 'overview: and how it went' );
+has( $ov, 'View the log', 'overview: and a way through to the whole log' );
 ok( strpos( $ov, '<h2>Connection</h2>' ) < strpos( $ov, '<h2>Setup</h2>' ), 'overview: the connection comes before the checklist' );
 ok( 1 === substr_count( $ov, 'value="sendbeam_disconnect"' ), 'overview: and there is exactly one Disconnect on the screen' );
 
@@ -3058,6 +3080,10 @@ ok( ! sendbeam_checklist_hidden(), 'overview: and can be undone' );
 $_GET     = array();
 $_REQUEST = array();
 delete_option( 'sendbeam_form_placed' );
+
+// With nothing sent yet the card says so rather than showing an empty list.
+update_option( 'sendbeam_mail_log', array() );
+has( sb_overview( $sb_done, $sb_verified ), 'Nothing has gone out through SendBeam from this site yet', 'overview: a site that has sent nothing is told so, not shown an empty list' );
 
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor

@@ -149,15 +149,21 @@ function sendbeam_notice( $message, $type = 'info', $dismissible = true ) {
 /**
  * Open a card.
  *
- * @param string $title Card heading.
- * @param string $note  Optional muted note on the right.
+ * @param string $title  Card heading.
+ * @param string $note   Optional muted note on the right.
+ * @param string $action Optional single action, right-aligned in the header.
+ *                       A card's one secondary action belongs beside its
+ *                       title, not adrift at the bottom of its body.
  */
-function sendbeam_card_open( $title = '', $note = '' ) {
+function sendbeam_card_open( $title = '', $note = '', $action = '' ) {
 	echo '<section class="sb-card">';
 	if ( '' !== $title ) {
 		echo '<header class="sb-card__head"><h2>' . esc_html( $title ) . '</h2>';
 		if ( '' !== $note ) {
 			echo '<span class="sb-note">' . esc_html( $note ) . '</span>';
+		}
+		if ( '' !== $action ) {
+			echo '<span class="sb-card__action">' . wp_kses_post( $action ) . '</span>';
 		}
 		echo '</header>';
 	}
@@ -219,16 +225,22 @@ function sendbeam_admin_css() {
 	.sb-wrap{padding:22px 0 0}
 
 	/* ── Cards ────────────────────────────────────────────────────────── */
-	/* Cards in a row share a height so their bottom rules line up; without
-	   this each one ends wherever its own content does and the row is ragged. */
-	.sb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:stretch;margin-bottom:18px}
-	.sb-grid>.sb-card{margin-bottom:0;display:flex;flex-direction:column}
-	.sb-grid>.sb-card>.sb-card__body{flex:1 1 auto}
+	/* Cards are as tall as what is in them. Stretching them to match the
+	   tallest in the row lines their bottom rules up and leaves the shorter
+	   one two-thirds empty, which reads as something failing to load. */
+	.sb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start;margin-bottom:18px}
+	.sb-grid>.sb-card{margin-bottom:0}
+
+	/* Three figures across, each label above its number. */
+	.sb-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:0 0 4px}
+	.sb-stats .sb-label{margin-bottom:2px}
+	.sb-stats .sb-fig{font-size:32px}
 
 	.sb-card{background:#fff;border:1px solid var(--ink);margin:0 0 18px}
 	.sb-card__head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;
 		padding:13px 16px;border-bottom:1px solid var(--ink)}
-	.sb-card__head h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
+	.sb-card__head h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em;margin-right:auto}
+	.sb-card__action{flex:0 0 auto}
 	.sb-card__body{padding:16px}
 	.sb-note{font-size:13px;color:var(--ink-60)}
 
@@ -335,6 +347,18 @@ function sendbeam_admin_css() {
 	.sb-granted{list-style:none;margin:0 0 12px;padding:0;font-size:13px;color:var(--ink-60)}
 	.sb-granted li{position:relative;padding-left:16px;margin:0 0 4px}
 	.sb-granted li::before{content:"\2713";position:absolute;left:0;color:var(--m)}
+
+	/* Recent activity: a row per message, readable at a glance and narrow
+	   enough for the column it sits in. */
+	.sb-recent{list-style:none;margin:0;padding:0}
+	.sb-recent li{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+		padding:8px 0;border-bottom:1px solid var(--hair);font-size:13px}
+	.sb-recent li:last-child{border-bottom:0}
+	.sb-recent__when{flex:0 0 auto;color:var(--ink-60);font-family:"Martian Mono",ui-monospace,monospace;font-size:11px}
+	.sb-recent__who{flex:1 1 12ch;min-width:0;overflow-wrap:anywhere}
+	.sb-recent__what{flex:0 0 auto}
+	.sb-recent__what--ok{color:var(--m)} .sb-recent__what--warn{color:var(--a)}
+	.sb-recent__what--bad{color:var(--v)}
 
 	/* Core list tables: their own look, inside our card, and core\'s phone
 	   collapse left alone — it is the thing that makes them work at 393px. */
@@ -448,6 +472,8 @@ function sendbeam_admin_css() {
 		.sb-rail__step:last-child{border-bottom:0}
 		.sb-wizard__foot .sb-btn{flex:1 1 100%}
 		.sb-doc__row code{flex:1 1 100%}
+		.sb-stats{grid-template-columns:1fr;gap:10px}
+		.sb-stats .sb-fig{font-size:28px}
 		/* A phone gets the records table in full rather than a sideways
 		   scroll: the values live in fields that scroll their own contents
 		   and copy on a tap, so a narrow column loses nothing. */

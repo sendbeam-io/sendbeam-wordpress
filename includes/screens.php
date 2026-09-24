@@ -70,21 +70,89 @@ function sendbeam_screen_overview() {
 
 	sendbeam_overview_setup_card( $status, $connected );
 
-	sendbeam_card_open( __( 'This workspace', 'sendbeam' ) );
-	echo '<div class="sb-grid" style="gap:14px">';
+	sendbeam_workspace_card( $forms, $lists, $subscribers );
+
+	echo '</div>';
+}
+
+/**
+ * What the workspace holds, and what this site has been doing with it.
+ *
+ * Three figures across the top rather than stacked down the left: a column of
+ * three numbers in the top third of a card leaves the other two thirds blank,
+ * which reads as something that failed to load. Under them, the last few
+ * messages this site sent — which is the question somebody comes to a
+ * dashboard with, and which costs nothing to answer because the log is an
+ * option this site already holds.
+ *
+ * @param array<int,mixed>|null $forms       The workspace's forms, or null.
+ * @param array<int,mixed>|null $lists       The workspace's lists, or null.
+ * @param int|null              $subscribers How many people, or null.
+ */
+function sendbeam_workspace_card( $forms, $lists, $subscribers ) {
+	$open = sprintf(
+		'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s" target="_blank" rel="noopener">%s</a>',
+		esc_url( sendbeam_app_url() ),
+		esc_html__( 'Open SendBeam', 'sendbeam' )
+	);
+
+	sendbeam_card_open( __( 'This workspace', 'sendbeam' ), '', $open );
+
+	echo '<div class="sb-stats">';
 	sendbeam_stat( __( 'Forms', 'sendbeam' ), is_array( $forms ) ? count( $forms ) : null );
 	sendbeam_stat( __( 'Lists', 'sendbeam' ), is_array( $lists ) ? count( $lists ) : null );
 	sendbeam_stat( __( 'Subscribers', 'sendbeam' ), $subscribers );
 	echo '</div>';
-	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'Subscribers counts people, not list memberships — someone on three lists is one subscriber. Figures come from your SendBeam workspace and are cached for five minutes.', 'sendbeam' ) . '</p>';
-	printf(
-		'<p style="margin-top:14px"><a class="sb-btn sb-btn--ghost" href="%s" target="_blank" rel="noopener">%s</a></p>',
-		esc_url( sendbeam_app_url() ),
-		esc_html__( 'Open SendBeam', 'sendbeam' )
-	);
-	sendbeam_card_close();
+	echo '<p class="sb-note">' . esc_html__( 'Subscribers counts people, not list memberships. Cached for five minutes.', 'sendbeam' ) . '</p>';
 
-	echo '</div>';
+	sendbeam_workspace_recent();
+
+	sendbeam_card_close();
+}
+
+/**
+ * The last few things this site sent, from the log it already keeps.
+ *
+ * Five rows, because the point is "is it working?" rather than "what has it
+ * ever done" — the Site email screen has the whole log, searchable.
+ */
+function sendbeam_workspace_recent() {
+	$log = get_option( 'sendbeam_mail_log', array() );
+	$log = is_array( $log ) ? array_slice( array_values( $log ), 0, 5 ) : array();
+
+	echo '<p class="sb-label" style="margin-top:18px">' . esc_html__( 'Recent site email', 'sendbeam' ) . '</p>';
+
+	if ( ! $log ) {
+		echo '<p class="sb-note" style="margin:0">' . esc_html__( 'Nothing has gone out through SendBeam from this site yet.', 'sendbeam' ) . '</p>';
+		return;
+	}
+
+	$results = array(
+		'sent'     => array( 'ok', __( 'Sent', 'sendbeam' ) ),
+		'fallback' => array( 'warn', __( 'Server mailer', 'sendbeam' ) ),
+		'failed'   => array( 'bad', __( 'Failed', 'sendbeam' ) ),
+	);
+
+	echo '<ul class="sb-recent">';
+	foreach ( $log as $row ) {
+		$key = isset( $results[ $row['result'] ] ) ? $row['result'] : 'failed';
+		printf(
+			'<li><span class="sb-recent__when">%1$s</span>' .
+			'<span class="sb-recent__who">%2$s</span>' .
+			'<span class="sb-recent__what sb-recent__what--%3$s">%4$s</span></li>',
+			esc_html( wp_date( get_option( 'date_format' ), (int) $row['at'] ) ),
+			esc_html( (string) $row['to'] ),
+			esc_attr( $results[ $key ][0] ),
+			esc_html( $results[ $key ][1] )
+		);
+	}
+	echo '</ul>';
+
+	printf(
+		'<p class="sb-note" style="margin-top:10px"><a href="%s">%s</a></p>',
+		esc_url( sendbeam_page_url( 'sendbeam-mail' ) ),
+		esc_html__( 'View the log', 'sendbeam' )
+	);
 }
 
 /**
