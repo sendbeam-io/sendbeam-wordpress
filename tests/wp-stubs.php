@@ -446,3 +446,6 @@ function wp_list_pluck_stub( $rows, $field ) {
 	foreach ( $rows as $row ) { $out[] = $row[ $field ]; }
 	return $out;
 }
+function wp_register_style( $h, $src, $deps = array(), $ver = false, $media = 'all' ) { $GLOBALS['stub']['styles'][ $h ] = $src; }
+function wp_enqueue_style( $h ) { $GLOBALS['stub']['styles'][ $h . ':enqueued' ] = true; }
+function wp_add_inline_style( $h, $css ) { $GLOBALS['stub']['inline_css'][ $h ][] = $css; }

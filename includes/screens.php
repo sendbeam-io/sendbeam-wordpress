@@ -916,9 +916,7 @@ function sendbeam_connect_connected_panel( $status = null ) {
 		echo '</ul>';
 	}
 
-	echo '<form class="sb-confirm" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
-	wp_nonce_field( 'sendbeam_disconnect' );
-	echo '<input type="hidden" name="action" value="sendbeam_disconnect" />';
+	echo '<div class="sb-actions">';
 
 	/*
 	 * Reconnect sits beside Disconnect because it is what people reach for
@@ -930,14 +928,32 @@ function sendbeam_connect_connected_panel( $status = null ) {
 	 */
 	if ( $via_connect ) {
 		printf(
-			'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a> ',
+			'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a>',
 			esc_url( sendbeam_connect_start_url() ),
 			esc_html__( 'Reconnect', 'sendbeam' )
 		);
 	}
+
+	/*
+	 * A native disclosure, not a div that script hides after the page has
+	 * drawn. The old shape shipped the confirmation open so a browser with no
+	 * JavaScript could still submit it, and hid it on load — which meant a
+	 * red-bordered box flashed on the screen every single time the Overview
+	 * rendered. `<details>` is shut until somebody presses it, needs no
+	 * script at all, and keeps the keyboard and screen-reader behaviour a
+	 * disclosure is supposed to have.
+	 *
+	 * The summary is the button, and it is also the way out: pressing it
+	 * again closes the box, which is what the separate Cancel used to do with
+	 * script.
+	 */
+	echo '<details class="sb-confirm">';
 	printf(
-		'<button type="button" class="sb-btn sb-btn--danger sb-btn--small sb-confirm__ask" hidden>%s</button>',
-		esc_html__( 'Disconnect', 'sendbeam' )
+		'<summary class="sb-btn sb-btn--danger sb-btn--small sb-confirm__ask">' .
+		'<span class="sb-confirm__label sb-confirm__label--shut">%1$s</span>' .
+		'<span class="sb-confirm__label sb-confirm__label--open">%2$s</span></summary>',
+		esc_html__( 'Disconnect', 'sendbeam' ),
+		esc_html__( 'Cancel', 'sendbeam' )
 	);
 	echo '<div class="sb-confirm__box">';
 	echo '<p class="sb-note">' . esc_html(
@@ -945,9 +961,14 @@ function sendbeam_connect_connected_panel( $status = null ) {
 			? __( 'Disconnect this site? Its key is revoked. Your list, form and sending domain stay in SendBeam. Forms already on your pages stop loading until you connect again.', 'sendbeam' )
 			: __( 'Disconnect this site? The saved key is removed from this site and nothing is revoked in SendBeam — a key you pasted may be in use somewhere else. Forms already on your pages stop loading until you connect again.', 'sendbeam' )
 	) . '</p>';
-	printf( '<button type="submit" class="sb-btn sb-btn--small sb-btn--danger">%s</button> ', esc_html__( 'Yes, disconnect', 'sendbeam' ) );
-	printf( '<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-confirm__cancel">%s</button>', esc_html__( 'Cancel', 'sendbeam' ) );
-	echo '</div></form>';
+	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
+	wp_nonce_field( 'sendbeam_disconnect' );
+	echo '<input type="hidden" name="action" value="sendbeam_disconnect" />';
+	printf( '<button type="submit" class="sb-btn sb-btn--small sb-btn--danger">%s</button>', esc_html__( 'Yes, disconnect', 'sendbeam' ) );
+	echo '</form>';
+	echo '</div></details>';
+
+	echo '</div>';
 
 	echo '</div>';
 }

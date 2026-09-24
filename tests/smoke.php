@@ -1137,6 +1137,20 @@ lacks( $sb_pasted, 'Connect this site', 'pasted key: nothing offers to connect a
 lacks( $sb_pasted, 'Replace the key', 'pasted key: nor to replace a key, which is a settings job' );
 lacks( $sb_pasted, 'sb-btn--primary', 'pasted key: and there is no primary button on a card whose answer is "yes"' );
 lacks( $sb_pasted, 'Reconnect', 'pasted key: Reconnect needs a connection to re-make, and a pasted key has none' );
+/*
+ * A native disclosure, closed. The old shape shipped the confirmation open
+ * so a no-script browser could submit it and hid it on load, which meant a
+ * red-bordered box flashed on the screen on every render.
+ */
+has( $sb_pasted, '<details class="sb-confirm">', 'confirm: it is a details' );
+lacks( $sb_pasted, '<details class="sb-confirm" open', 'confirm: closed, so nothing of it renders until it is pressed' );
+has( $sb_pasted, '<summary class="sb-btn sb-btn--danger sb-btn--small sb-confirm__ask">', 'confirm: whose summary is the Disconnect button itself' );
+lacks( $sb_pasted, 'sb-confirm__ask" hidden', 'confirm: with nothing rendered hidden for script to reveal' );
+ok(
+	strpos( $sb_pasted, '<details class="sb-confirm">' ) < strpos( $sb_pasted, '<form action=' ),
+	'confirm: and the details wraps the form that does it'
+);
+has( $sb_pasted, 'Cancel', 'confirm: pressing the summary again is the way out' );
 has( $sb_pasted, 'nothing is revoked in SendBeam', 'pasted key: the confirmation says the key is left alone' );
 has( $sb_pasted, 'may be in use somewhere else', 'pasted key: and why' );
 lacks( $sb_pasted, 'checklist say anything useful', 'pasted key: the sales pitch is gone from the card' );
@@ -3359,6 +3373,31 @@ has( $sendbeam_css, '@media (max-width:782px)', 'design: and the whole thing has
  * Three single digits stacked down a card took half of it. They stay in a row
  * on a phone and only break at a width no phone actually is.
  */
+/*
+ * Nothing on any screen is drawn and then hidden by script on load. That is
+ * what the owner saw: a red card flashing under the Disconnect button on
+ * every refresh of the Overview.
+ */
+$sendbeam_js = sendbeam_connect_admin_js();
+lacks( $sendbeam_css, '.sb-confirm__box{display:none', 'design: the confirmation is not hidden by a stylesheet either' );
+has( $sendbeam_css, '.sendbeam-app .sb-confirm>summary{list-style:none', 'design: the disclosure marker is off, so the summary reads as the button it is' );
+has( $sendbeam_css, '.sb-confirm[open]>summary .sb-confirm__label--shut{display:none}', 'design: and the summary\'s label is the action it would perform next' );
+has( $sendbeam_css, '.sendbeam-app .is-hidden{display:none}', 'design: a row that does not apply yet is hidden by the server, not by script on load' );
+
+$GLOBALS['stub']['inline']['sendbeam-admin'] = array();
+sendbeam_admin_assets( 'toplevel_page_sendbeam' );
+$sendbeam_admin_js = implode( "\n", $GLOBALS['stub']['inline']['sendbeam-admin'] );
+lacks( $sendbeam_admin_js, 'sb-confirm', 'design: no script touches the confirmation at all' );
+lacks( $sendbeam_admin_js, 'tr.hidden', 'design: nor hides a settings row after the page has drawn' );
+has( $sendbeam_admin_js, 'classList.toggle( "is-hidden"', 'design: the switch moves a class the server already set' );
+
+// The server's half of that: a row that does not apply yet arrives hidden.
+update_option( 'sendbeam_settings', array( 'mail_enabled' => 0 ) );
+has( sendbeam_when_mail_class(), 'is-hidden', 'design: with site email off the detail rows arrive hidden' );
+update_option( 'sendbeam_settings', array( 'mail_enabled' => 1 ) );
+lacks( sendbeam_when_mail_class(), 'is-hidden', 'design: and with it on they arrive shown' );
+update_option( 'sendbeam_settings', array() );
+
 has( $sendbeam_css, '@media (max-width:340px){', 'design: the workspace figures only stack on something narrower than a phone' );
 has( $sendbeam_css, '.sb-stats .sb-fig{font-size:24px}', 'design: with the figure tightened so the row is one compact band' );
 // One message, one line: a result that wraps under an address reads as a row

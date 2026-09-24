@@ -98,7 +98,7 @@ function sendbeam_admin_init() {
 		array(
 			'key'         => 'mail_from_name',
 			'placeholder' => get_bloginfo( 'name' ),
-			'class'       => 'sendbeam-when-mail',
+			'class'       => sendbeam_when_mail_class(),
 			'help'        => __( 'Leave empty to use the name the sending plugin sets, or the workspace sender.', 'sendbeam' ),
 		)
 	);
@@ -111,7 +111,7 @@ function sendbeam_admin_init() {
 		array(
 			'key'         => 'mail_from_email',
 			'placeholder' => 'orders@yourdomain.com',
-			'class'       => 'sendbeam-when-mail',
+			'class'       => sendbeam_when_mail_class(),
 			'help'        => __( 'Must be on a domain verified in the SendBeam workspace. Leave empty to use the workspace sender.', 'sendbeam' ),
 		)
 	);
@@ -124,10 +124,25 @@ function sendbeam_admin_init() {
 		array(
 			'key'   => 'mail_fallback',
 			'label' => __( 'Fall back to the server\'s own mailer', 'sendbeam' ),
-			'class' => 'sendbeam-when-mail',
+			'class' => sendbeam_when_mail_class(),
 			'help'  => __( 'On: a refused or failed message goes out the way it did before this plugin (recommended). Off: it fails and the sending plugin is told.', 'sendbeam' ),
 		)
 	);
+}
+
+/**
+ * The row class for a setting that only applies when site email is on.
+ *
+ * Hidden by the server when the feature is off, rather than drawn and then
+ * hidden by script on load — which is a row appearing and vanishing on every
+ * render of the screen. The script only takes over when somebody actually
+ * moves the switch.
+ *
+ * @return string
+ */
+function sendbeam_when_mail_class() {
+	$settings = sendbeam_settings();
+	return 'sendbeam-when-mail' . ( empty( $settings['mail_enabled'] ) ? ' is-hidden' : '' );
 }
 
 /**
@@ -590,8 +605,17 @@ function sendbeam_admin_assets( $hook ) {
 	// and copy a shortcode without selecting it by hand.
 	$js = '
 	( function () {
+		/*
+		 * A class rather than the `hidden` property, because the server
+		 * already renders these rows hidden when the feature is off: setting
+		 * `hidden` here on load would mean the rows drew first and vanished
+		 * afterwards, which is a flash on every render of the Site email
+		 * screen.
+		 */
 		function toggle( cls, on ) {
-			document.querySelectorAll( "tr." + cls ).forEach( function ( tr ) { tr.hidden = ! on; } );
+			document.querySelectorAll( "tr." + cls ).forEach( function ( tr ) {
+				tr.classList.toggle( "is-hidden", ! on );
+			} );
 		}
 		var mail = document.getElementById( "sendbeam_mail_enabled" );
 		function sync() {
@@ -655,29 +679,6 @@ function sendbeam_admin_assets( $hook ) {
 				if ( field && img && img.url ) { field.value = img.url; }
 			} );
 			frame.open();
-		} );
-
-		/*
-		 * Inline confirmation, in place of window.confirm(): a browser dialog
-		 * cannot explain what Disconnect costs, and Chrome suppresses repeat
-		 * dialogs on a page anyway. The markup ships with the confirmation
-		 * open and the plain button hidden, so a page with no JavaScript is
-		 * still usable — this swaps them round the moment script runs.
-		 */
-		document.querySelectorAll( ".sb-confirm" ).forEach( function ( form ) {
-			var ask = form.querySelector( ".sb-confirm__ask" );
-			var box = form.querySelector( ".sb-confirm__box" );
-			var no  = form.querySelector( ".sb-confirm__cancel" );
-			if ( ! ask || ! box ) { return; }
-			function shut() { box.hidden = true; ask.hidden = false; }
-			shut();
-			ask.addEventListener( "click", function () {
-				ask.hidden = true;
-				box.hidden = false;
-				var yes = box.querySelector( "button[type=submit]" );
-				if ( yes ) { yes.focus(); }
-			} );
-			if ( no ) { no.addEventListener( "click", function () { shut(); ask.focus(); } ); }
 		} );
 
 		/*

@@ -403,8 +403,11 @@ function sendbeam_admin_css() {
 	.sb-steps .sb-step__note{display:block;font-size:13px;color:var(--ink-60);margin-top:3px}
 	.sb-step__panel{margin-top:10px}
 	.sb-step__panel>*:first-child{margin-top:0}
-	.sb-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 6px}
+	.sb-actions{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin:10px 0 6px}
 	.sb-actions form{margin:0}
+	/* A disclosure in the row is as wide as its own contents while shut and
+	   takes the row while open, so the confirmation is never a column. */
+	.sb-actions>.sb-confirm[open]{flex:1 1 100%}
 
 	/* ── The wizard ───────────────────────────────────────────────────── */
 	.sb-rail{display:flex;gap:0;list-style:none;margin:0;padding:0;background:#fff;
@@ -437,11 +440,22 @@ function sendbeam_admin_css() {
 	.sb-paste>summary:hover{color:var(--ink)}
 
 	/* ── Confirmation, scopes, messages ───────────────────────────────── */
-	/* Inline confirmation. With no script the box is simply already open and
-	   the plain button beside it never appears, so the form still submits. */
-	.sb-confirm{margin:0}
+	/* Inline confirmation, as a native disclosure. Nothing of it is rendered
+	   until somebody presses the summary, so there is no box to hide after
+	   load and nothing flashes on every render — and it needs no script at
+	   all, which is what the old shape was carrying the flash to achieve. */
+	.sb-confirm{margin:0;position:relative}
+	.sendbeam-app .sb-confirm>summary{list-style:none;cursor:pointer}
+	.sendbeam-app .sb-confirm>summary::-webkit-details-marker{display:none}
+	.sendbeam-app .sb-confirm>summary::marker{content:""}
+	/* The summary is the button, and pressing it again is the way out — so
+	   its label is the action it would perform next. */
+	.sb-confirm__label--open{display:none}
+	.sb-confirm[open]>summary .sb-confirm__label--shut{display:none}
+	.sb-confirm[open]>summary .sb-confirm__label--open{display:inline}
 	.sb-confirm__box{border-left:4px solid var(--v);background:var(--paper);padding:12px 14px;margin-top:10px}
 	.sb-confirm__box p{margin:0 0 10px}
+	.sb-confirm__box form{margin:0}
 
 	.sb-msg{padding:11px 14px;border-left:4px solid var(--ink-60);background:#fff;border-top:1px solid var(--ink);
 		border-right:1px solid var(--ink);border-bottom:1px solid var(--ink);margin:0 0 14px;
@@ -461,6 +475,8 @@ function sendbeam_admin_css() {
 	.sb-scope .sb-note{margin-left:4px}
 	.sb-inline{display:inline-flex;align-items:center;gap:8px;font-size:14px}
 	.sendbeam-app [hidden]{display:none!important}
+	/* Server-rendered "not applicable yet", so nothing draws and then goes. */
+	.sendbeam-app .is-hidden{display:none}
 
 	/* ── Pop-up rules ─────────────────────────────────────────────────── */
 	.sb-rule{border:1px solid var(--ink);background:var(--paper);padding:14px 16px;margin:0 0 14px}
