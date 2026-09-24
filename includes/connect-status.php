@@ -452,6 +452,23 @@ function sendbeam_connect_status( $check = false ) {
 }
 
 /**
+ * Is this answer one SendBeam gave just now?
+ *
+ * The difference matters wherever something is about to be *done* on the
+ * strength of it. Serving a stale body to a screen is a kindness; telling
+ * somebody who pressed **Check now** that their domain is still unverified,
+ * when in truth the request never got through, is not — and switching their
+ * site email on because a cached body from this morning said the domain had
+ * verified is worse again.
+ *
+ * @param array $status A status.
+ * @return bool
+ */
+function sendbeam_status_is_fresh( $status ) {
+	return ! empty( $status['ok'] ) && empty( $status['stale'] );
+}
+
+/**
  * **Check now**: ask SendBeam to look the DNS up again, then come back.
  *
  * If the domain turns out to be verified and site email was approved at
@@ -470,7 +487,7 @@ function sendbeam_handle_domain_check() {
 	$status = sendbeam_connect_status( true );
 	$note   = 'checked';
 
-	if ( ! $status['ok'] ) {
+	if ( ! sendbeam_status_is_fresh( $status ) ) {
 		$note = 'unreachable';
 	} elseif ( '' === $status['domain']['name'] ) {
 		$note = 'nodomain';
@@ -615,7 +632,7 @@ function sendbeam_connect_run_recheck() {
 	}
 
 	$status = sendbeam_connect_status( true );
-	if ( ! $status['ok'] ) {
+	if ( ! sendbeam_status_is_fresh( $status ) ) {
 		return; // Ask again next hour.
 	}
 	if ( '' === $status['domain']['name'] ) {
@@ -643,7 +660,7 @@ function sendbeam_connect_run_recheck() {
  * @return bool Whether site email was switched on as a result.
  */
 function sendbeam_connect_finish_deferred( $status ) {
-	if ( empty( $status['domain']['verified'] ) ) {
+	if ( ! sendbeam_status_is_fresh( $status ) || empty( $status['domain']['verified'] ) ) {
 		return false;
 	}
 

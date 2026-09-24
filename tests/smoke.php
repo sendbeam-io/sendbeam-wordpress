@@ -1375,6 +1375,19 @@ $url = sb_run_admin_post( 'sendbeam_handle_domain_check' );
 has( $url, 'sendbeam_domain=verified', 'check: a verified domain is still reported' );
 ok( empty( sendbeam_settings()['mail_enabled'] ), 'check: a verified domain does NOT re-enable site email the owner switched off' );
 
+// A check that never got through is not a check. Serving the last answer to
+// a screen is a kindness; telling somebody who pressed the button that their
+// domain is still unverified, when the request never left, is not.
+sb_deferred_site();
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( true ) );
+sendbeam_connect_status();
+$GLOBALS['stub']['remote_reply'] = new WP_Error( 'http_request_failed', 'cURL error 28' );
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_domain_check' );
+$_REQUEST = $_POST;
+$url = sb_run_admin_post( 'sendbeam_handle_domain_check' );
+has( $url, 'sendbeam_domain=unreachable', 'check: a check that failed says so, even with a verified answer in the cache' );
+ok( empty( sendbeam_settings()['mail_enabled'] ), 'check: and switches nothing on off the back of a cached claim' );
+
 // Nonce and capability.
 sb_deferred_site();
 $_POST    = array();
