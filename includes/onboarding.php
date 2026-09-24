@@ -172,7 +172,7 @@ function sendbeam_find_form_placement() {
 		$types = array( 'post', 'page' );
 	}
 	$type_in = implode( ', ', array_fill( 0, count( $types ), '%s' ) );
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- cached in a transient by the caller; the two interpolated fragments are runs of %s placeholders built here, and every value goes through prepare().
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- cached in a transient by the caller; the two interpolated fragments are runs of %s placeholders built here, so the sniff cannot see them, and every value goes through prepare().
 	if ( $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ( $type_in ) AND ( $content_or ) LIMIT 1", array_merge( $types, $like ) ) ) ) {
 		return 'content';
 	}
@@ -180,14 +180,14 @@ function sendbeam_find_form_placement() {
 	// A block theme keeps the header, the footer and every page layout here.
 	// Templates are not "published" in the way a page is, so status is not
 	// part of the question.
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- as above.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- as above.
 	if ( $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type IN ( 'wp_template', 'wp_template_part' ) AND post_status != 'trash' AND ( $content_or ) LIMIT 1", $like ) ) ) {
 		return 'template';
 	}
 
 	// Page builders keep their layout beside the post, not in it.
 	$meta_or = implode( ' OR ', array_fill( 0, count( $like ), 'meta_value LIKE %s' ) );
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- as above.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- as above.
 	if ( $wpdb->get_var( $wpdb->prepare( "SELECT meta_id FROM {$wpdb->postmeta} WHERE $meta_or LIMIT 1", $like ) ) ) {
 		return 'meta';
 	}

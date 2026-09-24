@@ -1,7 +1,7 @@
 # SendBeam for WordPress
 
 Your [SendBeam](https://sendbeam.io) forms on a WordPress site, plus pop-ups, opt-ins at registration and
-checkout, and the site's own email from your verified domain. A block, four shortcodes and one settings page.
+checkout, and the site's own email from your verified domain. A block, four shortcodes and its own admin menu.
 
 Full documentation: **[sendbeam.io/docs/wordpress](https://sendbeam.io/docs/wordpress)**
 
@@ -9,10 +9,11 @@ Full documentation: **[sendbeam.io/docs/wordpress](https://sendbeam.io/docs/word
 | --- | --- |
 | A signup form in a post, page or template | `SendBeam Form` block, or `[sendbeam_form id="…"]` |
 | A contact form | `[sendbeam_contact]` |
-| A pop-up | Settings → SendBeam → Pop-ups |
+| A pop-up | SendBeam → Pop-ups |
 | Your own button that opens a pop-up | `[sendbeam_popup_button label="Subscribe"]`, or any element with `data-sendbeam-open="<form id>"` |
-| Ask people to subscribe while they register, comment or check out | Settings → SendBeam → Audience |
-| Send WordPress email from your verified domain | Settings → SendBeam → Site email |
+| Ask people to subscribe while they register, comment or check out | SendBeam → Audience |
+| Send WordPress email from your verified domain | SendBeam → Site email |
+| Find out why something is not working | SendBeam → Help, or Tools → Site Health |
 
 Forms render from their hosted page, so a change in SendBeam (fields, double opt-in, thank-you text, the list
 people join) shows on the site at once and the theme's CSS never fights the form's — while still taking the
@@ -30,7 +31,12 @@ git clone https://github.com/sendbeam-io/sendbeam-wordpress
 cd sendbeam-wordpress && bin/build-zip.sh     # → build/sendbeam.zip
 ```
 
-Then Settings → SendBeam and press **Connect SendBeam**. The button opens a window on sendbeam.io where you
+Activating it takes you once to **SendBeam → Set up**: connect, verify your sending domain, switch on site
+email, place a form. Every step can be skipped, the whole thing can be left from any step, and where you got
+to is remembered. It never appears when several plugins are activated at once, never on a site that already
+has a key, and `add_filter( 'sendbeam_setup_wizard', '__return_false' )` switches it off for good.
+
+The first step is **Connect SendBeam**. The button opens a window on sendbeam.io where you
 create your account or sign in — the site's name and your administrator email address are already filled in —
 and tick what this site may do: show your forms, add people who opt in, send the site's own email, send
 WooCommerce events, set up this site's sending domain. Approve, and this site is handed an API key with
@@ -39,6 +45,17 @@ grant bound to this site's address and to the `state` this site minted, and your
 in one call. Nothing is sent to SendBeam until you press the button. If you already have a key, "I already
 have an API key" on the same screen still takes one. Forms are then picked from a dropdown of the connected
 workspace's own forms — no IDs to copy.
+
+### Where things are
+
+SendBeam has a top-level menu with one page per section rather than tabs nothing in the menu mentions:
+**Overview** (what this site is connected to, how far through set-up it is, what the workspace holds),
+**Forms**, **Pop-ups**, **Audience**, **Site email**, **E-commerce**, **Settings** (Connection · Sending
+domain · Advanced) and **Help**. The old `options-general.php?page=sendbeam` addresses and every one of their
+tabs 301 to whatever replaced them.
+
+Forms, lists and the email log are `WP_List_Table` subclasses, so they search, offer a rows-per-screen setting
+under Screen Options, collapse the way core's screens do on a phone, and — for the log — delete in bulk.
 
 Leaving the sending-domain box ticked does the next piece of setting up for you. The consent page suggests
 this site's own domain and lets you type a different one — a brand domain, or `mail.` something — and whatever
@@ -63,12 +80,28 @@ Only what you use. Placing a form or a pop-up needs no key at all.
 | Permission | Needed for |
 | --- | --- |
 | `forms:read` | Listing your forms in the settings page and the block |
-| `lists:read` | The Audience tab and its subscriber counts |
+| `lists:read` | The Audience screen and its subscriber counts |
 | `contacts:read`, `contacts:write`, `lists:write` | The opt-in box at registration, comments or checkout |
 | `transactional:send` | Site email |
 | `domains:read` | The sending-domain step: its DNS records, and **Check now** |
 
-Paste the key in the settings, or define `SENDBEAM_API_KEY` in `wp-config.php` to keep it out of the database.
+Paste the key under **SendBeam → Settings → Advanced**, or define `SENDBEAM_API_KEY` in `wp-config.php` to
+keep it out of the database. With the constant set the plugin offers neither the button nor the paste field,
+because either would store a second key nothing would ever use.
+
+## Diagnosing a site
+
+**SendBeam → Site email → Send a test email** sends a real, designed message carrying the From name and
+address used, the sending domain and whether it is verified, the workspace, the plugin version and the time.
+The result replaces the form in the page: a success card, or a failure card saying what went wrong, what it
+means, what to do about it, and a **Details for support** block captured at the moment of failure — versions,
+where the key is kept (never the key), the domain state, the HTTP status and the raw error — that copies in
+one press.
+
+**Tools → Site Health** carries three checks: `sendbeam-key` (the key works), `sendbeam-domain` (the sending
+domain is verified) and `sendbeam-mail` (site email is not switched on behind an unverified domain — critical
+when it is). Site Health → Info has a SendBeam section with every state this site holds, and **SendBeam →
+Help** shows the same values with a **Copy for support** button.
 
 ## Shortcodes
 
@@ -83,7 +116,7 @@ Paste the key in the settings, or define `SENDBEAM_API_KEY` in `wp-config.php` t
 
 ## Appearance
 
-Settings → SendBeam → Forms → Appearance hands the hosted form your own button colour, text colour, field
+SendBeam → Forms → Appearance hands the hosted form your own button colour, text colour, field
 background, field border, corner radius, text size and typeface (including *match my theme*). Values are
 validated before use — a colour must be hex, sizes are clamped, and the typeface is named from a list rather
 than supplied as a font stack. The same appearance is carried into pop-ups.

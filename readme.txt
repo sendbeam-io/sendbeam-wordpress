@@ -20,14 +20,18 @@ This plugin puts your SendBeam forms on a WordPress site without copying embed c
 * **Shortcodes** — `[sendbeam_form id="…"]`, `[sendbeam_contact]` and `[sendbeam_popup_button]` for widgets, page builders and the classic editor.
 * **Pop-up** — show a signup form in a modal after a delay or from a floating button, on every page, posts only, pages only or the home page; hidden for a day, a week or for good once a visitor closes it.
 * **Pop-up styles** — four looks for the modal: split with image, editorial, bold colour and slide-in, each with its own image, eyebrow, button label and optional subscriber count, chosen per pop-up.
-* **A default form** — set it once under Settings → SendBeam and every block and shortcode without an ID uses it.
+* **A default form** — set it once under SendBeam → Forms and every block and shortcode without an ID uses it.
 * **Form plugins** — send the people who fill in forms built with Contact Form 7, Elementor Pro, WPForms, Gravity Forms or Fluent Forms to SendBeam, onto the list and with the tag you choose. Switched on form by form, and only for people who ticked your consent field or filled in a form you marked as a signup form.
 * **Site email** — send everything WordPress sends with `wp_mail()` (WooCommerce order confirmations, password resets, form and comment notifications, plugin alerts) through your verified SendBeam domain. No SMTP host, port or password: one API key, one switch, a test button and a log of recent results.
 * **E-commerce events** (WooCommerce) — feed SendBeam's native Cart Abandoned, Product Viewed and Order Placed automation triggers. Order placed also keeps a running lifetime-value total on the contact. Each event has its own switch, off by default.
 
+It has its own menu in wp-admin, with a page per section — Overview, Forms, Pop-ups, Audience, Site email, E-commerce, Settings and Help — and walks a new site through connecting, verifying its sending domain, switching on site email and placing a form the first time it is activated. That guide can be skipped a step at a time or left entirely; every step is also on the Overview.
+
 **Connecting** is one button: tick what this site may do, sign in or create your account in the window that opens, and the key arrives on its own. You choose the domain you send from — this site's, or a brand domain you own — and the plugin shows you its DNS records, checks them again on its own for a day afterwards, and switches your site email on once they are live. If you did not give a permission, the step that needs it offers to reconnect; disconnecting revokes this site's key and leaves everything in your workspace where it is.
 
 Forms are shown exactly as configured in SendBeam (fields, double opt-in, the thank-you message, the list they join), so changing a form there changes it on your site straight away. Displaying a form makes no request from your server — the visitor's browser fetches it. Site email, when you switch it on, is one HTTPS call per message to SendBeam's API.
+
+Your forms, your lists and the site's email log are proper WordPress list tables: search, sort out how many rows you want per screen, and delete log entries in bulk, the same way the Posts screen works. **SendBeam → Help** carries the documentation links, the shortcodes, what each API key permission is for, and a system-status block that copies in one press for a support email; the same information is in Tools → Site Health, along with three checks — your key works, your sending domain is verified, and your site's email is not being sent from a domain nothing has verified.
 
 A site can listen for `sendbeam:submitted` on `document` to track a signup as an analytics goal or redirect to a thank-you page.
 
@@ -61,13 +65,27 @@ A SendBeam account (the Free plan is enough) with at least one form. Form IDs ar
 
 == Installation ==
 
-1. Install and activate the plugin.
-2. Go to **Settings → SendBeam** and click **Connect SendBeam**. Create your account or sign in in the window that opens, tick what this site may do, and the key arrives on its own — there is nothing to copy. If you already have an API key, "I already have an API key" on the same screen still takes one.
-3. Verify your sending domain — the plugin shows the records, with a column saying which are live yet, or sets them up for you where your registrar supports it and brings you back here when it has. Copy each value into your DNS and the step ticks itself off: the site checks again every hour for a day, so you can close the tab. Nothing SendBeam sends for you leaves your own domain until this is done.
-4. Pick your signup form (and, if you like, a contact form and a pop-up form) from the dropdown of your own forms.
-5. Add the **SendBeam Form** block to a post or page, or use `[sendbeam_form]` anywhere shortcodes work.
+1. Install and activate the plugin. Activating it once takes you to **SendBeam → Set up**, a four-step guide. Every step can be skipped, and **Go back to the Dashboard** leaves it — nothing has to be done now, and everything on it is also on the Overview.
+2. **Connect.** Press **Connect SendBeam**. Create your account or sign in in the window that opens, tick what this site may do, and the key arrives on its own — there is nothing to copy. If you already have an API key, "I already have an API key" on the same screen still takes one, and so does **SendBeam → Settings → Advanced**.
+3. **Verify your sending domain.** The plugin shows the records as a table of Type, Host and Value, each value a field that copies when you click it, with a column saying which are live yet — or it sets them up for you where your registrar supports that, and brings you back here when it has. DNS changes can take up to 24 hours to spread, so the site checks again every hour for a day and you can close the tab. Nothing SendBeam sends for you leaves your own domain until this is done.
+4. **Site email**, if you want it: one switch, and a test email that tells you in the page whether it worked — and, if it did not, what went wrong, what it means, what to do about it, and a block of detail you can copy into a support message.
+5. **Put a form on the site.** Add the **SendBeam Form** block to a post or page, or use `[sendbeam_form]` anywhere shortcodes work. Pick which form is the default under **SendBeam → Forms**.
+
+Hosts and agencies who set the plugin up themselves can switch the first-run guide off entirely with `add_filter( 'sendbeam_setup_wizard', '__return_false' );`.
 
 == Frequently Asked Questions ==
+
+= Where did Settings → SendBeam go? =
+
+SendBeam has its own menu now, below Settings, with a page for each section instead of seven tabs nothing in the menu mentioned. Every old address still works: `options-general.php?page=sendbeam` and each of its tabs redirect permanently to the page that replaced it, so bookmarks and links in old support replies still land in the right place. The Docs tab became the **Help** page.
+
+= I do not want the setup guide on my clients' sites =
+
+`add_filter( 'sendbeam_setup_wizard', '__return_false' );` switches off the one-time redirect. The guide is still reachable at **SendBeam → Set up** if anybody wants it, and the Overview's checklist is unaffected. The guide never appears when you activate several plugins at once, and never on a site that already has a key.
+
+= The test email says it failed. What now? =
+
+The failure card on **SendBeam → Site email** says what went wrong, what it means and what to do, and has a **Details for support** block underneath it — the WordPress and PHP versions, where this site's key is kept (never the key itself), the sending domain and its state, the HTTP status and the raw error, all captured at the moment the send failed rather than whenever you get round to writing. Press **Copy these details** and paste them into an email to hello@sendbeam.io.
 
 = Where do I find a form ID? =
 
@@ -89,12 +107,16 @@ No. WordPress keeps sending its own mail. SendBeam only receives what visitors s
 
 With it on, every email WordPress sends goes through SendBeam's API instead of the server's `mail()` function, from your verified domain, so it stops landing in spam. WooCommerce, membership, booking and form plugins all use `wp_mail()`, so they are covered without any setting of their own. Turn it off and everything goes back to how it was.
 
+= Does the plugin tell me if something is wrong? =
+
+Tools → Site Health carries three SendBeam checks: whether this site's key works, whether the sending domain is verified, and whether site email is switched on behind a verified domain. That last one reports as critical when it is not — a site quietly sending its password resets from a domain no mailbox provider can check is worse off than one not using the feature at all. Site Health → Info has a SendBeam section with every state this site holds, and **SendBeam → Help** shows the same thing with a **Copy for support** button.
+
 = Which API key permissions does the plugin need? =
 
 Only what you actually use, and the plugin works with less:
 
 * **Forms (read)** — so the settings page and the block can list your forms instead of asking for an ID. Without it you can still type IDs by hand.
-* **Lists (read)** — for the Audience tab and its subscriber counts.
+* **Lists (read)** — for the Audience screen and its subscriber counts.
 * **Contacts (read and write) and Lists (write)** — only if you switch on the opt-in box for registrations, comments or WooCommerce checkout, or connect a form plugin.
 * **Tags (read and write)** — only if a connected form adds a tag.
 * **Send site email** (`transactional:send`) — only if you switch on Site email.
@@ -115,19 +137,19 @@ It looks in pages and posts, block templates, widgets and the layouts page build
 
 = Does it work with Contact Form 7, Elementor Pro, WPForms, Gravity Forms or Fluent Forms? =
 
-Yes. Each is set up where that plugin keeps its own settings, and the Audience tab lists which are active:
+Yes. Each is set up where that plugin keeps its own settings, and SendBeam → Audience lists which are active:
 
 * **Contact Form 7** — open a form and use its **SendBeam** tab. Name the email, name and consent fields as they appear in the form, without the square brackets.
 * **Elementor Pro** — in the Form widget, add **SendBeam** under Actions After Submit, then fill in the SendBeam section with the field IDs from each field's Advanced tab.
 * **WPForms** — in the form builder, open **Settings → SendBeam** and pick the fields from the dropdowns.
 * **Gravity Forms** — open **Settings → SendBeam** on a form and add a feed. Map the fields, and use conditional logic if you like.
-* **Fluent Forms** — choose the forms on the **Audience** tab of Settings → SendBeam.
+* **Fluent Forms** — choose the forms on **SendBeam → Audience**.
 
 A form sends someone only when they ticked the consent field you named, or when you have marked it as a signup form that people fill in to subscribe. The subscription happens straight after the form is submitted, so the visitor's form is never slowed down, and each attempt appears under Recent subscriptions.
 
 = What about emails with attachments? =
 
-They are left to the server's own mailer for now, and the recent-email table on the settings page says so.
+They are left to the server's own mailer for now, and the email log on SendBeam → Site email says so.
 
 = Does it work with caching plugins? =
 
@@ -136,18 +158,29 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 == Screenshots ==
 
 1. The SendBeam Form block, showing the real form as it will appear on the page.
-2. Settings → SendBeam: what is set up, and what the workspace holds.
-3. The Forms tab, where the default forms and their colours are set.
-4. The Audience tab: the workspace's lists, and where to ask people to subscribe.
-5. The Pop-ups tab. Rules are matched top to bottom and the first one wins.
-6. A pop-up on the site, using the site's own colours.
-7. The Site email tab, which routes wp_mail() through SendBeam.
+2. SendBeam → Overview: what this site is connected to, how far through set-up it is, and what the workspace holds.
+3. SendBeam → Set up, the four-step guide a new site sees once. Every step can be skipped and the whole thing can be left.
+4. SendBeam → Forms: the default forms, their colours, and every form in the workspace as a list you can search.
+5. SendBeam → Settings → Sending domain: the DNS records, each value one click from the clipboard, with a column saying which are live yet.
+6. SendBeam → Site email: the relay, a test send that reports in the page, and the log of what went out.
+7. SendBeam → Pop-ups. Rules are matched top to bottom and the first one wins.
+8. A pop-up on the site, using the site's own colours.
+9. SendBeam → Help: the documentation, the shortcodes, the permissions, and a system-status block that copies for support.
 
 == Changelog ==
 
 = 1.8.3 =
-* **Connect SendBeam.** One button on the Overview tab replaces making an account, finding the API keys screen, working out which permissions to give and pasting the key back. You tick what this site may do, create your account or sign in on sendbeam.io in a pop-up, and the site is handed a key with exactly those permissions. Pasting a key by hand still works, under "I already have an API key".
-* Connecting can now set up your sending domain as well: tick the box and SendBeam adds this site's domain, and the Overview shows you the DNS records with a Copy button on every value, a **Check now** button, and a **Set up DNS automatically** button where your registrar supports it.
+* **SendBeam has its own menu.** It lived at Settings → SendBeam behind seven tabs that appeared nowhere in the admin menu: to reach the pop-up settings you had to know the plugin was under Settings and then know the tab existed. There is now a top-level menu with a page for each section — Overview, Forms, Pop-ups, Audience, Site email, E-commerce, Settings and Help. Every old address redirects permanently to the page that replaced it, so bookmarks and links in old support replies still work, and the Plugins-screen "Settings" link goes to the settings rather than to a dashboard.
+* **A four-step guide the first time you activate it**: connect, verify your sending domain, switch on site email, place a form. It appears once, never when you activate several plugins at once, and never on a site that already has a key. Every step can be skipped, **Go back to the Dashboard** leaves it, and where you got to is remembered. Hosts and agencies can switch it off with the `sendbeam_setup_wizard` filter.
+* **Your forms, your lists and the email log are proper WordPress list tables** — search, a rows-per-screen setting under Screen Options, and bulk delete on the log — so they behave like the Posts screen and collapse the way core does on a phone. That last part fixed the two screens that scrolled sideways on a phone.
+* **The sending domain reads like a set of instructions.** Type, Host and Value in a table, every value a field that copies when you click it, a tick or "not found yet" per record, "DNS changes can take up to 24 hours", and three states rather than two: verified, pending — some records live — and not found. "Pending" and "not found" looked identical before, and only one of them has work left in it.
+* **The test email is a real email, and its result appears in the page.** It carries the From name and address used, the sending domain and whether it is verified, the workspace, the version and the time, and what happens now — one screenful worth keeping. Success or failure replaces the form rather than becoming a notice, and a failure gets what went wrong, what it means, what to do about it, and a block of detail captured at the moment it failed that copies in one press for a support email. Your API key is never in it.
+* **Three checks in Tools → Site Health**: your key works, your sending domain is verified, and your site's email is not going out from a domain nothing has verified — that last one reports as critical, because it is. Site Health → Info gains a SendBeam section with every state this site holds.
+* **A Help page** replaces the Docs tab: the documentation, the shortcodes, the permissions table, who to ask for help, and a system-status block with **Copy for support**.
+* **Everything the plugin says now looks like WordPress saying it.** Each screen used to print its own message band somewhere in its own markup; they are admin notices now, in core's own styling, above the page, and only on SendBeam's own screens. The one exception is a single dismissible notice on the Dashboard for a site nobody has set up, which goes for good the first time it is dismissed.
+* **The design stops shouting.** Labels are sentence case at a readable size instead of 10px uppercase mono; mono is kept for the values people copy. Primary buttons use your admin colour scheme's own colour rather than black, secondary buttons are outlined, and Disconnect is outlined in vermilion — a filled red button beside a filled blue one is a coin toss at a glance. Fields are label-above and 40px tall, on/off settings are switches, and the page has the same margin on both sides.
+* **Connect SendBeam.** One button on the Overview replaces making an account, finding the API keys screen, working out which permissions to give and pasting the key back. You tick what this site may do, create your account or sign in on sendbeam.io in a pop-up, and the site is handed a key with exactly those permissions. Pasting a key by hand still works, under "I already have an API key".
+* Connecting can now set up your sending domain as well: tick the box and SendBeam adds this site's domain, and the plugin shows you the DNS records with a Copy button on every value, a **Check now** button, and a **Set up DNS automatically** button where your registrar supports it.
 * The set-up checklist has four steps rather than three, with verifying your sending domain second — it is what everything else depends on, and it used to be buried under "optional".
 * Site email can be switched on from the Overview in one click, but only once the sending domain is verified. A site's password resets should never start going out through a domain that has not been set up.
 * **Disconnect** is now a visible button on the Overview, and it revokes the key in SendBeam before forgetting it here. Before, it only forgot this site's copy and left the key live in your account.
@@ -165,6 +198,13 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 * Two administrators signed in to different workspaces no longer see each other's sending domain for a minute.
 * On a site with the key set in `wp-config.php`, the Overview says so instead of offering a button that would store a second key nothing would use.
 * "Last checked" is now a time you can read, in your site's own date format and timezone.
+* On a site with the key set in `wp-config.php`, the paste field goes away too, not just the button. A key saved there would lose to the constant on every request.
+* Reconnecting into a different workspace forgets what this site knew about the old one before it asks about the new one, rather than showing the previous workspace's sending domain for a minute.
+* The step that is waiting on a permission nobody ticked offers the way out on the step you are standing on, not only on the one it is queued behind.
+* The sending-domain step says how to change the domain as well as how to finish it: "Sending from the wrong domain? Reconnect and enter the one you want."
+* "I've placed it elsewhere" is offered whenever the workspace has a form at all, not only when a default one has been chosen — a form named in its own shortcode is still a form on the site.
+* Coming back from a registrar says the check has run, in the past tense, because by then it has. "Checking now…" promised a page that was about to change and then never changed.
+* The first step's link points at the Connect button rather than at the paste field underneath it.
 
 = 1.8.2 =
 * Pop-ups come in four styles — split with image, editorial, bold colour and slide-in — with an image, an eyebrow, a button label and an optional subscriber count, set per pop-up.
