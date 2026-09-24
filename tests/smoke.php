@@ -1951,6 +1951,10 @@ $sb_nodomain_scope['sendbeam_connect_granted'] = 'forms,transactional:send';
 $ov = sb_overview( $sb_nodomain_scope, array( 'workspace' => array( 'id' => 'ws_1' ), 'domain_state' => 'not_granted' ) );
 has( $ov, 'Reconnect with more permissions', 'overview: a step that names a missing permission offers to reconnect' );
 has( $ov, 'action=sendbeam_connect_start', 'overview: the reconnect link starts the Connect flow' );
+// Site email is waiting on step 2, and step 2 is waiting on a permission
+// nobody ticked. The way out is offered on the step the owner came to use,
+// not only on the one it is queued behind.
+ok( 2 === substr_count( $ov, 'Reconnect with more permissions' ), 'overview: the site email step offers the reconnect too when the domain permission is the missing piece' );
 $ov = sb_overview( $sb_connected, $sb_verified );
 lacks( $ov, 'Reconnect with more permissions', 'overview: a step with nothing missing does not offer it' );
 has( $ov, '>Reconnect<', 'overview: the connected card offers a plain Reconnect beside Disconnect' );

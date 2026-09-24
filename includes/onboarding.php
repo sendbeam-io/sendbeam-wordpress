@@ -381,6 +381,13 @@ function sendbeam_setup_steps() {
 		$mail_reconnect = true;
 	} elseif ( ! $verified ) {
 		$mail_detail = __( 'Waiting on step 2: this site\'s email can only go out once the sending domain is verified.', 'sendbeam' );
+		/*
+		 * Step 4 is waiting on step 2, and step 2 is waiting on a permission
+		 * nobody ticked. Sending the owner to step 2 to read that is one hop
+		 * too many when the way out is the same link either way: this step
+		 * offers it as well, because this is the step they came to use.
+		 */
+		$mail_reconnect = $domain_reconnect;
 	} else {
 		$mail_detail = __( 'Ready. Switch it on and password resets, receipts and notifications go out through your own domain.', 'sendbeam' );
 	}
