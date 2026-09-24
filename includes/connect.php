@@ -152,7 +152,7 @@ function sendbeam_connect_transient_key( $user_id ) {
 }
 
 /**
- * The pop-up URL, exactly as the contract specifies it.
+ * The consent page's URL on sendbeam.io, exactly as the contract specifies it.
  *
  * Nothing here is left to add_query_arg(), which does not encode: every value
  * is rawurlencode()d first. A site name with a space or an ampersand would
@@ -163,7 +163,7 @@ function sendbeam_connect_transient_key( $user_id ) {
  * @param string   $state  The CSRF token.
  * @return string Empty when this site cannot be connected (bad origin).
  */
-function sendbeam_connect_start_url( $scopes, $state ) {
+function sendbeam_connect_consent_url( $scopes, $state ) {
 	$origin = sendbeam_connect_site_origin();
 	if ( '' === $origin || ! sendbeam_connect_origin_ok( $origin ) ) {
 		return '';
@@ -187,6 +187,47 @@ function sendbeam_connect_start_url( $scopes, $state ) {
 			'return_to' => rawurlencode( sendbeam_connect_return_url() ),
 		),
 		sendbeam_app_url() . '/connect/wordpress'
+	);
+}
+
+/**
+ * The URL that starts the Connect flow from a link rather than the panel.
+ *
+ * Reconnecting is the answer to more than one dead end — a permission
+ * un-ticked at consent, a sending domain nobody was allowed to set up, a key
+ * that predates a permission existing — and every one of them used to end in
+ * "disconnect and connect again", which is a frightening instruction to give
+ * someone whose site is already working. A link is not a form, so the scopes
+ * it asks for are decided here: everything, or exactly what this site's key
+ * already carries.
+ *
+ * @param bool $all_scopes True to preselect every permission. False asks for
+ *                         the ones the key already holds, which is what a
+ *                         plain Reconnect means; a key pasted by hand records
+ *                         none, so that falls back to everything too.
+ * @return string
+ */
+function sendbeam_connect_start_url( $all_scopes = false ) {
+	$scopes = array_keys( sendbeam_connect_scopes() );
+
+	if ( ! $all_scopes ) {
+		$settings = sendbeam_settings();
+		$granted  = array_filter( array_map( 'trim', explode( ',', (string) $settings['sendbeam_connect_granted'] ) ) );
+		$known    = array_values( array_intersect( $scopes, $granted ) );
+		if ( $known ) {
+			$scopes = $known;
+		}
+	}
+
+	return wp_nonce_url(
+		add_query_arg(
+			array(
+				'action'          => 'sendbeam_connect_start',
+				'sendbeam_scopes' => rawurlencode( implode( ',', $scopes ) ),
+			),
+			admin_url( 'admin-post.php' )
+		),
+		'sendbeam_connect_start'
 	);
 }
 
@@ -233,9 +274,18 @@ function sendbeam_connect_start() {
 	}
 	check_admin_referer( 'sendbeam_connect_start' );
 
+	/*
+	 * The panel posts a checkbox per scope; a Reconnect link carries the same
+	 * list as a csv, because a link cannot post an array. Both are cleaned by
+	 * the same function, and the consent page is the real gate either way —
+	 * asking for a permission is not being given it.
+	 */
 	$raw = array();
-	if ( isset( $_POST['sendbeam_scopes'] ) && is_array( $_POST['sendbeam_scopes'] ) ) {
-		$raw = array_map( 'sanitize_text_field', wp_unslash( $_POST['sendbeam_scopes'] ) );
+	if ( isset( $_REQUEST['sendbeam_scopes'] ) ) {
+		$asked = wp_unslash( $_REQUEST['sendbeam_scopes'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitised on the next two lines, as an array or as a string.
+		$raw   = is_array( $asked )
+			? array_map( 'sanitize_text_field', $asked )
+			: array_map( 'trim', explode( ',', sanitize_text_field( $asked ) ) );
 	}
 	$scopes = sendbeam_connect_clean_scopes( $raw );
 
@@ -245,7 +295,7 @@ function sendbeam_connect_start() {
 
 	// Built before anything is remembered: a site that cannot be connected at
 	// all should not be left holding a pending connection it can never finish.
-	$url = sendbeam_connect_start_url( $scopes, $state );
+	$url = sendbeam_connect_consent_url( $scopes, $state );
 	if ( '' === $url ) {
 		wp_die( esc_html__( 'This site has no https address, so it cannot be connected to SendBeam. Add a certificate, or paste an API key instead.', 'sendbeam' ) );
 	}

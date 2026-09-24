@@ -217,6 +217,7 @@ function wp_get_current_user() {
 function did_action( $tag ) { return empty( $GLOBALS['stub']['did'][ $tag ] ) ? 0 : 1; }
 function wp_doing_ajax() { return ! empty( $GLOBALS['stub']['ajax'] ); }
 function wp_verify_nonce( $nonce, $action = -1 ) { return 'nonce:' . $action === $nonce ? 1 : false; }
+function wp_nonce_url( $url, $action = -1, $name = '_wpnonce' ) { return add_query_arg( $name, 'nonce:' . $action, $url ); }
 function wp_nonce_field( $action = -1, $name = '_wpnonce' ) { echo '<input type="hidden" name="' . esc_attr( $name ) . '" value="nonce:' . esc_attr( $action ) . '" />'; }
 function get_post_meta( $id, $key = '', $single = false ) { return isset( $GLOBALS['stub']['postmeta'][ $id ][ $key ] ) ? $GLOBALS['stub']['postmeta'][ $id ][ $key ] : ( $single ? '' : array() ); }
 function update_post_meta( $id, $key, $value ) { $GLOBALS['stub']['postmeta'][ $id ][ $key ] = $value; return true; }

@@ -1189,6 +1189,36 @@ update_option( 'sendbeam_settings', array() );
 sendbeam_connect_forget_status();
 delete_transient( 'sendbeam_connection' );
 
+// ── Reconnecting ───────────────────────────────────────────────────────
+// Un-ticking a permission at consent used to be fixable only by disconnect
+// and connect again, which is a frightening thing to tell someone whose site
+// is working. A link starts the same flow with the boxes already ticked.
+sb_connect_reset();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_connectedconnectedxx', 'sendbeam_connect_granted' => 'forms,contacts:write' ) );
+$sb_all = sendbeam_connect_start_url( true );
+has( $sb_all, 'action=sendbeam_connect_start', 'reconnect: the link starts the ordinary Connect flow' );
+has( $sb_all, 'nonce:sendbeam_connect_start', 'reconnect: the link carries the same nonce the panel does' );
+has( rawurldecode( $sb_all ), 'forms,contacts:write,transactional:send,ecommerce,domain', 'reconnect: with more permissions preselects every scope' );
+$sb_same = sendbeam_connect_start_url();
+has( rawurldecode( $sb_same ), 'sendbeam_scopes=forms,contacts:write', 'reconnect: a plain Reconnect asks for what the key already has' );
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_pastedpastedpasted' ) );
+has( rawurldecode( sendbeam_connect_start_url() ), 'ecommerce', 'reconnect: a key that recorded no permissions falls back to asking for all of them' );
+
+// The link's csv reaches the consent page as the panel's checkboxes would.
+sb_connect_reset();
+$_GET     = array( 'sendbeam_scopes' => 'forms,domain,not-a-scope', '_wpnonce' => 'nonce:sendbeam_connect_start' );
+$_REQUEST = $_GET;
+try {
+	sendbeam_connect_start();
+} catch ( SendBeamStubExit $e ) {
+	$GLOBALS['stub']['exit'] = $e->getMessage();
+}
+parse_str( (string) wp_parse_url( (string) $GLOBALS['stub']['redirect']['url'], PHP_URL_QUERY ), $sb_rq );
+ok( 'forms,domain' === ( $sb_rq['scopes'] ?? '' ), 'reconnect: the link\'s scopes are cleaned exactly as the panel\'s are' );
+ok( 0 === get_transient( 'sendbeam_connect_7' )['popup'], 'reconnect: a link is not a pop-up, so the return page offers a way back' );
+sb_connect_reset();
+update_option( 'sendbeam_settings', array() );
+
 // ── Check now ──────────────────────────────────────────────────────────
 /** Drive an admin-post handler that ends in a redirect. */
 function sb_run_admin_post( $fn ) {
@@ -1531,6 +1561,16 @@ $sb_on['mail_enabled'] = 1;
 $ov = sb_overview( $sb_on, $sb_verified );
 has( $ov, 'Send a test email', 'overview: site email that is on offers the test send' );
 has( $ov, 'nonce:sendbeam_test_mail', 'overview: the test send carries a nonce' );
+
+// The steps that name a missing permission offer the way out of it.
+$sb_nodomain_scope = $sb_connected;
+$sb_nodomain_scope['sendbeam_connect_granted'] = 'forms,transactional:send';
+$ov = sb_overview( $sb_nodomain_scope, array( 'workspace' => array( 'id' => 'ws_1' ), 'domain_state' => 'not_granted' ) );
+has( $ov, 'Reconnect with more permissions', 'overview: a step that names a missing permission offers to reconnect' );
+has( $ov, 'action=sendbeam_connect_start', 'overview: the reconnect link starts the Connect flow' );
+$ov = sb_overview( $sb_connected, $sb_verified );
+lacks( $ov, 'Reconnect with more permissions', 'overview: a step with nothing missing does not offer it' );
+has( $ov, '>Reconnect<', 'overview: the connected card offers a plain Reconnect beside Disconnect' );
 
 // A site connected with a key pasted by hand: no recorded permissions, but a
 // domain it can plainly read. The screen must not print a table of records

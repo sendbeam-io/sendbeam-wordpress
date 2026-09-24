@@ -177,6 +177,22 @@ function sendbeam_overview_step_panel( $step, $status, $connected ) {
 			sendbeam_overview_mail_panel( $status, $connected );
 			break;
 	}
+
+	/*
+	 * A step whose sentence names a permission this site was never given ends
+	 * in the same place: the consent page, with that box ticked. The link
+	 * starts the ordinary Connect flow with everything preselected, and the
+	 * key that comes back replaces the one this site holds.
+	 */
+	if ( $connected && ! empty( $step['reconnect'] ) ) {
+		echo '<div class="sb-step__panel"><div class="sb-actions">';
+		printf(
+			'<a class="sb-btn sb-btn--small sb-btn--ghost" href="%s">%s</a>',
+			esc_url( sendbeam_connect_start_url( true ) ),
+			esc_html__( 'Reconnect with more permissions', 'sendbeam' )
+		);
+		echo '</div></div>';
+	}
 }
 
 /**
@@ -463,6 +479,18 @@ function sendbeam_connect_connected_panel( $status = null ) {
 	echo '<form class="sb-confirm" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
 	wp_nonce_field( 'sendbeam_disconnect' );
 	echo '<input type="hidden" name="action" value="sendbeam_disconnect" />';
+
+	/*
+	 * Reconnect sits beside Disconnect because it is what people reach for
+	 * Disconnect to do: change workspace, pick a different sending host,
+	 * re-approve something. It asks for the permissions this site already
+	 * has, so the consent page comes up saying what is already true.
+	 */
+	printf(
+		'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a> ',
+		esc_url( sendbeam_connect_start_url() ),
+		esc_html__( 'Reconnect', 'sendbeam' )
+	);
 	printf(
 		'<button type="button" class="sb-btn sb-btn--ghost sb-btn--small sb-confirm__ask" hidden>%s</button>',
 		esc_html__( 'Disconnect', 'sendbeam' )
