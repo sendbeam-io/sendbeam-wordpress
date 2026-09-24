@@ -5035,3 +5035,10 @@ foreach ( array( 'cart', 'checkout', 'account', 'wc_endpoint' ) as $sb_where ) {
 }
 $stub['query'] = array();
 has( file_get_contents( __DIR__ . '/../includes/screens.php' ), 'Never on the cart, checkout or account pages.', 'pop-ups: the Show on control says so' );
+
+// The records wrapper must be sized by its container, not its content (it collapsed to 2px on the Overview).
+$sb_css = sendbeam_admin_css();
+has( $sb_css, '.sb-scroll{overflow-x:auto;display:block;width:100%;min-width:0;', 'records: the scroll wrapper always takes the full width of its container' );
+lacks( $sb_css, '.sb-steps li{', 'records: the checklist row rule is scoped to its own items, not every list inside a step' );
+has( $sb_css, '.sb-numbered>li{display:list-item;', 'records: a numbered list inside a step stays a list' );
+has( $sb_css, '.sb-scroll>.sb-dns{width:100%}', 'records: and the table fills the wrapper' );

@@ -253,7 +253,7 @@ function sendbeam_admin_css() {
 	.sb-bullets{margin:0;padding-left:1.3em;list-style:disc}
 	.sb-bullets li{margin:0 0 6px}
 	.sb-numbered{margin:0 0 4px;padding-left:1.4em;list-style:decimal}
-	.sb-numbered>li{margin:0 0 14px}
+	.sb-numbered>li{display:list-item;margin:0 0 14px}
 	.sb-numbered>li::marker{font-weight:700}
 
 	.sb-chip{display:inline-block;font-size:12px;padding:3px 8px;
@@ -325,11 +325,15 @@ function sendbeam_admin_css() {
 	.sendbeam-app .sb-toggle .sb-note{display:block;margin-top:2px}
 
 	/* ── Tables ───────────────────────────────────────────────────────── */
-	/* `contain: inline-size` is what makes the promise of this wrapper true.
+	/* Sized by its container, never by its content: with inline-size containment
+	   a wrapper left at width:auto in a shrink-to-fit context collapsed to 2px on
+	   the Overview, and the records vanished while the sentences around them stayed.
+	   `contain: inline-size` is what makes the promise of this wrapper true.
 	   Without it a table wider than the screen still widens the page in a
 	   mobile browser — the wrapper scrolls, and the layout viewport grows to
 	   the table anyway, which is the failure this class exists to prevent. */
-	.sb-scroll{overflow-x:auto;margin:0 0 10px;max-width:100%;contain:layout inline-size}
+	.sb-scroll{overflow-x:auto;display:block;width:100%;min-width:0;box-sizing:border-box;margin:0 0 10px;max-width:100%;contain:layout inline-size}
+	.sb-scroll>.sb-dns{width:100%}
 	.sb-table{width:100%;border-collapse:collapse;border:1px solid var(--ink);background:#fff}
 	.sb-table th{text-align:left;font-size:13px;color:var(--ink);font-weight:600;
 		padding:9px 12px;border-bottom:1px solid var(--ink)}
@@ -402,11 +406,11 @@ function sendbeam_admin_css() {
 
 	/* ── Steps and the checklist ──────────────────────────────────────── */
 	.sb-steps{list-style:none;margin:0;padding:0}
-	.sb-steps li{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--hair)}
-	.sb-steps li:last-child{border-bottom:0}
+	.sb-steps>li{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--hair)}
+	.sb-steps>li:last-child{border-bottom:0}
 	.sb-steps .sb-num{flex:0 0 auto;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
 		font-size:12px;font-weight:700;background:var(--paper);border:1px solid var(--ink)}
-	.sb-steps li.is-done .sb-num{background:var(--m);border-color:var(--m);color:#fff}
+	.sb-steps>li.is-done .sb-num{background:var(--m);border-color:var(--m);color:#fff}
 	/* Switched on and doing the wrong thing is neither done nor unstarted. */
 	.sb-steps li.needs-attention .sb-num{background:var(--a);border-color:var(--a);color:#fff}
 	.sb-steps li.needs-attention .sb-step__note{color:var(--ink)}
@@ -417,6 +421,10 @@ function sendbeam_admin_css() {
 	.sb-steps .sb-step{flex:1 1 auto;min-width:0}
 	.sb-steps .sb-step__note{display:block;font-size:13px;color:var(--ink-60);margin-top:3px}
 	.sb-step__panel{margin-top:10px}
+	/* The text column of the step is a flex item: without a basis and min-width:0 it shrinks to fit,
+	   and anything inside it sized in percent (the records wrapper) shrank with it. */
+	.sb-steps .sb-step{flex:1 1 0%;min-width:0;width:auto}
+	.sb-step__panel{min-width:0}
 	.sb-step__panel>*:first-child{margin-top:0}
 	.sb-actions{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin:10px 0 6px}
 	.sb-actions form{margin:0}
