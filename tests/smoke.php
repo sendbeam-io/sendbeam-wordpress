@@ -1957,6 +1957,15 @@ has( $ov, 'action=sendbeam_connect_start', 'overview: the reconnect link starts 
 ok( 2 === substr_count( $ov, 'Reconnect with more permissions' ), 'overview: the site email step offers the reconnect too when the domain permission is the missing piece' );
 $ov = sb_overview( $sb_connected, $sb_verified );
 lacks( $ov, 'Reconnect with more permissions', 'overview: a step with nothing missing does not offer it' );
+// Changing the domain a site sends from means going back to the consent
+// page, and a verified domain is exactly when somebody notices it is the
+// wrong one — so the line is there whether anything is missing or not.
+has( $ov, 'Sending from the wrong domain? Reconnect and enter the one you want.', 'overview: a working domain step still says how to change the domain' );
+$ov = sb_overview( $sb_connected, array( 'workspace' => array( 'id' => 'ws_1' ), 'domain_state' => 'no_site' ) );
+has( $ov, 'Sending from the wrong domain? Reconnect and enter the one you want.', 'overview: and so does a step with no domain at all' );
+$ov = sb_overview( array(), array( 'workspace' => array( 'id' => 'ws_1' ), 'domain_state' => 'no_site' ) );
+lacks( $ov, 'Sending from the wrong domain?', 'overview: a site that has not connected is not offered a reconnection' );
+$ov = sb_overview( $sb_connected, $sb_verified );
 has( $ov, '>Reconnect<', 'overview: the connected card offers a plain Reconnect beside Disconnect' );
 
 // ── Back from the registrar ────────────────────────────────────────────

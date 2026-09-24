@@ -219,6 +219,20 @@ function sendbeam_overview_step_panel( $step, $status, $connected ) {
 			break;
 		case 'domain':
 			sendbeam_overview_domain_panel( $status, $connected );
+			/*
+			 * The domain this site sends from is chosen on the consent page,
+			 * and going back there is the only way to change it. Nothing said
+			 * so while the step was working — which is precisely when someone
+			 * notices they set up the wrong domain, and the point at which
+			 * every other sentence on the step has stopped talking to them.
+			 */
+			if ( $connected ) {
+				printf(
+					'<p class="sb-note sb-step__swap"><a href="%s">%s</a></p>',
+					esc_url( sendbeam_connect_start_url() ),
+					esc_html__( 'Sending from the wrong domain? Reconnect and enter the one you want.', 'sendbeam' )
+				);
+			}
 			break;
 		case 'form':
 			sendbeam_overview_form_panel( $step, $connected );
