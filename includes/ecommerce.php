@@ -40,6 +40,8 @@ const SENDBEAM_ECOMMERCE_HOOK   = 'sendbeam_ecommerce_send_event';
 const SENDBEAM_CART_CHECK_HOOK  = 'sendbeam_check_cart_abandonment';
 const SENDBEAM_CART_WINDOW_MIN  = 5;
 const SENDBEAM_CART_WINDOW_MAX  = 10080; // 7 days.
+/** Order meta that says Order placed has already gone out for this order. */
+const SENDBEAM_ORDER_PLACED_META = '_sendbeam_order_placed_sent';
 
 add_action( 'admin_post_sendbeam_save_ecommerce', 'sendbeam_handle_save_ecommerce' );
 add_action( SENDBEAM_ECOMMERCE_HOOK, 'sendbeam_ecommerce_run_event' );
@@ -48,7 +50,19 @@ add_action( SENDBEAM_CART_CHECK_HOOK, 'sendbeam_ecommerce_check_cart_abandonment
 // WooCommerce. Every callback is a no-op the moment WooCommerce, or the
 // specific function/class it needs, is not there — exactly how sync.php's
 // own checkout hook already degrades.
-add_action( 'woocommerce_checkout_order_processed', 'sendbeam_ecommerce_on_order_placed', 10, 1 );
+
+/*
+ * Order placed means PAID. The checkout hook fires while WooCommerce is still
+ * creating the order — before any gateway has taken a penny, and whatever
+ * the order ends up as — so a card that is declined had already produced an
+ * "order placed" event and a lifetime-value increment. Payment complete
+ * covers gateways; processing and completed cover cash on delivery and a
+ * merchant marking an order paid by hand. One order reaches more than one of
+ * these, so the send is recorded on the order and made once.
+ */
+add_action( 'woocommerce_payment_complete', 'sendbeam_ecommerce_on_order_paid', 10, 1 );
+add_action( 'woocommerce_order_status_processing', 'sendbeam_ecommerce_on_order_paid', 10, 1 );
+add_action( 'woocommerce_order_status_completed', 'sendbeam_ecommerce_on_order_paid', 10, 1 );
 add_action( 'woocommerce_single_product_summary', 'sendbeam_ecommerce_on_product_viewed', 1 );
 add_action( 'woocommerce_add_to_cart', 'sendbeam_ecommerce_on_add_to_cart', 10, 6 );
 add_action( 'woocommerce_before_checkout_form', 'sendbeam_ecommerce_refresh_cart_email' );
@@ -109,7 +123,7 @@ function sendbeam_ecommerce_active( $event ) {
  */
 function sendbeam_handle_save_ecommerce() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_save_ecommerce' );
 
@@ -249,7 +263,7 @@ function sendbeam_ecommerce_on_order_placed( $order_id ) {
 	if ( ! sendbeam_ecommerce_active( 'order_placed' ) || ! function_exists( 'wc_get_order' ) ) {
 		return;
 	}
-	$order = wc_get_order( $order_id );
+	$order = $order_id instanceof WC_Order ? $order_id : wc_get_order( $order_id );
 	if ( ! $order ) {
 		return;
 	}
@@ -266,6 +280,26 @@ function sendbeam_ecommerce_on_order_placed( $order_id ) {
 			'currency' => $order->get_currency(),
 		)
 	);
+}
+
+/**
+ * The paid-order hooks land here. Whichever of them fires first sends the
+ * event and marks the order; the rest find the mark and do nothing, so an
+ * order that goes processing → completed is one Order placed, not two.
+ *
+ * @param int|WC_Order $order_id Order ID, or the order itself.
+ */
+function sendbeam_ecommerce_on_order_paid( $order_id ) {
+	if ( ! sendbeam_ecommerce_active( 'order_placed' ) || ! function_exists( 'wc_get_order' ) ) {
+		return;
+	}
+	$order = $order_id instanceof WC_Order ? $order_id : wc_get_order( $order_id );
+	if ( ! $order || $order->get_meta( SENDBEAM_ORDER_PLACED_META ) ) {
+		return;
+	}
+	$order->update_meta_data( SENDBEAM_ORDER_PLACED_META, time() );
+	$order->save();
+	sendbeam_ecommerce_on_order_placed( $order );
 }
 
 /* ---------------------------------------------------------- Product viewed */

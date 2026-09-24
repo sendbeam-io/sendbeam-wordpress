@@ -18,49 +18,51 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * The tabs, in order.
+ * The old tab keys, and the page each one became.
  *
- * @return array<string,string>
+ * Every handler in the plugin redirects to `sendbeam_tab_url( 'overview' )`
+ * and friends, and every bookmark anyone made points at
+ * `options-general.php?page=sendbeam&tab=X`. Keeping one table of what became
+ * what means the move is a change of address rather than a change of
+ * behaviour — and the 301 in menu.php reads the same table.
+ *
+ * @return array<string,string> Old tab key => new page slug.
  */
-function sendbeam_tabs() {
+function sendbeam_tab_pages() {
 	return array(
-		'overview'  => __( 'Overview', 'sendbeam' ),
-		'forms'     => __( 'Forms', 'sendbeam' ),
-		'audience'  => __( 'Audience', 'sendbeam' ),
-		'popup'     => __( 'Pop-ups', 'sendbeam' ),
-		'mail'      => __( 'Site email', 'sendbeam' ),
-		'ecommerce' => __( 'E-commerce events', 'sendbeam' ),
-		'docs'      => __( 'Docs', 'sendbeam' ),
+		'overview'  => 'sendbeam',
+		'forms'     => 'sendbeam-forms',
+		'audience'  => 'sendbeam-audience',
+		'popup'     => 'sendbeam-popups',
+		'mail'      => 'sendbeam-mail',
+		'ecommerce' => 'sendbeam-ecommerce',
+		// The Docs tab is gone; the Help page carries what it held.
+		'docs'      => 'sendbeam-help',
 	);
 }
 
 /**
- * Which tab is showing.
- *
- * @return string
- */
-function sendbeam_current_tab() {
-	$tabs = sendbeam_tabs();
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only navigation.
-	$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'overview';
-	return isset( $tabs[ $tab ] ) ? $tab : 'overview';
-}
-
-/**
- * URL for a tab.
+ * URL for what used to be a tab.
  *
  * @param string $tab Tab key.
  * @return string
  */
 function sendbeam_tab_url( $tab ) {
-	return admin_url( 'options-general.php?page=sendbeam&tab=' . rawurlencode( $tab ) );
+	$pages = sendbeam_tab_pages();
+	return sendbeam_page_url( isset( $pages[ $tab ] ) ? $pages[ $tab ] : 'sendbeam' );
 }
 
 /**
- * Header and tab bar.
+ * The branded band at the top of every SendBeam screen.
+ *
+ * It replaces the visual `<h1>` (the screen-reader one is in the router), and
+ * it names the section it is above: a header that says only "SendBeam" on
+ * eight different pages tells you the plugin you are in and nothing about
+ * where in it you are.
+ *
+ * @param string $title The section name.
  */
-function sendbeam_render_header() {
-	$current    = sendbeam_current_tab();
+function sendbeam_render_header( $title = '' ) {
 	$connection = sendbeam_connection();
 	$states     = array(
 		'ok'          => array( 'moss', __( 'Connected', 'sendbeam' ) ),
@@ -75,35 +77,93 @@ function sendbeam_render_header() {
 		<div class="sb-head__brand">
 			<span class="sb-mark" aria-hidden="true"></span>
 			<span class="sb-wordmark">SendBeam</span>
-			<span class="sb-ver">v<?php echo esc_html( SENDBEAM_VERSION ); ?></span>
+			<?php if ( '' !== $title ) : ?>
+				<span class="sb-head__where" aria-hidden="true">/</span>
+				<span class="sb-head__title"><?php echo esc_html( $title ); ?></span>
+			<?php endif; ?>
 		</div>
 		<div class="sb-head__right">
 			<span class="sb-state sb-state--<?php echo esc_attr( $state[0] ); ?>"><?php echo esc_html( $state[1] ); ?></span>
-			<a class="sb-btn sb-btn--ghost" href="<?php echo esc_url( sendbeam_app_url() ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Open SendBeam', 'sendbeam' ); ?></a>
+			<a class="sb-btn sb-btn--ghost" href="<?php echo esc_url( sendbeam_app_link() ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Open SendBeam', 'sendbeam' ); ?></a>
 		</div>
 	</div>
-	<nav class="sb-tabs" aria-label="<?php esc_attr_e( 'SendBeam sections', 'sendbeam' ); ?>">
-		<?php foreach ( sendbeam_tabs() as $key => $label ) : ?>
-			<a class="sb-tab<?php echo esc_attr( $key === $current ? ' is-active' : '' ); ?>"
-				href="<?php echo esc_url( sendbeam_tab_url( $key ) ); ?>"
-				<?php echo $key === $current ? 'aria-current="page"' : ''; ?>><?php echo esc_html( $label ); ?></a>
-		<?php endforeach; ?>
-	</nav>
 	<?php
+}
+
+/**
+ * An in-page tab bar, for the one screen that still has tabs.
+ *
+ * @param array<string,string> $tabs    Key => label.
+ * @param string               $current The active key.
+ * @param string               $slug    The page the tabs live on.
+ * @param string               $label   Accessible name for the nav.
+ */
+function sendbeam_render_tabs( $tabs, $current, $slug, $label ) {
+	echo '<nav class="sb-tabs" aria-label="' . esc_attr( $label ) . '">';
+	foreach ( $tabs as $key => $text ) {
+		printf(
+			'<a class="sb-tab%1$s" href="%2$s"%3$s>%4$s</a>',
+			esc_attr( $key === $current ? ' is-active' : '' ),
+			esc_url( add_query_arg( 'tab', $key, sendbeam_page_url( $slug ) ) ),
+			$key === $current ? ' aria-current="page"' : '',
+			esc_html( $text )
+		);
+	}
+	echo '</nav>';
+}
+
+/**
+ * One admin notice, in core's own markup.
+ *
+ * `wp_admin_notice()` arrived in WordPress 6.4 and this plugin supports 6.1,
+ * so the fallback is not decoration: it is what a third of sites would see.
+ * Both paths emit the same classes, because the point of using core's notice
+ * is that it looks and behaves like every other notice on the screen —
+ * including being dismissible by core's own script.
+ *
+ * @param string $message     The sentence. Already-escaped HTML.
+ * @param string $type        info, success, warning or error.
+ * @param bool   $dismissible Whether core's dismiss button is offered.
+ */
+function sendbeam_notice( $message, $type = 'info', $dismissible = true ) {
+	$args = array(
+		'type'               => $type,
+		'dismissible'        => $dismissible,
+		'additional_classes' => array( 'sendbeam-notice' ),
+		'paragraph_wrap'     => true,
+	);
+
+	if ( function_exists( 'wp_admin_notice' ) ) {
+		wp_admin_notice( $message, $args );
+		return;
+	}
+
+	printf(
+		'<div class="notice notice-%1$s sendbeam-notice%2$s"><p>%3$s</p></div>',
+		esc_attr( $type ),
+		$dismissible ? ' is-dismissible' : '',
+		wp_kses_post( $message )
+	);
 }
 
 /**
  * Open a card.
  *
- * @param string $title Card heading.
- * @param string $note  Optional muted note on the right.
+ * @param string $title  Card heading.
+ * @param string $note   Optional muted note on the right.
+ * @param string $action Optional single action, right-aligned in the header.
+ *                       A card's one secondary action belongs beside its
+ *                       title, not adrift at the bottom of its body.
  */
-function sendbeam_card_open( $title = '', $note = '' ) {
+function sendbeam_card_open( $title = '', $note = '', $action = '' ) {
 	echo '<section class="sb-card">';
 	if ( '' !== $title ) {
 		echo '<header class="sb-card__head"><h2>' . esc_html( $title ) . '</h2>';
 		if ( '' !== $note ) {
 			echo '<span class="sb-note">' . esc_html( $note ) . '</span>';
+		}
+		if ( '' !== $action ) {
+			echo '<span class="sb-card__action">' . wp_kses_post( $action ) . '</span>';
 		}
 		echo '</header>';
 	}
@@ -122,121 +182,429 @@ function sendbeam_card_close() {
  */
 function sendbeam_admin_css() {
 	return '
+	/* ── Tokens ───────────────────────────────────────────────────────── */
 	.sendbeam-app{--paper:#EDEBE6;--ink:#121212;--v:#E2442A;--c:#1F3FBF;--m:#3B7D46;--a:#B26B12;--ink-60:#5c5c5c;
-		background:var(--paper);margin:20px 20px 0 0;padding:0 0 28px;color:var(--ink);
+		--rule:#d8d6d0;--hair:#e2e0db;
+		/* The admin theme colour, so a site that has chosen Midnight or Ocean
+		   gets its own primary rather than one this plugin picked. */
+		--brand:var(--wp-admin-theme-color,#2271b1);
+		--brand-dark:var(--wp-admin-theme-color-darker-10,#135e96);
+		background:var(--paper);margin:20px 20px 0;padding:0 0 28px;color:var(--ink);
 		font-family:Archivo,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
 	.sendbeam-app *{box-sizing:border-box}
-	.sendbeam-app .sb-mono,.sendbeam-app .sb-label,.sendbeam-app .sb-state,.sendbeam-app .sb-chip,.sendbeam-app .sb-tab,.sendbeam-app code
+	/* Mono is for values a person copies, and for nothing else. */
+	.sendbeam-app .sb-mono,.sendbeam-app code,.sendbeam-app pre,.sendbeam-app .sb-fig,.sendbeam-app .sb-copy-field
 		{font-family:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 
-	.sb-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+	/* ── The header band ──────────────────────────────────────────────── */
+	/* clear, because Screen Options and Help are floated right by core and an
+	   unclear block sits beside them at two-thirds width. */
+	.sb-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;clear:both;
 		padding:18px 22px;background:var(--ink);color:var(--paper)}
-	.sb-head__brand{display:flex;align-items:center;gap:10px}
-	.sb-mark{width:16px;height:16px;background:var(--v);display:inline-block;
-		box-shadow:22px 0 0 0 var(--c),44px 0 0 0 var(--m);margin-right:44px;flex:0 0 auto}
+	.sb-head__brand{display:flex;align-items:center;gap:10px;min-width:0}
+	.sb-mark{width:14px;height:14px;background:var(--v);display:inline-block;
+		box-shadow:20px 0 0 0 var(--c),40px 0 0 0 var(--m);margin-right:40px;flex:0 0 auto}
 	.sb-wordmark{font-weight:700;font-size:18px;letter-spacing:-.01em}
-	.sb-ver{font-size:11px;opacity:.6;letter-spacing:.06em}
+	.sb-head__where{opacity:.45}
+	.sb-head__title{font-size:16px;opacity:.9;overflow-wrap:anywhere}
 	.sb-head__right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 
-	.sb-state{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-		padding:5px 8px 4px;color:#fff;background:var(--ink-60)}
+	.sb-state{display:inline-block;font-size:12px;font-weight:600;padding:4px 9px;color:#fff;background:var(--ink-60)}
 	.sb-state--moss{background:var(--m)} .sb-state--vermilion{background:var(--v)}
 	.sb-state--amber{background:var(--a)} .sb-state--ink{background:#3a3a3a}
+	.sb-state-line{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;margin:0 0 12px}
 
-	.sb-tabs{display:flex;gap:0;flex-wrap:wrap;background:var(--ink);padding:0 22px;border-bottom:1px solid var(--ink)}
-	.sb-tab{display:inline-flex;align-items:center;height:40px;padding:0 16px;text-decoration:none;
-		font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;
-		color:rgba(237,235,230,.75);border-bottom:3px solid transparent}
-	.sb-tab:hover{color:#fff}
-	.sb-tab.is-active{color:var(--ink);background:var(--paper);border-bottom-color:var(--v)}
-	.sb-tab:focus{box-shadow:none;outline:2px solid var(--v);outline-offset:-2px}
+	/* ── Tabs, on the one screen that still has them ──────────────────── */
+	.sb-tabs{display:flex;gap:0;flex-wrap:wrap;background:#fff;border:1px solid var(--ink);margin:0 0 18px}
+	.sb-tab{display:inline-flex;align-items:center;height:42px;padding:0 18px;text-decoration:none;
+		font-size:14px;font-weight:500;color:var(--ink-60);border-bottom:3px solid transparent}
+	.sb-tab:hover{color:var(--ink)}
+	.sb-tab.is-active{color:var(--ink);font-weight:600;border-bottom-color:var(--brand)}
+	.sb-tab:focus{box-shadow:none;outline:2px solid var(--brand);outline-offset:-2px}
 
-	.sb-wrap{padding:22px}
-	/* Cards in a row share a height so their bottom rules line up; without this
-	   each one ends wherever its own content does and the row looks ragged. */
-	.sb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:stretch;margin-bottom:18px}
-	.sb-grid>.sb-card{margin-bottom:0;display:flex;flex-direction:column}
-	.sb-grid>.sb-card>.sb-card__body{flex:1 1 auto}
+	.sb-wrap{padding:22px 0 0}
+
+	/* ── Cards ────────────────────────────────────────────────────────── */
+	/* Cards are as tall as what is in them. Stretching them to match the
+	   tallest in the row lines their bottom rules up and leaves the shorter
+	   one two-thirds empty, which reads as something failing to load. */
+	.sb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start;margin-bottom:18px}
+	.sb-grid>.sb-card{margin-bottom:0}
+
+	/* Three figures across, each label above its number. */
+	.sb-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:0 0 4px}
+	.sb-stats .sb-label{margin-bottom:2px}
+	.sb-stats .sb-fig{font-size:32px}
 
 	.sb-card{background:#fff;border:1px solid var(--ink);margin:0 0 18px}
 	.sb-card__head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;
-		padding:12px 16px;border-bottom:1px solid var(--ink)}
-	.sb-card__head h2{margin:0;font-size:14px;font-weight:700;letter-spacing:-.01em}
+		padding:13px 16px;border-bottom:1px solid var(--ink)}
+	.sb-card__head h2,.sb-card__head h3{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em;margin-right:auto}
+	.sb-card__action{flex:0 0 auto}
 	.sb-card__body{padding:16px}
-	.sb-note{font-size:11px;color:var(--ink-60)}
+	.sb-note{font-size:13px;color:var(--ink-60)}
+	/* A setting that is switched on and cannot act. Amber, not red: nothing
+	   is broken, something is simply not connected yet. */
+	.sendbeam-app .description.sb-warn{color:var(--ink);border-left:3px solid var(--a);padding-left:10px;margin:6px 0 0}
 
-	.sb-label{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;
-		color:var(--ink-60);margin:0 0 4px}
-	.sb-fig{font-size:30px;font-weight:600;line-height:1;letter-spacing:-.02em;
-		font-family:"Martian Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+	/* ── Type ─────────────────────────────────────────────────────────── */
+	.sb-label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin:0 0 5px}
+	.sb-fig{font-size:30px;font-weight:600;line-height:1;letter-spacing:-.02em;display:block}
+	.sb-bullets{margin:0;padding-left:1.3em;list-style:disc}
+	.sb-bullets li{margin:0 0 6px}
+	.sb-numbered{margin:0 0 4px;padding-left:1.4em;list-style:decimal}
+	.sb-numbered>li{display:list-item;margin:0 0 14px}
+	.sb-numbered>li::marker{font-weight:700}
 
-	.sb-chip{display:inline-block;font-size:10px;letter-spacing:.06em;padding:4px 6px 3px;
-		border:1px solid var(--ink);background:#fff;text-transform:uppercase;font-weight:600}
+	.sb-chip{display:inline-block;font-size:12px;padding:3px 8px;
+		border:1px solid var(--rule);background:#fff;font-weight:500}
 	.sb-chip--signup{border-color:var(--c);color:var(--c)}
 	.sb-chip--contact{border-color:var(--a);color:var(--a)}
 
-	.sb-btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;cursor:pointer;
-		font-size:13px;font-weight:700;text-decoration:none;border:1px solid var(--ink);
-		background:var(--ink);color:var(--paper)}
-	.sb-btn:hover{background:var(--v);border-color:var(--v);color:#fff}
-	.sb-btn--ghost{background:transparent;color:inherit;border-color:currentColor;font-weight:600}
-	.sb-btn--ghost:hover{background:var(--v);border-color:var(--v);color:#fff}
-	.sb-btn--small{height:28px;padding:0 10px;font-size:12px}
+	/* ── Buttons ──────────────────────────────────────────────────────── */
+	/* Primary is the admin theme colour, so a site running Midnight or Ocean
+	   gets a button that belongs to it. Black read as disabled to half the
+	   people who saw it, and as a third-party widget to the rest. */
+	.sendbeam-app .sb-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+		min-height:36px;padding:0 16px;cursor:pointer;font-size:14px;font-weight:600;text-decoration:none;
+		border:1px solid var(--brand);border-radius:0;background:var(--brand);color:#fff;line-height:1.2}
+	.sendbeam-app .sb-btn:hover,.sendbeam-app .sb-btn:focus{background:var(--brand-dark);border-color:var(--brand-dark);color:#fff}
+	.sendbeam-app .sb-btn:focus{outline:2px solid var(--ink);outline-offset:1px;box-shadow:none}
+	.sendbeam-app .sb-btn--primary{background:var(--brand);border-color:var(--brand);color:#fff}
+	/* Secondary: ink outline. It sits beside a primary without competing. */
+	.sendbeam-app .sb-btn--ghost{background:transparent;color:var(--ink);border-color:var(--ink);font-weight:500}
+	.sendbeam-app .sb-btn--ghost:hover,.sendbeam-app .sb-btn--ghost:focus{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+	/* On the ink band the outline has to be the band\'s own foreground. */
+	.sb-head .sb-btn--ghost{color:inherit;border-color:currentColor}
+	.sb-head .sb-btn--ghost:hover,.sb-head .sb-btn--ghost:focus{background:var(--paper);border-color:var(--paper);color:var(--ink)}
+	/* Danger: outlined, never filled. A filled red button beside a filled
+	   blue one is a coin toss at a glance. */
+	.sendbeam-app .sb-btn--danger{background:transparent;color:var(--v);border-color:var(--v)}
+	.sendbeam-app .sb-btn--danger:hover,.sendbeam-app .sb-btn--danger:focus{background:var(--v);border-color:var(--v);color:#fff}
+	.sendbeam-app .sb-btn--small{min-height:30px;padding:0 12px;font-size:13px}
+	.sendbeam-app .sb-link{background:none;border:0;padding:0;margin:0;cursor:pointer;
+		color:var(--brand);font-size:14px;text-decoration:underline;font-family:inherit}
+	.sendbeam-app .sb-link:hover{color:var(--brand-dark)}
 
+	/* ── Fields ───────────────────────────────────────────────────────── */
+	/* Label above, always: a label to the left of a field wraps to three
+	   lines on a phone and the field ends up a thumb-width wide. */
+	.sendbeam-app .sb-field{display:block;margin:0 0 14px}
+	.sendbeam-app input[type=text],.sendbeam-app input[type=email],.sendbeam-app input[type=url],
+	.sendbeam-app input[type=number],.sendbeam-app input[type=password],.sendbeam-app input[type=search],
+	.sendbeam-app select,.sendbeam-app textarea
+		{min-height:40px;border:1px solid var(--ink);border-radius:0;background:#fff;
+		font-size:14px;padding:0 10px;max-width:100%}
+	.sendbeam-app textarea{padding:8px 10px}
+	.sendbeam-app input:focus,.sendbeam-app select:focus,.sendbeam-app textarea:focus
+		{outline:2px solid var(--brand);outline-offset:-2px;box-shadow:none;border-color:var(--brand)}
+	.sendbeam-app .description{font-size:13px;color:var(--ink-60);margin:4px 0 0}
+	.sendbeam-app h2{color:var(--ink)}
+
+	/* The Settings API renders label-beside-field; this turns its two columns
+	   into one on every width, which is what the rest of the plugin does. */
+	.sendbeam-app .form-table,.sendbeam-app .form-table tbody,.sendbeam-app .form-table tr,
+	.sendbeam-app .form-table th,.sendbeam-app .form-table td{display:block;width:auto;padding:0}
+	.sendbeam-app .form-table th{font-size:13px;font-weight:600;color:var(--ink);padding:0 0 5px}
+	.sendbeam-app .form-table td{padding:0 0 18px}
+	.sendbeam-app .form-table tr:last-child td{padding-bottom:0}
+
+	/* ── Toggles ──────────────────────────────────────────────────────── */
+	/* A switch, because an on/off setting reads as a state rather than as a
+	   choice being made now — which is what a tick box says. */
+	.sendbeam-app .sb-toggle{display:flex;gap:10px;align-items:flex-start;line-height:1.45;font-size:14px}
+	.sendbeam-app .sb-toggle input[type=checkbox]{appearance:none;-webkit-appearance:none;
+		flex:0 0 auto;width:38px;height:22px;margin:1px 0 0;border:1px solid var(--ink);border-radius:11px;
+		background:#fff;position:relative;cursor:pointer;transition:background .12s ease}
+	.sendbeam-app .sb-toggle input[type=checkbox]::before{content:"";position:absolute;top:2px;left:2px;
+		width:16px;height:16px;border-radius:50%;background:var(--ink);margin:0;transition:transform .12s ease}
+	.sendbeam-app .sb-toggle input[type=checkbox]:checked{background:var(--brand);border-color:var(--brand)}
+	.sendbeam-app .sb-toggle input[type=checkbox]:checked::before{background:#fff;transform:translateX(16px)}
+	.sendbeam-app .sb-toggle input[type=checkbox]:disabled{opacity:.5;cursor:not-allowed}
+	.sendbeam-app .sb-toggle input[type=checkbox]:focus{outline:2px solid var(--brand);outline-offset:2px;box-shadow:none}
+	.sendbeam-app .sb-toggle .sb-note{display:block;margin-top:2px}
+
+	/* ── Tables ───────────────────────────────────────────────────────── */
+	/* Sized by its container, never by its content: with inline-size containment
+	   a wrapper left at width:auto in a shrink-to-fit context collapsed to 2px on
+	   the Overview, and the records vanished while the sentences around them stayed.
+	   `contain: inline-size` is what makes the promise of this wrapper true.
+	   Without it a table wider than the screen still widens the page in a
+	   mobile browser — the wrapper scrolls, and the layout viewport grows to
+	   the table anyway, which is the failure this class exists to prevent. */
+	.sb-scroll{overflow-x:auto;display:block;width:100%;min-width:0;box-sizing:border-box;margin:0 0 10px;max-width:100%;contain:layout inline-size}
+	.sb-scroll>.sb-dns{width:100%}
 	.sb-table{width:100%;border-collapse:collapse;border:1px solid var(--ink);background:#fff}
-	.sb-table th{text-align:left;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
-		font-family:"Martian Mono",ui-monospace,monospace;color:var(--ink-60);font-weight:600;
+	.sb-table th{text-align:left;font-size:13px;color:var(--ink);font-weight:600;
 		padding:9px 12px;border-bottom:1px solid var(--ink)}
-	.sb-table td{padding:11px 12px;border-bottom:1px solid #e2e0db;vertical-align:middle}
+	.sb-table td{padding:11px 12px;border-bottom:1px solid var(--hair);vertical-align:middle}
 	.sb-table tr:last-child td{border-bottom:0}
-	.sb-table code{font-size:11px;background:var(--paper);padding:3px 5px;border:1px solid #d8d6d0}
+	.sb-table code{font-size:12px;background:var(--paper);padding:3px 5px;border:1px solid var(--rule)}
 
-	.sb-steps{list-style:none;margin:0;padding:0;counter-reset:none}
-	.sb-steps li{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #e2e0db}
-	.sb-steps li:last-child{border-bottom:0}
+	/* The DNS records. Values are fields rather than text, so they select on
+	   focus, scroll rather than wrapping, and copy on click. */
+	.sb-dns th{font-size:13px}
+	/* Type and Found are as wide as their contents and no wider, so every
+	   pixel left over goes to Value — which is the longest string on the
+	   screen and the one that used to be clipped a character short of its
+	   own end. */
+	.sb-dns th:nth-child(1),.sb-dns td.sb-dns__type{width:5em}
+	.sb-dns th:nth-child(2),.sb-dns td.sb-dns__host{width:30%}
+	.sb-dns th:nth-child(4),.sb-dns td.sb-dns__found{width:9em}
+	.sb-dns td{vertical-align:top}
+
+	/* The field a value is copied out of. Height comes from the line box and
+	   the padding rather than being pinned: a pinned height on a 12px mono
+	   field clips its own descenders, and an underscore in
+	   `resend._domainkey` simply disappeared.
+
+	   It wraps at every width, not only on a phone. The Host column is 30% —
+	   about 282px at 1280 — and `resend._domainkey.mail.<domain>` is longer
+	   than that, so the end of the longest host on the screen was cut off
+	   inside the very field the owner is told to read from and compare
+	   against what they pasted into their registrar. A textarea is what makes
+	   this possible; an input cannot wrap at any width.
+
+	   overflow stays auto rather than hidden so that a browser with no
+	   JavaScript, where the fitting script never runs, scrolls to the rest of
+	   a wrapped value instead of hiding it. With the script it is sized
+	   exactly and no scrollbar appears. */
+	.sendbeam-app .sb-copy-field{display:block;width:100%;min-width:0;font-size:12px;line-height:1.5;
+		height:auto;min-height:0;padding:6px 8px;cursor:pointer;resize:none;overflow:auto;
+		white-space:pre-wrap;word-break:break-all;border:1px solid var(--ink);border-radius:0;background:#fff}
+	.sendbeam-app .sb-copy-field.is-copied{border-color:var(--m);outline:2px solid var(--m);outline-offset:-2px}
+	.sb-dns__found{white-space:nowrap}
+	.sb-verified{margin:0 0 10px;font-weight:600;color:var(--m);display:flex;gap:8px;align-items:center}
+	.sb-tick{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;
+		background:var(--m);color:#fff;font-size:11px;flex:0 0 auto}
+	.sb-granted{list-style:none;margin:0 0 12px;padding:0;font-size:13px;color:var(--ink-60)}
+	.sb-granted li{position:relative;padding-left:16px;margin:0 0 4px}
+	.sb-granted li::before{content:"\2713";position:absolute;left:0;color:var(--m)}
+
+	/* Recent activity: a row per message, readable at a glance and narrow
+	   enough for the column it sits in. */
+	.sb-recent{list-style:none;margin:0;padding:0}
+	/* One line per message, and it stays one line: a result that wraps under
+	   an address reads as a second row. */
+	.sb-recent li{display:flex;gap:10px;align-items:baseline;flex-wrap:nowrap;
+		padding:8px 0;border-bottom:1px solid var(--hair);font-size:13px}
+	.sb-recent li:last-child{border-bottom:0}
+	.sb-recent__when{flex:0 0 auto;color:var(--ink-60);font-family:"Martian Mono",ui-monospace,monospace;font-size:11px;white-space:nowrap}
+	.sb-recent__short{display:none}
+	.sb-recent__who{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+	.sb-recent__what{flex:0 0 auto;white-space:nowrap}
+	.sb-recent__what--ok{color:var(--m)} .sb-recent__what--warn{color:var(--a)}
+	.sb-recent__what--bad{color:var(--v)}
+
+	/* Core list tables: their own look, inside our card, and core\'s phone
+	   collapse left alone — it is the thing that makes them work at 393px. */
+	.sendbeam-app .wp-list-table{border:1px solid var(--ink)}
+	.sendbeam-app .wp-list-table th,.sendbeam-app .wp-list-table td{font-size:14px}
+	.sendbeam-app .search-box{margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap}
+	.sendbeam-app .tablenav{height:auto;margin:10px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+	.sendbeam-app .tablenav .actions{padding:0;display:flex;gap:8px;flex-wrap:wrap}
+
+	/* ── Steps and the checklist ──────────────────────────────────────── */
+	.sb-steps{list-style:none;margin:0;padding:0}
+	.sb-steps>li{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--hair)}
+	.sb-steps>li:last-child{border-bottom:0}
 	.sb-steps .sb-num{flex:0 0 auto;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
-		font-size:11px;font-weight:700;background:var(--paper);border:1px solid var(--ink);
-		font-family:"Martian Mono",ui-monospace,monospace}
-	.sb-steps li.is-done .sb-num{background:var(--m);border-color:var(--m);color:#fff}
+		font-size:12px;font-weight:700;background:var(--paper);border:1px solid var(--ink)}
+	.sb-steps>li.is-done .sb-num{background:var(--m);border-color:var(--m);color:#fff}
+	/* Switched on and doing the wrong thing is neither done nor unstarted. */
+	.sb-steps li.needs-attention .sb-num{background:var(--a);border-color:var(--a);color:#fff}
+	.sb-steps li.needs-attention .sb-step__note{color:var(--ink)}
 	.sb-steps strong{display:block;font-size:14px}
-	.sb-steps span{display:block;font-size:12px;color:var(--ink-60);margin-top:2px}
+	/* Scoped to the note, not to every span in the step: a step now contains a
+	   table, buttons and a disclosure, and `.sb-steps span` was greying all of
+	   it out and forcing each one onto its own line. */
+	.sb-steps .sb-step{flex:1 1 auto;min-width:0}
+	.sb-steps .sb-step__note{display:block;font-size:13px;color:var(--ink-60);margin-top:3px}
+	.sb-step__panel{margin-top:10px}
+	/* The text column of the step is a flex item: without a basis and min-width:0 it shrinks to fit,
+	   and anything inside it sized in percent (the records wrapper) shrank with it. */
+	.sb-steps .sb-step{flex:1 1 0%;min-width:0;width:auto}
+	.sb-step__panel{min-width:0}
+	.sb-step__panel>*:first-child{margin-top:0}
+	.sb-actions{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin:10px 0 6px}
+	.sb-actions form{margin:0}
+	/* A disclosure in the row is as wide as its own contents while shut and
+	   takes the row while open, so the confirmation is never a column. */
+	.sb-actions>.sb-confirm[open]{flex:1 1 100%}
 
-	.sb-msg{padding:10px 14px;border-left:4px solid var(--ink-60);background:#fff;border-top:1px solid var(--ink);
+	/* ── The wizard ───────────────────────────────────────────────────── */
+	.sb-rail{display:flex;gap:0;list-style:none;margin:0;padding:0;background:#fff;
+		border:1px solid var(--ink);border-top:0;flex-wrap:wrap}
+	.sb-rail__step{display:flex;gap:9px;align-items:center;padding:12px 16px;flex:1 1 auto;min-width:0;
+		font-size:13px;color:var(--ink-60);border-right:1px solid var(--hair)}
+	.sb-rail__step:last-child{border-right:0}
+	.sb-rail__num{flex:0 0 auto;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+		font-size:12px;font-weight:700;border:1px solid currentColor}
+	.sb-rail__label{overflow-wrap:anywhere}
+	.sb-rail__step.is-done{color:var(--m)}
+	.sb-rail__step.is-done .sb-rail__num{background:var(--m);border-color:var(--m);color:#fff}
+	.sb-rail__step.is-current{color:var(--ink);font-weight:600;background:var(--paper)}
+	.sb-rail__step.is-current .sb-rail__num{background:var(--brand);border-color:var(--brand);color:#fff}
+	.sb-wizard__count{color:rgba(237,235,230,.75)}
+	.sb-wizard__foot{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+	.sb-wizard__note{margin:0}
+
+	/* ── Results and details ──────────────────────────────────────────── */
+	.sb-result{border:1px solid var(--ink);border-left-width:4px;background:#fff;padding:14px 16px;margin:0 0 16px}
+	.sb-result--ok{border-left-color:var(--m)}
+	.sb-result--bad{border-left-color:var(--v)}
+	.sb-result--warn{border-left-color:var(--a);background:#FDF6E7}
+	.sb-result__title{margin:0 0 8px;font-size:16px;font-weight:700;display:flex;gap:8px;align-items:center}
+	.sb-result p{margin:0 0 10px}
+	.sb-result p:last-child{margin-bottom:0}
+	.sb-bundle{background:var(--paper);border:1px solid var(--rule);padding:12px;margin:10px 0;
+		font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:34em;overflow:auto}
+	.sb-paste>summary{cursor:pointer;font-size:13px;color:var(--ink-60);padding:4px 0}
+	.sb-paste>summary:hover{color:var(--ink)}
+
+	/* ── Confirmation, scopes, messages ───────────────────────────────── */
+	/* Inline confirmation, as a native disclosure. Nothing of it is rendered
+	   until somebody presses the summary, so there is no box to hide after
+	   load and nothing flashes on every render — and it needs no script at
+	   all, which is what the old shape was carrying the flash to achieve. */
+	.sb-confirm{margin:0;position:relative}
+	.sendbeam-app .sb-confirm>summary{list-style:none;cursor:pointer}
+	.sendbeam-app .sb-confirm>summary::-webkit-details-marker{display:none}
+	.sendbeam-app .sb-confirm>summary::marker{content:""}
+	/* The summary is the button, and pressing it again is the way out — so
+	   its label is the action it would perform next. */
+	.sb-confirm__label--open{display:none}
+	.sb-confirm[open]>summary .sb-confirm__label--shut{display:none}
+	.sb-confirm[open]>summary .sb-confirm__label--open{display:inline}
+	.sb-confirm__box{border-left:4px solid var(--v);background:var(--paper);padding:12px 14px;margin-top:10px}
+	.sb-confirm__box p{margin:0 0 10px}
+	.sb-confirm__box form{margin:0}
+
+	.sb-msg{padding:11px 14px;border-left:4px solid var(--ink-60);background:#fff;border-top:1px solid var(--ink);
 		border-right:1px solid var(--ink);border-bottom:1px solid var(--ink);margin:0 0 14px;
 		display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
 	.sb-msg--ok{border-left-color:var(--m)} .sb-msg--warn{border-left-color:var(--a)}
 	.sb-msg--bad{border-left-color:var(--v)}
 
-	.sendbeam-app .form-table th{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-60);
-		font-family:"Martian Mono",ui-monospace,monospace;font-weight:600;padding:16px 10px 16px 0}
-	.sendbeam-app .form-table td{padding:12px 10px}
-	.sendbeam-app input[type=text],.sendbeam-app input[type=number],.sendbeam-app input[type=password],
-	.sendbeam-app select{border:1px solid var(--ink);border-radius:0;background:#fff}
-	.sendbeam-app input:focus,.sendbeam-app select:focus{outline:2px solid var(--c);outline-offset:-2px;box-shadow:none}
-	.sendbeam-app .description{font-size:12px;color:var(--ink-60)}
-	.sendbeam-app h2{color:var(--ink)}
+	.sb-scopes{list-style:none;margin:0 0 14px;padding:0}
+	.sb-scopes li{margin:0 0 8px}
+	.sb-scope{align-items:flex-start;line-height:1.45}
+	/* Square corners and an ink border, and then core\'s own checked state
+	   left exactly alone: core fills the box with the admin theme colour and
+	   draws a white tick on it, so forcing the background white made the tick
+	   invisible and every ticked permission read as unticked. */
+	.sb-scope input[type=checkbox]{margin:2px 0 0;flex:0 0 auto;border-color:var(--ink);border-radius:0;min-height:0}
+	.sb-scope input[type=checkbox]:focus{box-shadow:0 0 0 1px var(--ink)}
+	.sb-scope .sb-note{margin-left:4px}
+	.sb-inline{display:inline-flex;align-items:center;gap:8px;font-size:14px}
+	.sendbeam-app [hidden]{display:none!important}
+	/* Server-rendered "not applicable yet", so nothing draws and then goes.
+	   !important for the same reason [hidden] above has it: this has to beat
+	   every layout rule in the file, whatever the selector. It did not, and
+	   the one that mattered was the Settings API reset — `.sendbeam-app
+	   .form-table tr` is (0,2,1) against the (0,2,0) here, so the From
+	   name, From address and fallback rows on Site email were drawn whether
+	   the switch was on or off, which is the exact thing this pattern exists
+	   to prevent. A hiding rule that can be out-specified is not one. */
+	.sendbeam-app .is-hidden{display:none!important}
 
-	.sb-rule{border:1px solid var(--ink);background:var(--paper);padding:14px 16px;margin:0 0 14px}
-	.sb-rule legend{padding:0 6px;background:var(--ink);color:var(--paper);font-size:10px;letter-spacing:.1em;
-		text-transform:uppercase;font-weight:700}
-	.sb-rule__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;align-items:end}
-	.sb-rule__grid label{display:block}
-	.sb-rule__grid select,.sb-rule__grid input[type=text]{width:100%;max-width:100%}
-	.sb-rule__foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
-		margin-top:14px;padding-top:12px;border-top:1px solid #d8d6d0}
-	.sb-inline{display:inline-flex;align-items:center;gap:6px;font-size:13px}
-	.sb-rule [hidden]{display:none!important}
+	/* ── Pop-up rules ─────────────────────────────────────────────────── */
+	/* A rule is a card, like everything else on every other screen. It used
+	   to be a grey fieldset with a black legend tag — the one place in the
+	   plugin that looked like a different product. */
+	.sb-rule .sb-toggle{flex:0 0 auto}
+	/* Start-aligned, because each cell is a label above its field: bottom
+	   alignment put a label with helper text half a line out from the one
+	   beside it. */
+	.sb-rule__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;align-items:start}
+	.sb-rule__grid>label{display:block}
+	.sb-rule__grid select,.sb-rule__grid input[type=text],.sb-rule__grid input[type=url]{width:100%;max-width:100%}
+	.sb-rule__grid .sb-note{display:block;margin-top:4px}
+	/* Two fields that belong together, side by side and the same width. */
+	.sb-rule__pair{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+	.sb-rule__pair>label{display:block}
 
-	.sb-doc h3{font-size:14px;margin:0 0 6px}
+	/* ── Help ─────────────────────────────────────────────────────────── */
+	.sb-doc h3{font-size:15px;margin:0 0 6px}
 	.sb-doc p{margin:0 0 10px;max-width:62ch}
 	.sb-doc ul{margin:0 0 10px 1.1em;list-style:disc}
 	.sb-doc li{margin:4px 0}
-	.sb-doc code{font-size:12px;background:var(--paper);padding:2px 5px;border:1px solid #d8d6d0}
+	.sb-doc code{font-size:12px;background:var(--paper);padding:2px 5px;border:1px solid var(--rule)}
 	.sb-doc__row{display:flex;gap:12px;align-items:center;justify-content:space-between;
-		padding:9px 0;border-bottom:1px solid #e2e0db;flex-wrap:wrap}
+		padding:9px 0;border-bottom:1px solid var(--hair);flex-wrap:wrap}
 	.sb-doc__row:last-child{border-bottom:0}
-	.sb-doc__row code{flex:1 1 22em}
+	.sb-doc__row code{flex:1 1 22em;min-width:0;overflow-wrap:anywhere}
 
-	@media (max-width:782px){ .sb-head{padding:14px} .sb-tabs{padding:0 8px} .sb-wrap{padding:14px} }
+	/* ── Phones ───────────────────────────────────────────────────────── */
+	@media (max-width:340px){
+		.sb-stats{grid-template-columns:1fr}
+	}
+
+	@media (max-width:782px){
+		/* Touch sizes. Apple asks for 44pt and Android for 48dp; the buttons
+		   on a phone were 26-36px, and the 26px disclosure on the Overview is
+		   the first thing an owner reaches for and the one they miss. The
+		   padding grows with the height so a wider target is not a taller
+		   sliver, and full-width primaries stay full width. */
+		.sendbeam-app .sb-btn{min-height:44px;padding:0 18px}
+		/* 44 as well, not 40. This is the group an owner actually presses on
+		   a phone — Copy, Remove, Choose, Check now, Set up DNS
+		   automatically, Reconnect, Send a test email, and both of the "Yes,
+		   …" confirmations — and "small" is about how loud a button is, not
+		   about how hard it should be to hit. */
+		.sendbeam-app .sb-btn--small{min-height:44px;padding:0 14px}
+		/* The confirm\'s summary already wears .sb-btn, so it is covered
+		   above; the paste disclosure is a plain summary and is not. */
+		.sb-paste>summary{padding:12px 0;min-height:44px;display:flex;align-items:center}
+		/* The Settings tab bar is a row of links people navigate with. */
+		.sb-tab{height:44px;min-height:44px}
+		.sendbeam-app .sb-link{min-height:44px;display:inline-flex;align-items:center}
+		.sendbeam-app{margin:10px}
+		.sb-head{padding:14px}
+		.sb-mark{margin-right:36px}
+		.sb-wrap{padding-top:16px}
+		.sb-card__body{padding:14px}
+		.sb-rail__step{flex:1 1 100%;border-right:0;border-bottom:1px solid var(--hair);padding:10px 14px}
+		.sb-rail__step:last-child{border-bottom:0}
+		.sb-wizard__foot .sb-btn{flex:1 1 100%}
+		.sb-doc__row code{flex:1 1 100%}
+		.sb-rule__pair{grid-template-columns:1fr}
+		/* The card header wraps rather than squeezing the title to nothing. */
+		.sb-card__head h3{margin-right:0;flex:1 1 100%}
+		/* Three single digits still fit across 393px, and stacking them made
+		   three numbers occupy half a card. Only a genuinely narrow screen
+		   gets the column. */
+		.sb-stats{gap:10px}
+		.sb-stats .sb-label{font-size:12px}
+		.sb-stats .sb-fig{font-size:24px}
+		/* The short date, and an address that truncates rather than pushing
+		   the result onto its own line. */
+		.sb-recent__long{display:none}
+		.sb-recent__short{display:inline}
+		.sb-recent li{gap:8px}
+
+		/* The records, stacked. Four columns squeezed into 393px gave the
+		   host and the value about ninety pixels each, which is enough to
+		   read "resend._dc" and nothing else — and reading them is the whole
+		   job on this screen. Each record becomes a block: what it is and
+		   whether it is live on one line, then the host, then the value,
+		   each the full width of the card and each free to wrap. */
+		.sb-dns,.sb-dns thead,.sb-dns tbody,.sb-dns tr,.sb-dns td{display:block;width:auto}
+		.sb-dns thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+		.sb-dns tr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;
+			padding:12px;border-bottom:1px solid var(--ink)}
+		.sb-dns tr:last-child{border-bottom:0}
+		/* The desktop column widths are more specific than the `display:block`
+		   above, so they have to be undone by name or the host field keeps
+		   its 30% and sits at a third of the card. */
+		.sb-dns td,.sb-dns td.sb-dns__type,.sb-dns td.sb-dns__host,
+		.sb-dns td.sb-dns__found{width:auto;padding:0;border:0}
+		.sb-dns td.sb-dns__type{grid-column:1;grid-row:1;font-weight:700;font-size:13px}
+		.sb-dns td.sb-dns__found{grid-column:2;grid-row:1;text-align:right}
+		.sb-dns td.sb-dns__host,.sb-dns td.sb-dns__value{grid-column:1/-1;margin-top:8px}
+		/* The header row is gone, so each field says which one it is. */
+		.sb-dns td.sb-dns__host::before,.sb-dns td.sb-dns__value::before{
+			content:attr(data-label);display:block;font-size:12px;font-weight:600;color:var(--ink-60);margin:0 0 3px}
+	}
 	';
 }

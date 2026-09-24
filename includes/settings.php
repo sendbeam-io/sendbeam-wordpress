@@ -1,43 +1,34 @@
 <?php
 /**
- * Settings → SendBeam.
+ * The settings themselves: one option, registered through the Settings API.
  *
  * One option (`sendbeam_settings`, an array) holds everything, registered
  * through the Settings API so nonces, capability checks and the "Settings
- * saved" notice come for free.
+ * saved" notice come for free. The menu and the router that renders these
+ * fields live in menu.php.
  *
  * @package SendBeam
  */
 
 defined( 'ABSPATH' ) || exit;
 
-add_action( 'admin_menu', 'sendbeam_admin_menu' );
 add_action( 'admin_init', 'sendbeam_admin_init' );
 add_filter( 'plugin_action_links_' . plugin_basename( SENDBEAM_FILE ), 'sendbeam_action_links' );
 add_action( 'admin_enqueue_scripts', 'sendbeam_admin_assets' );
 add_action( 'admin_post_sendbeam_refresh', 'sendbeam_handle_refresh' );
 
 /**
- * Add the page under Settings.
- */
-function sendbeam_admin_menu() {
-	add_options_page(
-		__( 'SendBeam', 'sendbeam' ),
-		__( 'SendBeam', 'sendbeam' ),
-		'manage_options',
-		'sendbeam',
-		'sendbeam_render_settings_page'
-	);
-}
-
-/**
  * "Settings" link on the Plugins screen.
+ *
+ * It points at the Settings page, not at the Overview: somebody pressing
+ * "Settings" beside a plugin is looking for its settings, and sending them to
+ * a dashboard instead is the small lie every plugin that does this tells.
  *
  * @param string[] $links Existing links.
  * @return string[]
  */
 function sendbeam_action_links( $links ) {
-	$url = admin_url( 'options-general.php?page=sendbeam' );
+	$url = sendbeam_page_url( 'sendbeam-settings' );
 	array_unshift( $links, '<a href="' . esc_url( $url ) . '">' . esc_html__( 'Settings', 'sendbeam' ) . '</a>' );
 	return $links;
 }
@@ -107,7 +98,7 @@ function sendbeam_admin_init() {
 		array(
 			'key'         => 'mail_from_name',
 			'placeholder' => get_bloginfo( 'name' ),
-			'class'       => 'sendbeam-when-mail',
+			'class'       => sendbeam_when_mail_class(),
 			'help'        => __( 'Leave empty to use the name the sending plugin sets, or the workspace sender.', 'sendbeam' ),
 		)
 	);
@@ -120,8 +111,20 @@ function sendbeam_admin_init() {
 		array(
 			'key'         => 'mail_from_email',
 			'placeholder' => 'orders@yourdomain.com',
-			'class'       => 'sendbeam-when-mail',
+			'class'       => sendbeam_when_mail_class(),
 			'help'        => __( 'Must be on a domain verified in the SendBeam workspace. Leave empty to use the workspace sender.', 'sendbeam' ),
+		)
+	);
+	add_settings_field(
+		'mail_log_days',
+		__( 'Keep log entries for', 'sendbeam' ),
+		'sendbeam_field_select',
+		'sendbeam_mail_page',
+		'sendbeam_mail',
+		array(
+			'key'     => 'mail_log_days',
+			'options' => sendbeam_mail_log_retentions(),
+			'help'    => __( 'Older entries are deleted once a day. Whatever you choose, the log is capped at 20,000 messages and the oldest go first — the contents of a message are never stored, only who it went to, its subject and what became of it.', 'sendbeam' ),
 		)
 	);
 	add_settings_field(
@@ -133,10 +136,95 @@ function sendbeam_admin_init() {
 		array(
 			'key'   => 'mail_fallback',
 			'label' => __( 'Fall back to the server\'s own mailer', 'sendbeam' ),
-			'class' => 'sendbeam-when-mail',
+			'class' => sendbeam_when_mail_class(),
 			'help'  => __( 'On: a refused or failed message goes out the way it did before this plugin (recommended). Off: it fails and the sending plugin is told.', 'sendbeam' ),
 		)
 	);
+}
+
+/**
+ * The row class for a setting that only applies when site email is on.
+ *
+ * Hidden by the server when the feature is off, rather than drawn and then
+ * hidden by script on load — which is a row appearing and vanishing on every
+ * render of the screen. The script only takes over when somebody actually
+ * moves the switch.
+ *
+ * @return string
+ */
+function sendbeam_when_mail_class() {
+	$settings = sendbeam_settings();
+	return 'sendbeam-when-mail' . ( empty( $settings['mail_enabled'] ) ? ' is-hidden' : '' );
+}
+
+/**
+ * Write settings the plugin worked out for itself, not settings somebody typed.
+ *
+ * `register_setting()` hangs `sendbeam_sanitize_settings()` on
+ * `sanitize_option_sendbeam_settings`, which means **every**
+ * `update_option( 'sendbeam_settings', … )` goes through the form's rules —
+ * including the ones this plugin makes on its own behalf. Those rules are
+ * written for a posted form, and three of them are actively wrong for a
+ * programmatic write:
+ *
+ *   - "A blank key field keeps the saved key" is right for a password field
+ *     somebody left alone, and exactly wrong for Disconnect, which clears the
+ *     key on purpose. Disconnect wrote an empty key, the sanitiser put the
+ *     old one back, and the site stayed connected. That is the bug the owner
+ *     hit, twice.
+ *   - A posted form names its tab, so only that tab's keys are touched. A
+ *     programmatic array names none, so every key is treated as posted — and
+ *     the rule that releases `mail_enabled`, `mail_from_name` and
+ *     `mail_from_email` from `sendbeam_connect_filled` fired on every write,
+ *     quietly undoing what Connect had just recorded.
+ *   - `mail_enabled` is re-derived from "is the box in $input", which is the
+ *     right reading of an unchecked checkbox and the wrong reading of an
+ *     array a caller simply did not mention it in.
+ *
+ * So programmatic paths come through here instead. The array is already what
+ * the plugin means; it is written as-is, with the one piece of housekeeping
+ * the sanitiser does that still applies — a key that changed invalidates
+ * everything cached under the old one.
+ *
+ * @param array $settings The complete settings array to store.
+ * @return bool Whether anything changed.
+ */
+function sendbeam_write_settings( $settings ) {
+	$before = sendbeam_settings();
+
+	sendbeam_settings_writing( true );
+	$ok = update_option( 'sendbeam_settings', $settings );
+	sendbeam_settings_writing( false );
+
+	// The cached answers belong to the key that fetched them, and that key is
+	// on its way out. Named explicitly, because a site that has just let go
+	// of a key can no longer work out the transient it wrote.
+	$after = (string) sendbeam_settings()['api_key'];
+	if ( (string) $before['api_key'] !== $after ) {
+		sendbeam_connect_forget_status( (string) $before['api_key'] );
+		sendbeam_flush_cache();
+	}
+
+	return $ok;
+}
+
+/**
+ * Is a programmatic write in progress?
+ *
+ * A flag rather than remove_filter()/add_filter() around the update: the
+ * sanitiser is registered by `register_setting()` at a priority this file
+ * does not own, and putting a filter back the way it was found is a much
+ * easier thing to get subtly wrong than reading one boolean.
+ *
+ * @param bool|null $set True or false to set it, null to read it.
+ * @return bool
+ */
+function sendbeam_settings_writing( $set = null ) {
+	static $writing = false;
+	if ( null !== $set ) {
+		$writing = (bool) $set;
+	}
+	return $writing;
 }
 
 /**
@@ -154,14 +242,34 @@ function sendbeam_sanitize_settings( $input ) {
 		return $out;
 	}
 
-	// Each tab posts only its own fields. Starting from the saved values and
-	// touching only the keys belonging to the posted tab is what stops saving
-	// the pop-up from silently clearing the API key — an unchecked checkbox and
-	// a field that was never on screen look identical in $_POST otherwise.
+	/*
+	 * A write the plugin made for itself. It is already what the plugin
+	 * means — see sendbeam_write_settings() for why running the form's rules
+	 * over it does the wrong thing three different ways.
+	 */
+	if ( sendbeam_settings_writing() ) {
+		unset( $input['_tab'] );
+		return $input;
+	}
+
+	/*
+	 * One group per FORM, not per tab. Starting from the saved values and
+	 * touching only the keys belonging to the posted group is what stops
+	 * saving the pop-up from silently clearing the API key — an unchecked
+	 * checkbox and a field that was never on screen look identical in $_POST
+	 * otherwise.
+	 *
+	 * The grouping has to be as fine as the submit buttons are. Forms is one
+	 * tab with two cards and two Save buttons, and while both posted `forms`
+	 * the fields of whichever card you did not press were read as cleared:
+	 * pressing Save on Appearance emptied `contact_form`, and [sendbeam_contact]
+	 * renders nothing without it, so a published contact page lost its form.
+	 */
 	$groups = array(
-		'connect' => array( 'api_key' ),
-		'forms'   => array( 'default_form', 'contact_form', 'style_accent', 'style_text', 'style_field', 'style_border', 'style_radius', 'style_font', 'style_size', 'style_bare' ),
-		'mail'    => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback' ),
+		'connect'     => array( 'api_key' ),
+		'forms'       => array( 'default_form', 'contact_form' ),
+		'forms_style' => array( 'style_accent', 'style_text', 'style_field', 'style_border', 'style_radius', 'style_font', 'style_size', 'style_bare' ),
+		'mail'        => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback', 'mail_log_days' ),
 	);
 	$tab    = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
 	$keys   = isset( $groups[ $tab ] ) ? $groups[ $tab ] : array_merge( ...array_values( $groups ) );
@@ -202,17 +310,40 @@ function sendbeam_sanitize_settings( $input ) {
 	}
 
 	if ( isset( $touch['mail_enabled'] ) ) {
-		$out['mail_enabled']    = empty( $input['mail_enabled'] ) ? 0 : 1;
+		$out['mail_enabled'] = empty( $input['mail_enabled'] ) ? 0 : 1;
+
+		/*
+		 * Turning site email off by hand is a decision, and it cancels the
+		 * one Connect made on the site owner's behalf. Without this, the next
+		 * domain check would helpfully switch it straight back on.
+		 */
+		if ( empty( $out['mail_enabled'] ) ) {
+			$out['sendbeam_mail_deferred'] = 0;
+		}
 		$out['mail_from_name']  = isset( $input['mail_from_name'] ) ? sanitize_text_field( wp_unslash( $input['mail_from_name'] ) ) : '';
 		$from_email             = isset( $input['mail_from_email'] ) ? sanitize_email( wp_unslash( $input['mail_from_email'] ) ) : '';
 		$out['mail_from_email'] = $from_email && is_email( $from_email ) ? $from_email : '';
 		$out['mail_fallback']   = empty( $input['mail_fallback'] ) ? 0 : 1;
+
+		// One of four, and 30 for anything else — a retention nobody
+		// recognises would quietly become "for ever".
+		$days                 = isset( $input['mail_log_days'] ) ? (int) $input['mail_log_days'] : 30;
+		$out['mail_log_days'] = in_array( $days, array( 0, 7, 30, 90 ), true ) ? $days : 30;
 	}
 
 	// A blank key field keeps the saved key; "remove" clears it.
 	if ( isset( $touch['api_key'] ) ) {
 		$key = isset( $input['api_key'] ) ? trim( sanitize_text_field( wp_unslash( $input['api_key'] ) ) ) : '';
 		if ( ! empty( $input['api_key_remove'] ) ) {
+			/*
+			 * The same door as the Overview's Disconnect, and it has to
+			 * behave the same way through it. This branch used to clear the
+			 * option and stop, so an owner tidying up on the Advanced tab was
+			 * left with a live, unrevoked key for a site that no longer
+			 * exists as far as they are concerned — the exact situation
+			 * Disconnect was written to end.
+			 */
+			sendbeam_connect_release_key();
 			$out['api_key'] = '';
 		} elseif ( '' !== $key ) {
 			if ( ! preg_match( '/^[A-Za-z0-9_\-]{16,200}$/', $key ) ) {
@@ -226,10 +357,49 @@ function sendbeam_sanitize_settings( $input ) {
 		}
 	}
 
+	/*
+	 * Saving a tab by hand is the owner taking those settings back. They come
+	 * off the list of things Connect filled, so disconnecting later puts back
+	 * only what the plugin actually put there — a From address somebody typed
+	 * is not Connect's to clear, whoever typed it first.
+	 */
+	$out['sendbeam_connect_filled'] = isset( $out['sendbeam_connect_filled'] ) && is_array( $out['sendbeam_connect_filled'] ) ? $out['sendbeam_connect_filled'] : array();
+	$owned                          = array();
+	if ( isset( $touch['mail_enabled'] ) ) {
+		$owned = array( 'mail_enabled', 'mail_from_name', 'mail_from_email' );
+	} elseif ( isset( $touch['default_form'] ) ) {
+		$owned = array( 'default_form' );
+	}
+	if ( $owned ) {
+		$out['sendbeam_connect_filled'] = array_values( array_diff( $out['sendbeam_connect_filled'], $owned ) );
+	}
+
 	// A different key means a different workspace, so anything remembered about
 	// the old one — whether it worked, which forms it could see — is now a lie.
+	// That includes the Connect marker: a key pasted or removed by hand did not
+	// come from the Connect button, and the screen must stop claiming it did.
 	if ( $out['api_key'] !== (string) $saved['api_key'] ) {
+		// Named explicitly, because the cache belongs to the key that wrote
+		// it and that key is on its way out.
+		sendbeam_connect_forget_status( (string) $saved['api_key'] );
 		sendbeam_flush_cache();
+		$out['sendbeam_connected_via']        = '';
+		$out['sendbeam_connect_workspace']    = '';
+		$out['sendbeam_connect_workspace_id'] = '';
+		$out['sendbeam_connect_notes']        = array();
+		// The permissions and the held-back site email belonged to the old
+		// key. A pasted key's permissions are unknown, and claiming the old
+		// ones would offer buttons that cannot work.
+		$out['sendbeam_connect_granted'] = '';
+		$out['sendbeam_mail_deferred']   = 0;
+		// Nor is anything this site's settings hold still Connect's doing.
+		$out['sendbeam_connect_filled'] = array();
+	}
+
+	// A form chosen or cleared changes what the checklist should be looking
+	// for on the site, so the cached answer is no longer about this site.
+	if ( isset( $touch['default_form'] ) ) {
+		delete_transient( 'sendbeam_form_placed' );
 	}
 
 	unset( $out['_tab'] );
@@ -256,7 +426,7 @@ function sendbeam_section_forms_intro() {
 		sprintf(
 			/* translators: %s: link to the SendBeam forms page */
 			__( 'Form IDs are under %s in SendBeam: open a form and copy the ID from its Embed panel. Forms load from sendbeam.io, so any change you make there shows on your site straight away.', 'sendbeam' ),
-			'<a href="' . esc_url( sendbeam_app_url() . '/forms' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Forms', 'sendbeam' ) . '</a>'
+			'<a href="' . esc_url( sendbeam_app_link( '/forms' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'Forms', 'sendbeam' ) . '</a>'
 		),
 		array(
 			'a' => array(
@@ -282,11 +452,19 @@ function sendbeam_field_checkbox( $args ) {
 	$settings = sendbeam_settings();
 	$key      = $args['key'];
 	printf(
-		'<label><input type="checkbox" id="sendbeam_%1$s" name="sendbeam_settings[%1$s]" value="1"%2$s /> %3$s</label>',
+		'<label class="sb-toggle"><input type="checkbox" id="sendbeam_%1$s" name="sendbeam_settings[%1$s]" value="1"%2$s /> <span>%3$s</span></label>',
 		esc_attr( $key ),
 		checked( ! empty( $settings[ $key ] ), true, false ),
 		esc_html( $args['label'] )
 	);
+
+	// A ticked box that cannot do anything has to say so where it is ticked.
+	// Otherwise the screen reads as switched on, the test email says to tick
+	// the box that is already ticked, and nothing says the key is missing.
+	if ( 'mail_enabled' === $key && 'no_key' === sendbeam_mail_blocked() ) {
+		echo '<p class="description sb-warn">' . esc_html__( 'This site has no SendBeam API key, so its email is still going out through the web server\'s own mailer. Connect the site on the Overview to start using this.', 'sendbeam' ) . '</p>';
+	}
+
 	if ( ! empty( $args['help'] ) ) {
 		echo '<p class="description">' . esc_html( $args['help'] ) . '</p>';
 	}
@@ -309,11 +487,29 @@ function sendbeam_field_api_key() {
 	if ( $saved ) {
 		echo ' <label><input type="checkbox" name="sendbeam_settings[api_key_remove]" value="1" /> ' . esc_html__( 'Remove the saved key', 'sendbeam' ) . '</label>';
 		echo '<p class="description">' . esc_html__( 'A key is saved. Paste a new one to replace it, or leave this empty to keep it.', 'sendbeam' ) . '</p>';
+		// What removing it does, before it is removed.
+		echo '<p class="description">' . esc_html( sendbeam_key_removal_note() ) . '</p>';
 	} else {
 		echo '<p class="description">' . esc_html__( 'Stored in this site\'s options table. For a key that never touches the database, define SENDBEAM_API_KEY in wp-config.php.', 'sendbeam' ) . '</p>';
 	}
 }
 
+
+/**
+ * What "Remove the saved key" will actually do to this site's key.
+ *
+ * The two cases are genuinely different — one revokes a key at SendBeam and
+ * one does not — and the owner cannot tell them apart from the Advanced tab,
+ * which said only "A key is saved. Paste a new one to replace it, or leave
+ * this empty to keep it."
+ *
+ * @return string
+ */
+function sendbeam_key_removal_note() {
+	return sendbeam_connected_via_connect()
+		? __( 'This site was connected with the Connect button, so removing the key also revokes it in SendBeam — the same as Disconnect on the Overview.', 'sendbeam' )
+		: __( 'This key was pasted in, so it is only forgotten here. It stays live in SendBeam, where anything else using it keeps working.', 'sendbeam' );
+}
 
 /**
  * Form chooser.
@@ -349,7 +545,7 @@ function sendbeam_field_form_id( $args ) {
 			sprintf(
 				/* translators: %s: link to create a form */
 				__( 'This workspace has no forms yet. %s, then come back and refresh.', 'sendbeam' ),
-				'<a href="' . esc_url( sendbeam_app_url() . '/forms' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Create one in SendBeam', 'sendbeam' ) . '</a>'
+				'<a href="' . esc_url( sendbeam_app_link( '/forms' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'Create one in SendBeam', 'sendbeam' ) . '</a>'
 			),
 			array(
 				'a' => array(
@@ -451,55 +647,21 @@ function sendbeam_field_select( $args ) {
 }
 
 /**
- * The page itself.
- */
-function sendbeam_render_settings_page() {
-	if ( ! current_user_can( 'manage_options' ) ) {
-		return;
-	}
-	$tab     = sendbeam_current_tab();
-	$screens = array(
-		'overview'  => 'sendbeam_screen_overview',
-		'forms'     => 'sendbeam_screen_forms',
-		'audience'  => 'sendbeam_screen_audience',
-		'popup'     => 'sendbeam_screen_popup',
-		'mail'      => 'sendbeam_screen_mail',
-		'ecommerce' => 'sendbeam_screen_ecommerce',
-		'docs'      => 'sendbeam_screen_docs',
-	);
-	?>
-	<div class="wrap sendbeam-app">
-		<h1 class="screen-reader-text"><?php esc_html_e( 'SendBeam', 'sendbeam' ); ?></h1>
-		<?php sendbeam_render_header(); ?>
-		<div class="sb-wrap">
-			<?php
-			settings_errors( 'sendbeam_settings' );
-			call_user_func( $screens[ $tab ] );
-
-			if ( 'forms' === $tab || 'popup' === $tab ) {
-				sendbeam_card_open( __( 'Placing forms', 'sendbeam' ) );
-				echo '<ul style="list-style:disc;padding-left:1.3em;margin:0">';
-				echo '<li>' . wp_kses( __( 'Add the <strong>SendBeam Form</strong> block to any post or page and pick the form from its dropdown — search "SendBeam" in the block inserter.', 'sendbeam' ), array( 'strong' => array() ) ) . '</li>';
-				echo '<li>' . wp_kses( __( '<code>[sendbeam_form id="…"]</code> places any form, as often as you like. <code>height="600"</code> sets a different height.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
-				echo '<li>' . wp_kses( __( '<code>[sendbeam_contact]</code> shows the contact form chosen above.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
-				echo '<li>' . wp_kses( __( '<code>[sendbeam_popup_button label="Subscribe"]</code> opens the pop-up on click, on pages where it is not shown by itself.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
-				echo '</ul>';
-				sendbeam_card_close();
-			}
-			?>
-		</div>
-	</div>
-	<?php
-}
-
-/**
- * A three-line "where am I" at the top of the page.
+ * The "how do I put a form on a page" card, under Forms and under Pop-ups.
  *
- * Not a wizard with its own screens: the steps link to the sections already
- * below them. Someone who knows what they are doing scrolls straight past;
- * someone who does not gets an order of operations. That is the whole of the
- * onboarding, deliberately.
+ * It was appended by the old page renderer to two of its seven tabs. Now that
+ * each section is its own page, the two screens that need it ask for it.
  */
+function sendbeam_placing_forms_card() {
+	sendbeam_card_open( __( 'Placing forms', 'sendbeam' ) );
+	echo '<ul class="sb-bullets">';
+	echo '<li>' . wp_kses( __( 'Add the <strong>SendBeam Form</strong> block to any post or page and pick the form from its dropdown — search "SendBeam" in the block inserter.', 'sendbeam' ), array( 'strong' => array() ) ) . '</li>';
+	echo '<li>' . wp_kses( __( '<code>[sendbeam_form id="…"]</code> places any form, as often as you like. <code>height="600"</code> sets a different height.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
+	echo '<li>' . wp_kses( __( '<code>[sendbeam_contact]</code> shows the contact form chosen above.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
+	echo '<li>' . wp_kses( __( '<code>[sendbeam_popup_button label="Subscribe"]</code> opens the pop-up on click, on pages where it is not shown by itself.', 'sendbeam' ), array( 'code' => array() ) ) . '</li>';
+	echo '</ul>';
+	sendbeam_card_close();
+}
 
 /** Intro for the Connect section: the live state of the key. */
 function sendbeam_section_connect_intro() {
@@ -509,7 +671,7 @@ function sendbeam_section_connect_intro() {
 		sprintf(
 			/* translators: %s: link to the API keys page */
 			__( 'One key connects this site to a SendBeam workspace. Make one under %s. Give it <strong>Forms (read)</strong> so this page can list your forms, and <strong>Send site email</strong> if you want WordPress email to go through SendBeam.', 'sendbeam' ),
-			'<a href="' . esc_url( sendbeam_app_url() . '/settings/api-keys' ) . '" target="_blank" rel="noopener">' . esc_html__( 'Settings → API keys', 'sendbeam' ) . '</a>'
+			'<a href="' . esc_url( sendbeam_app_link( '/settings/api-keys' ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'Settings → API keys', 'sendbeam' ) . '</a>'
 		),
 		array(
 			'a'      => array(
@@ -552,12 +714,12 @@ function sendbeam_section_connect_intro() {
 /** "Check again" — drop the cache and re-ask. */
 function sendbeam_handle_refresh() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_refresh' );
 	sendbeam_flush_cache();
 	sendbeam_connection( true );
-	wp_safe_redirect( admin_url( 'options-general.php?page=sendbeam' ) );
+	wp_safe_redirect( sendbeam_page_url( 'sendbeam-settings' ) );
 	exit;
 }
 
@@ -567,13 +729,13 @@ function sendbeam_handle_refresh() {
  * @param string $hook Current admin page.
  */
 function sendbeam_admin_assets( $hook ) {
-	if ( 'settings_page_sendbeam' !== $hook ) {
+	if ( ! sendbeam_is_our_screen( $hook ) ) {
 		return;
 	}
 
-	// The pop-up tab offers a picture; that is the only screen that needs the
+	// The pop-up screen offers a picture; that is the only one that needs the
 	// media frame, so it is the only one that loads it.
-	if ( 'popup' === sendbeam_current_tab() ) {
+	if ( 'sendbeam-popups' === sendbeam_current_page() ) {
 		wp_enqueue_media();
 	}
 
@@ -585,8 +747,17 @@ function sendbeam_admin_assets( $hook ) {
 	// and copy a shortcode without selecting it by hand.
 	$js = '
 	( function () {
+		/*
+		 * A class rather than the `hidden` property, because the server
+		 * already renders these rows hidden when the feature is off: setting
+		 * `hidden` here on load would mean the rows drew first and vanished
+		 * afterwards, which is a flash on every render of the Site email
+		 * screen.
+		 */
 		function toggle( cls, on ) {
-			document.querySelectorAll( "tr." + cls ).forEach( function ( tr ) { tr.hidden = ! on; } );
+			document.querySelectorAll( "tr." + cls ).forEach( function ( tr ) {
+				tr.classList.toggle( "is-hidden", ! on );
+			} );
 		}
 		var mail = document.getElementById( "sendbeam_mail_enabled" );
 		function sync() {
@@ -611,6 +782,18 @@ function sendbeam_admin_assets( $hook ) {
 				} );
 			}
 		}
+		/*
+		 * The order is the rule — the first pop-up that matches a page is the
+		 * one that opens — so a number that survives a removal and points at
+		 * the wrong card is worse than no number at all.
+		 */
+		function renumber() {
+			if ( ! host ) { return; }
+			host.querySelectorAll( ".sb-rule .sb-card__head h3" ).forEach( function ( h, n ) {
+				h.textContent = h.textContent.replace( /\d+$/, String( n + 1 ) );
+			} );
+		}
+
 		if ( host ) {
 			host.querySelectorAll( ".sb-rule" ).forEach( syncRule );
 			host.addEventListener( "change", function ( e ) {
@@ -620,18 +803,19 @@ function sendbeam_admin_assets( $hook ) {
 			host.addEventListener( "click", function ( e ) {
 				if ( ! e.target.closest( ".sb-remove" ) ) { return; }
 				var rule = e.target.closest( ".sb-rule" );
-				if ( rule ) { rule.remove(); }
+				if ( rule ) { rule.remove(); renumber(); }
 			} );
 		}
 		if ( addBtn && tpl && host ) {
 			addBtn.addEventListener( "click", function () {
 				var i = host.querySelectorAll( ".sb-rule" ).length;
-				var html = tpl.innerHTML.split( "__i__" ).join( String( i ) );
+				var html = tpl.innerHTML.split( "__i__" ).join( String( i ) ).split( "__n__" ).join( String( i + 1 ) );
 				var box = document.createElement( "div" );
 				box.innerHTML = html;
 				var rule = box.firstElementChild;
 				host.appendChild( rule );
 				syncRule( rule );
+				renumber();
 				var first = rule.querySelector( "select, input" );
 				if ( first ) { first.focus(); }
 			} );
@@ -652,11 +836,56 @@ function sendbeam_admin_assets( $hook ) {
 			frame.open();
 		} );
 
+		/*
+		 * A DNS value is a textarea so that it can wrap on a phone, and a
+		 * textarea with one row shows one row however many it needs. This
+		 * gives each one the height of its own content, and again when the
+		 * window changes width — the value that fits on one line at 1280px
+		 * takes three at 393px.
+		 */
+		function fitFields() {
+			document.querySelectorAll( ".sb-copy-field" ).forEach( function ( field ) {
+				field.style.height = "auto";
+				field.style.height = field.scrollHeight + "px";
+			} );
+		}
+		if ( document.querySelector( ".sb-copy-field" ) ) {
+			fitFields();
+			var fitTimer = null;
+			window.addEventListener( "resize", function () {
+				clearTimeout( fitTimer );
+				fitTimer = setTimeout( fitFields, 120 );
+			} );
+			// A records table folded away in a <details> has no height to
+			// measure until it is opened.
+			document.addEventListener( "toggle", function ( e ) {
+				if ( e.target && "DETAILS" === e.target.tagName ) { fitFields(); }
+			}, true );
+		}
+
 		document.addEventListener( "click", function ( e ) {
 			var btn = e.target.closest( ".sb-copy" );
 			if ( ! btn ) { return; }
 			var text = btn.getAttribute( "data-copy" ), done = btn.getAttribute( "data-done" ) || "Copied";
+			var isField = "INPUT" === btn.tagName || "TEXTAREA" === btn.tagName;
 			function flash() {
+				/*
+				 * A DNS value is a read-only input, not a button: it has no
+				 * text to swap, and selecting what was copied is the
+				 * confirmation people expect from a field. The tooltip and a
+				 * class carry the word for everyone else.
+				 */
+				if ( isField ) {
+					try { btn.select(); } catch ( err ) {}
+					var wasTitle = btn.getAttribute( "title" );
+					btn.setAttribute( "title", done );
+					btn.classList.add( "is-copied" );
+					setTimeout( function () {
+						btn.classList.remove( "is-copied" );
+						if ( wasTitle ) { btn.setAttribute( "title", wasTitle ); }
+					}, 1400 );
+					return;
+				}
 				var was = btn.textContent;
 				btn.textContent = done;
 				setTimeout( function () { btn.textContent = was; }, 1400 );
@@ -675,5 +904,5 @@ function sendbeam_admin_assets( $hook ) {
 	';
 	wp_register_script( 'sendbeam-admin', '', array(), SENDBEAM_VERSION, true );
 	wp_enqueue_script( 'sendbeam-admin' );
-	wp_add_inline_script( 'sendbeam-admin', $js );
+	wp_add_inline_script( 'sendbeam-admin', $js . sendbeam_connect_admin_js() );
 }

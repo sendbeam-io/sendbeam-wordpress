@@ -181,7 +181,7 @@ function sendbeam_clean_popup( $raw ) {
 /** Save the posted rules. */
 function sendbeam_handle_save_popups() {
 	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ) );
+		wp_die( esc_html__( 'You do not have permission to do that.', 'sendbeam' ), '', array( 'response' => 403 ) );
 	}
 	check_admin_referer( 'sendbeam_save_popups' );
 
@@ -238,11 +238,59 @@ function sendbeam_popup_matches( $rule ) {
 }
 
 /**
+ * The rules that could actually show a pop-up to somebody.
+ *
+ * Switched on, and with a form to show. sendbeam_popups() returns every rule
+ * that was ever saved, including ones the owner unticked and ones with no
+ * form chosen, which is right for the editing screen and wrong for every
+ * question of the form "is there a pop-up on this site". Answering that with
+ * sendbeam_popups() told an owner who had just switched every rule off that
+ * "a SendBeam pop-up is live on the site".
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function sendbeam_live_popups() {
+	$out = array();
+	foreach ( sendbeam_popups() as $rule ) {
+		if ( ! empty( $rule['enabled'] ) && '' !== trim( (string) $rule['form'] ) ) {
+			$out[] = $rule;
+		}
+	}
+	return $out;
+}
+
+/**
  * The rule that owns this page, or null.
  *
  * @return array<string,mixed>|null
  */
+/**
+ * Pages no pop-up may open on, whatever a rule says. A pop-up over the
+ * checkout puts its overlay on top of Place order, which is the one control
+ * a shop cannot afford to have covered; the cart and the account pages are
+ * the same kind of place. "Every page" means every page but these.
+ *
+ * @return bool
+ */
+function sendbeam_popup_excluded_page() {
+	foreach ( array( 'is_cart', 'is_checkout', 'is_account_page', 'is_wc_endpoint_url' ) as $fn ) {
+		if ( function_exists( $fn ) && call_user_func( $fn ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * The first rule that matches the current page, or null — and never one on
+ * the cart, checkout or account pages.
+ *
+ * @return array<string,mixed>|null
+ */
 function sendbeam_active_popup() {
+	if ( sendbeam_popup_excluded_page() ) {
+		return null;
+	}
 	foreach ( sendbeam_popups() as $rule ) {
 		if ( sendbeam_popup_matches( $rule ) ) {
 			return $rule;
