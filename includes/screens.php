@@ -988,11 +988,27 @@ function sendbeam_connect_connected_panel( $status = null ) {
  * @return string[]
  */
 function sendbeam_connect_granted_list() {
+	/*
+	 * The domain scope's label names the host the consent page was asked
+	 * about, which is this site's own. On a consent page that is exactly
+	 * right — it is what is about to be set up. On a connected site it is a
+	 * description of the request rather than of the outcome, and a site that
+	 * connected with SEND FROM set to mail.example.co.uk read "Set up this
+	 * site's sending domain (example.co.uk) in SendBeam" ever after.
+	 */
+	$domain = sendbeam_connect_current_sending_host();
+
 	$out = array();
 	foreach ( sendbeam_connect_scopes() as $scope => $meta ) {
-		if ( sendbeam_connect_granted( $scope ) ) {
-			$out[] = $meta['label'];
+		if ( ! sendbeam_connect_granted( $scope ) ) {
+			continue;
 		}
+		if ( 'domain' === $scope && '' !== $domain ) {
+			/* translators: %s: the sending domain actually set up, e.g. mail.harbourlane.co.uk */
+			$out[] = sprintf( __( "Set up this site's sending domain (%s) in SendBeam", 'sendbeam' ), $domain );
+			continue;
+		}
+		$out[] = $meta['label'];
 	}
 	return $out;
 }

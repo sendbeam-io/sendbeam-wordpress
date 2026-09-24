@@ -80,7 +80,7 @@
 
 - **Every "you do not have permission" was served as HTTP 500.** `wp_die()` with no status argument defaults to a server error, so all sixteen of the plugin's admin-post actions answered an Editor's POST with a 500 — a correct refusal, logged everywhere as a fault in the plugin. They answer 403. (The nonce refusals were already right: `check_admin_referer()` sends 403 itself.)
 
-- **"Not installed" about plugins that are installed.** The form-plugin table probes for a class or a function, which is the right probe — it answers whether the plugin is *running*. Somebody who has just installed Fluent Forms and is wondering why nothing has changed is exactly the person reading that row. It says "Not active", which is true in both cases.
+- **The permissions list named this site's host, not the domain that was chosen.** The domain scope's label interpolates the host the consent page was asked about, which is right on a consent page and a description of the request rather than the outcome on a connected site: a site connected with SEND FROM set to `mail.harbourlane.co.uk` read "Set up this site's sending domain (harbourlane.co.uk)" ever after. The connected card names the domain the workspace actually has.
 
 ### Connect
 

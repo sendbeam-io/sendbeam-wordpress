@@ -4761,6 +4761,46 @@ foreach ( glob( dirname( __DIR__ ) . '/includes/*.php' ) as $sb_file ) {
 }
 lacks( $sb_all_src, "'Not installed'", 'bridges: and "Not installed" is said nowhere in the plugin' );
 
+// ── #19 The permissions list named the site's host, not the domain ──────
+// The domain scope's label names the host the consent page was asked about.
+// On a consent page that is right; on a connected site it describes the
+// request rather than the outcome, so a site connected with SEND FROM set to
+// mail.wp-test.sendbeam.io read "Set up this site's sending domain
+// (wp-test.sendbeam.io) in SendBeam" ever after.
+sb_connect_reset();
+sb_seed_settings(
+	array(
+		'api_key'                  => SENDBEAM_API_KEY,
+		'sendbeam_connected_via'   => 'connect',
+		'sendbeam_connect_granted' => 'forms,domain',
+	)
+);
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'mail.wp-test.sendbeam.io', 'verified' => false, 'records' => array() ),
+		)
+	)
+);
+$sb_granted = implode( ' | ', sendbeam_connect_granted_list() );
+has( $sb_granted, 'mail.wp-test.sendbeam.io', 'permissions: the list names the domain that was actually set up' );
+lacks( $sb_granted, '(www.example-site.test)', 'permissions: not the host the request was about' );
+
+// With no domain there is nothing better to say, so the scope's own label
+// stands — it is still true, and an empty parenthesis would not be.
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => null,
+		)
+	)
+);
+has( implode( ' | ', sendbeam_connect_granted_list() ), "Set up this site's sending domain", 'permissions: a site with no domain keeps the original wording' );
+sb_connect_reset();
+sb_seed_settings( array() );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.
