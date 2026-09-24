@@ -1028,6 +1028,14 @@ $v2 = sendbeam_settings();
 ok( empty( $v2['mail_enabled'] ), 'connect v2: a verified domain does not switch on site email the key cannot send' );
 ok( '' === $v2['mail_from_name'], 'connect v2: the sender is not filled in for a key that cannot send' );
 
+// Provisioning defaults the workspace sender to hello@<sending host> when the
+// workspace has none. Whatever it comes back as, it fills an empty From
+// address here and never overwrites one that is set.
+sb_v2_exchange( sb_v2_body( array( 'sender' => array( 'from_name' => 'Harbour Lane', 'from_email' => 'hello@mail.brand.co.uk' ) ) ) );
+ok( 'hello@mail.brand.co.uk' === sendbeam_settings()['mail_from_email'], 'connect v2: the sender address SendBeam set up lands in the empty From address' );
+sb_v2_exchange( sb_v2_body( array( 'sender' => array( 'from_name' => 'Harbour Lane', 'from_email' => 'not an address' ) ) ) );
+ok( '' === sendbeam_settings()['mail_from_email'], 'connect v2: something that is not an address never becomes the From address' );
+
 // A form the site already chose is never repointed: an embed may be live on a page.
 sb_v2_exchange( sb_v2_body(), array( 'default_form' => $other ) );
 ok( $other === sendbeam_settings()['default_form'], 'connect v2: reconnecting does not repoint a form the site already chose' );
