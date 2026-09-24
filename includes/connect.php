@@ -666,11 +666,26 @@ function sendbeam_connect_granted_from_response( $data ) {
 }
 
 /**
- * Was this permission granted to the key this site holds?
+ * Does this site know what its key is allowed to do?
  *
- * A pasted key has no recorded permissions, so nothing is claimed about it:
- * the answer is false and the screen says what is missing rather than
- * offering a button that cannot work.
+ * Only a connection made through Connect has its permissions on record. A
+ * pasted key arrives with nothing but itself, so "was this key given that
+ * permission?" has three answers rather than two — and the third, "no idea",
+ * was being said as "no", which is a claim about somebody's key that this
+ * site has no way of making.
+ *
+ * @return bool
+ */
+function sendbeam_connect_permissions_known() {
+	return sendbeam_connected_via_connect() && '' !== (string) sendbeam_settings()['sendbeam_connect_granted'];
+}
+
+/**
+ * Whether this site's key was granted one permission.
+ *
+ * False for a pasted key, whose permissions are unknown — callers that need
+ * to tell "no" apart from "unknown" ask sendbeam_connect_permissions_known()
+ * first.
  *
  * @param string $scope Scope name.
  * @return bool
@@ -716,6 +731,14 @@ function sendbeam_connect_disconnect() {
 
 	if ( '' !== $constant && $constant !== $stored ) {
 		$note = 'constant';
+	} elseif ( ! sendbeam_connected_via_connect() ) {
+		/*
+		 * A key somebody pasted was minted for whatever they minted it for,
+		 * and may well be in use on another site. Revoking it because this
+		 * one is being disconnected would take those down without warning.
+		 * It is forgotten here and left alone there, and the screen says so.
+		 */
+		$note = 'pasted';
 	} elseif ( '' !== sendbeam_api_key() ) {
 		$result = sendbeam_api_post( '/api/v1/connect/disconnect', array(), 10 );
 		// A key SendBeam has already forgotten is a key that is not live, so

@@ -365,12 +365,15 @@ function sendbeam_admin_css() {
 	/* Recent activity: a row per message, readable at a glance and narrow
 	   enough for the column it sits in. */
 	.sb-recent{list-style:none;margin:0;padding:0}
-	.sb-recent li{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+	/* One line per message, and it stays one line: a result that wraps under
+	   an address reads as a second row. */
+	.sb-recent li{display:flex;gap:10px;align-items:baseline;flex-wrap:nowrap;
 		padding:8px 0;border-bottom:1px solid var(--hair);font-size:13px}
 	.sb-recent li:last-child{border-bottom:0}
-	.sb-recent__when{flex:0 0 auto;color:var(--ink-60);font-family:"Martian Mono",ui-monospace,monospace;font-size:11px}
-	.sb-recent__who{flex:1 1 12ch;min-width:0;overflow-wrap:anywhere}
-	.sb-recent__what{flex:0 0 auto}
+	.sb-recent__when{flex:0 0 auto;color:var(--ink-60);font-family:"Martian Mono",ui-monospace,monospace;font-size:11px;white-space:nowrap}
+	.sb-recent__short{display:none}
+	.sb-recent__who{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+	.sb-recent__what{flex:0 0 auto;white-space:nowrap}
 	.sb-recent__what--ok{color:var(--m)} .sb-recent__what--warn{color:var(--a)}
 	.sb-recent__what--bad{color:var(--v)}
 
@@ -480,6 +483,10 @@ function sendbeam_admin_css() {
 	.sb-doc__row code{flex:1 1 22em;min-width:0;overflow-wrap:anywhere}
 
 	/* ── Phones ───────────────────────────────────────────────────────── */
+	@media (max-width:340px){
+		.sb-stats{grid-template-columns:1fr}
+	}
+
 	@media (max-width:782px){
 		.sendbeam-app{margin:10px}
 		.sb-head{padding:14px}
@@ -490,8 +497,17 @@ function sendbeam_admin_css() {
 		.sb-rail__step:last-child{border-bottom:0}
 		.sb-wizard__foot .sb-btn{flex:1 1 100%}
 		.sb-doc__row code{flex:1 1 100%}
-		.sb-stats{grid-template-columns:1fr;gap:10px}
-		.sb-stats .sb-fig{font-size:28px}
+		/* Three single digits still fit across 393px, and stacking them made
+		   three numbers occupy half a card. Only a genuinely narrow screen
+		   gets the column. */
+		.sb-stats{gap:10px}
+		.sb-stats .sb-label{font-size:12px}
+		.sb-stats .sb-fig{font-size:24px}
+		/* The short date, and an address that truncates rather than pushing
+		   the result onto its own line. */
+		.sb-recent__long{display:none}
+		.sb-recent__short{display:inline}
+		.sb-recent li{gap:8px}
 
 		/* The records, stacked. Four columns squeezed into 393px gave the
 		   host and the value about ninety pixels each, which is enough to

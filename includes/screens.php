@@ -133,14 +133,31 @@ function sendbeam_workspace_recent() {
 		'failed'   => array( 'bad', __( 'Failed', 'sendbeam' ) ),
 	);
 
+	$today = wp_date( 'Y-m-d' );
+
 	echo '<ul class="sb-recent">';
 	foreach ( $log as $row ) {
 		$key = isset( $results[ $row['result'] ] ) ? $row['result'] : 'failed';
+
+		/*
+		 * Two dates, one shown at a time by CSS. "September 24, 2026" is the
+		 * site's own format and right on a desktop; on a phone it took half
+		 * the row and left the address with nowhere to go. Today's messages
+		 * get a time instead, which is what somebody checking whether the
+		 * last one went out actually wants.
+		 */
+		$long  = wp_date( get_option( 'date_format' ), (int) $row['at'] );
+		$short = wp_date( 'Y-m-d', (int) $row['at'] ) === $today
+			? wp_date( get_option( 'time_format' ), (int) $row['at'] )
+			: wp_date( 'j M', (int) $row['at'] );
+
 		printf(
-			'<li><span class="sb-recent__when">%1$s</span>' .
-			'<span class="sb-recent__who">%2$s</span>' .
-			'<span class="sb-recent__what sb-recent__what--%3$s">%4$s</span></li>',
-			esc_html( wp_date( get_option( 'date_format' ), (int) $row['at'] ) ),
+			'<li><span class="sb-recent__when"><span class="sb-recent__long">%1$s</span>' .
+			'<span class="sb-recent__short">%2$s</span></span>' .
+			'<span class="sb-recent__who">%3$s</span>' .
+			'<span class="sb-recent__what sb-recent__what--%4$s">%5$s</span></li>',
+			esc_html( $long ),
+			esc_html( $short ),
 			esc_html( (string) $row['to'] ),
 			esc_attr( $results[ $key ][0] ),
 			esc_html( $results[ $key ][1] )
@@ -176,11 +193,7 @@ function sendbeam_overview_connection_card( $status, $connected ) {
 	}
 
 	sendbeam_card_open( __( 'Connection', 'sendbeam' ), sendbeam_sends_as_line( $status ) );
-	if ( sendbeam_connected_via_connect() ) {
-		sendbeam_connect_connected_panel( $status );
-	} else {
-		sendbeam_connect_pasted_panel( $status );
-	}
+	sendbeam_connect_connected_panel( $status );
 	sendbeam_card_close();
 }
 
@@ -357,17 +370,27 @@ function sendbeam_overview_step_panel( $step, $status, $connected ) {
 	}
 
 	/*
-	 * A step whose sentence names a permission this site was never given ends
-	 * in the same place: the consent page, with that box ticked. The link
-	 * starts the ordinary Connect flow with everything preselected, and the
-	 * key that comes back replaces the one this site holds.
+	 * A step whose sentence names something this site's key cannot do ends in
+	 * the same place: the consent page, with every box ticked. The link
+	 * starts the ordinary Connect flow, and the key that comes back replaces
+	 * the one this site holds. This is the only place the offer appears for a
+	 * site with a pasted key — a connected card that says "Connected" and
+	 * then offers to connect is the plugin arguing with itself.
 	 */
 	if ( $connected && ! empty( $step['reconnect'] ) ) {
 		echo '<div class="sb-step__panel"><div class="sb-actions">';
 		printf(
 			'<a class="sb-btn sb-btn--small sb-btn--ghost" href="%s">%s</a>',
 			esc_url( sendbeam_connect_start_url( true ) ),
-			esc_html__( 'Reconnect with more permissions', 'sendbeam' )
+			esc_html(
+				sendbeam_connected_via_connect()
+					// There is a connection to re-make, with more ticked.
+					? __( 'Reconnect with more permissions', 'sendbeam' )
+					// There is no connection to re-make: a pasted key is
+					// being offered the thing it cannot do, where it cannot
+					// do it, and nowhere else.
+					: __( 'Switch to one-click Connect', 'sendbeam' )
+			)
 		);
 		echo '</div></div>';
 	}
@@ -777,7 +800,12 @@ function sendbeam_overview_mail_panel( $status, $connected ) {
 		return;
 	}
 
-	if ( ! sendbeam_connect_granted( 'transactional:send' ) || empty( $status['domain']['verified'] ) ) {
+	// Granted, or unknown — a pasted key records no permissions, and hiding
+	// the button on a site whose key may well have the permission leaves the
+	// step with nothing on it and no way to find out. The handler checks
+	// again and says so if SendBeam refuses.
+	$may_send = sendbeam_connect_granted( 'transactional:send' ) || ! sendbeam_connect_permissions_known();
+	if ( ! $may_send || empty( $status['domain']['verified'] ) ) {
 		return; // The step's own sentence already says which one is missing.
 	}
 
@@ -822,12 +850,27 @@ function sendbeam_connect_paste_disclosure() {
 }
 
 /**
- * What step 1 says once the button has done its work.
+ * The connected card: one shape, however the key got here.
+ *
+ * There used to be two. A site with a pasted key got a card offering
+ * **Connect this site** and **Replace the key** — under a header band already
+ * saying "Connected", which reads as the plugin not knowing its own state.
+ * Connecting is an upgrade, not a correction, and an upgrade belongs where
+ * the pasted key actually falls short: on the step that cannot answer without
+ * the permissions Connect grants. Not here, where the answer is simply "yes,
+ * connected".
+ *
+ * So: what it is connected to, how the key arrived, and the one thing a
+ * connected card is for — disconnecting. Reconnect joins it only when there
+ * is something to reconnect *to*, which a pasted key does not have.
  *
  * Disconnect no longer goes through the settings form's "Remove the saved
  * key" checkbox. That only ever forgot this site's copy, and left a live key
  * in the workspace for the owner to go and revoke by hand — which is exactly
- * what nobody does. It now calls SendBeam and revokes the key first.
+ * what nobody does. It now calls SendBeam and revokes the key first, for a
+ * key SendBeam issued to this site. A pasted key is somebody else's to
+ * revoke: it may be shared with another site, so it is forgotten here and
+ * left alone there, and the confirmation says so.
  *
  * The confirmation is inline rather than window.confirm(): a browser dialog
  * cannot say what disconnecting costs, and half of them are suppressed after
@@ -837,7 +880,8 @@ function sendbeam_connect_paste_disclosure() {
  * @param array $status Normalised Connect status, for the workspace name.
  */
 function sendbeam_connect_connected_panel( $status = null ) {
-	$workspace = sendbeam_connect_workspace_name();
+	$via_connect = sendbeam_connected_via_connect();
+	$workspace   = sendbeam_connect_workspace_name();
 	if ( '' === $workspace && is_array( $status ) ) {
 		$workspace = (string) $status['workspace']['name'];
 	}
@@ -847,7 +891,17 @@ function sendbeam_connect_connected_panel( $status = null ) {
 	if ( '' !== $workspace ) {
 		/* translators: %s: the SendBeam workspace name */
 		echo '<p style="margin-top:0"><strong>' . esc_html( sprintf( __( 'Connected to %s', 'sendbeam' ), $workspace ) ) . '</strong></p>';
+	} else {
+		echo '<p style="margin-top:0"><strong>' . esc_html__( 'Connected to SendBeam', 'sendbeam' ) . '</strong></p>';
 	}
+
+	// How the key got here, quietly. It is the difference between a
+	// connection this plugin can reason about and one it can only use.
+	echo '<p class="sb-note" style="margin-top:-6px">' . esc_html(
+		$via_connect
+			? __( 'via Connect', 'sendbeam' )
+			: __( 'using an API key', 'sendbeam' )
+	) . '</p>';
 
 	if ( sendbeam_key_in_config() ) {
 		echo '<p class="sb-note">' . esc_html__( 'This site sends with the key defined as SENDBEAM_API_KEY in wp-config.php, not the one stored here. Change it there; Disconnect will not revoke it.', 'sendbeam' ) . '</p>';
@@ -870,75 +924,32 @@ function sendbeam_connect_connected_panel( $status = null ) {
 	 * Reconnect sits beside Disconnect because it is what people reach for
 	 * Disconnect to do: change workspace, pick a different sending host,
 	 * re-approve something. It asks for the permissions this site already
-	 * has, so the consent page comes up saying what is already true.
+	 * has, so the consent page comes up saying what is already true — which
+	 * means it only makes sense for a connection that has permissions on
+	 * record, and a pasted key has none.
 	 */
-	printf(
-		'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a> ',
-		esc_url( sendbeam_connect_start_url() ),
-		esc_html__( 'Reconnect', 'sendbeam' )
-	);
+	if ( $via_connect ) {
+		printf(
+			'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a> ',
+			esc_url( sendbeam_connect_start_url() ),
+			esc_html__( 'Reconnect', 'sendbeam' )
+		);
+	}
 	printf(
 		'<button type="button" class="sb-btn sb-btn--danger sb-btn--small sb-confirm__ask" hidden>%s</button>',
 		esc_html__( 'Disconnect', 'sendbeam' )
 	);
 	echo '<div class="sb-confirm__box">';
-	echo '<p class="sb-note">' . esc_html__( 'Disconnect this site? Its key is revoked. Your list, form and sending domain stay in SendBeam. Forms already on your pages stop loading until you connect again.', 'sendbeam' ) . '</p>';
+	echo '<p class="sb-note">' . esc_html(
+		$via_connect
+			? __( 'Disconnect this site? Its key is revoked. Your list, form and sending domain stay in SendBeam. Forms already on your pages stop loading until you connect again.', 'sendbeam' )
+			: __( 'Disconnect this site? The saved key is removed from this site and nothing is revoked in SendBeam — a key you pasted may be in use somewhere else. Forms already on your pages stop loading until you connect again.', 'sendbeam' )
+	) . '</p>';
 	printf( '<button type="submit" class="sb-btn sb-btn--small sb-btn--danger">%s</button> ', esc_html__( 'Yes, disconnect', 'sendbeam' ) );
 	printf( '<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-confirm__cancel">%s</button>', esc_html__( 'Cancel', 'sendbeam' ) );
 	echo '</div></form>';
 
 	echo '</div>';
-}
-
-/**
- * What the Connection card says when the key was pasted rather than granted.
- *
- * There is no workspace name to print — a key pasted by hand arrives with
- * nothing but itself — so the card says what it does know: that the key
- * works, what SendBeam answers to it, and where the field to change it is.
- *
- * @param array $status Normalised Connect status.
- */
-function sendbeam_connect_pasted_panel( $status ) {
-	$connection = sendbeam_connection();
-	$workspace  = is_array( $status ) ? (string) $status['workspace']['name'] : '';
-
-	if ( '' !== $workspace ) {
-		/* translators: %s: the SendBeam workspace name */
-		echo '<p style="margin-top:0"><strong>' . esc_html( sprintf( __( 'Connected to %s', 'sendbeam' ), $workspace ) ) . '</strong></p>';
-	} else {
-		echo '<p style="margin-top:0"><strong>' . esc_html__( 'Connected with a pasted API key.', 'sendbeam' ) . '</strong></p>';
-	}
-
-	if ( sendbeam_key_in_config() ) {
-		echo '<p class="sb-note">' . esc_html__( 'The key is the one defined as SENDBEAM_API_KEY in wp-config.php. Change it there.', 'sendbeam' ) . '</p>';
-	}
-
-	if ( 'no_scope' === $connection['state'] && '' !== $connection['message'] ) {
-		echo '<p class="sb-msg sb-msg--warn">' . esc_html( $connection['message'] ) . '</p>';
-	}
-
-	/*
-	 * Connecting is the offer, not a correction. "Connect properly instead"
-	 * and "Change the key" both read as though the owner had done something
-	 * wrong by pasting one — which is a perfectly reasonable way to set this
-	 * up and the way the plugin worked for eight versions.
-	 */
-	echo '<div class="sb-actions">';
-	if ( ! sendbeam_key_in_config() ) {
-		printf(
-			'<a class="sb-btn sb-btn--small sb-btn--primary" href="%s">%s</a>',
-			esc_url( sendbeam_connect_start_url( true ) ),
-			esc_html__( 'Connect this site', 'sendbeam' )
-		);
-	}
-	printf(
-		'<a class="sb-btn sb-btn--ghost sb-btn--small" href="%s">%s</a>',
-		esc_url( add_query_arg( 'tab', 'advanced', sendbeam_page_url( 'sendbeam-settings' ) ) ),
-		esc_html__( 'Replace the key', 'sendbeam' )
-	);
-	echo '</div>';
-	echo '<p class="sb-note">' . esc_html__( 'Connecting gives this site its own key from SendBeam and tells the plugin which permissions it has, which is what lets the sending domain, the form list and the checklist say anything useful.', 'sendbeam' ) . '</p>';
 }
 
 /**
@@ -1765,14 +1776,25 @@ function sendbeam_screen_settings() {
  */
 function sendbeam_settings_connection_card( $status, $connected ) {
 	sendbeam_card_open( __( 'Connection', 'sendbeam' ), __( 'This site and the SendBeam workspace it talks to.', 'sendbeam' ) );
-	if ( $connected && sendbeam_connected_via_connect() ) {
+	if ( $connected ) {
 		sendbeam_connect_connected_panel( $status );
-	} elseif ( $connected ) {
-		sendbeam_connect_pasted_panel( $status );
 	} else {
 		sendbeam_connect_panel();
 	}
 	sendbeam_card_close();
+
+	/*
+	 * Changing the key is a settings job, not something to put on a card
+	 * whose answer is "yes, connected". It lives one tab across, and this is
+	 * the line that says so.
+	 */
+	if ( $connected && ! sendbeam_key_in_config() ) {
+		printf(
+			'<p class="sb-note"><a href="%s">%s</a></p>',
+			esc_url( add_query_arg( 'tab', 'advanced', sendbeam_page_url( 'sendbeam-settings' ) ) ),
+			esc_html__( 'Replace the API key', 'sendbeam' )
+		);
+	}
 }
 
 /**

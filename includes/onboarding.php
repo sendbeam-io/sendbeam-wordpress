@@ -345,7 +345,9 @@ function sendbeam_setup_steps() {
 		$domain_detail    = __( 'You did not allow SendBeam to set up a sending domain, so this site has none.', 'sendbeam' );
 		$domain_reconnect = true;
 	} elseif ( 'no_permission' === $state ) {
-		$domain_detail    = __( 'This connection was made before domains could be read, so this site cannot see its sending domain.', 'sendbeam' );
+		$domain_detail    = sendbeam_connected_via_connect()
+			? __( 'This connection was made before domains could be read, so this site cannot see its sending domain.', 'sendbeam' )
+			: __( 'The key this site is using cannot read sending domains, so this step has nothing to show.', 'sendbeam' );
 		$domain_reconnect = true;
 	} elseif ( 'managed_host' === $state ) {
 		$domain_detail = '' !== $note
@@ -362,6 +364,14 @@ function sendbeam_setup_steps() {
 			$domain_detail .= ' ' . rtrim( $note, '.' ) . '.';
 		}
 		$domain_detail .= ' ' . __( 'Add one under Settings → Domains in SendBeam.', 'sendbeam' );
+
+		/*
+		 * A key with no site host behind it cannot be told which domain this
+		 * site sends from — which is precisely the thing Connect settles at
+		 * consent time. This is where the offer belongs, and the only place
+		 * a pasted key is actually the worse option.
+		 */
+		$domain_reconnect = ( 'no_site' === $state );
 	} else {
 		$domain_detail = sendbeam_domain_sentence( $domain['name'], $verified );
 	}
@@ -427,7 +437,7 @@ function sendbeam_setup_steps() {
 		$mail_attention = true;
 	} elseif ( $using_mail ) {
 		$mail_detail = __( 'On. Send yourself a test to be sure.', 'sendbeam' );
-	} elseif ( $connected && ! sendbeam_connect_granted( 'transactional:send' ) ) {
+	} elseif ( $connected && sendbeam_connect_permissions_known() && ! sendbeam_connect_granted( 'transactional:send' ) ) {
 		$mail_detail    = __( 'This site\'s key was not given permission to send your site\'s email. Reconnect and tick that box to use it.', 'sendbeam' );
 		$mail_reconnect = true;
 	} elseif ( ! $verified ) {

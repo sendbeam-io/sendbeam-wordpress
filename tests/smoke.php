@@ -1099,9 +1099,9 @@ $GLOBALS['stub']['remote_reply'] = null;
 unset( $GLOBALS['stub']['screen'] );
 
 /*
- * A site connected with a pasted key is offered Connect, not corrected for
- * having pasted one. "Connect properly instead" read as a telling-off for
- * the way the plugin worked for eight versions.
+ * One connected card, however the key arrived. A site with a pasted key was
+ * being shown "Connected" in the header band and **Connect this site** in the
+ * card underneath it — the plugin arguing with itself about its own state.
  */
 $GLOBALS['stub']['remote_reply'] = array(
 	'response' => array( 'code' => 200 ),
@@ -1109,23 +1109,124 @@ $GLOBALS['stub']['remote_reply'] = array(
 );
 $GLOBALS['stub']['user_id']                = 7;
 $GLOBALS['stub']['caps']['manage_options'] = true;
-update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_pastedkeypastedkey' ) );
-sendbeam_flush_cache();
-sendbeam_connect_cache_status( sendbeam_connect_normalise_status( array( 'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ) ) ) );
 
-ob_start();
-sendbeam_connect_pasted_panel( sendbeam_connect_status() );
-$sendbeam_pasted = ob_get_clean();
-has( $sendbeam_pasted, 'Connect this site', 'pasted key: the offer is to connect this site' );
-has( $sendbeam_pasted, 'sb-btn--primary', 'pasted key: and it is the primary action on the card' );
-has( $sendbeam_pasted, 'Replace the key', 'pasted key: changing the key is the quieter one' );
-lacks( $sendbeam_pasted, 'Connect properly instead', 'pasted key: nothing suggests they did it improperly' );
-lacks( $sendbeam_pasted, 'Change the key', 'pasted key: nor that a key needs changing' );
-has( $sendbeam_pasted, 'Connecting gives this site its own key from SendBeam', 'pasted key: the sentence says what connecting gives, not what it replaces' );
-ok(
-	strpos( $sendbeam_pasted, 'Connect this site' ) < strpos( $sendbeam_pasted, 'Replace the key' ),
-	'pasted key: and the offer comes first'
+/** Render the connected card for a key that arrived one way or the other. */
+function sb_connected_card( $via_connect ) {
+	update_option(
+		'sendbeam_settings',
+		array(
+			'api_key'                    => 'sb_live_cardkeycardkeycard',
+			'sendbeam_connected_via'     => $via_connect ? 'connect' : '',
+			'sendbeam_connect_workspace' => $via_connect ? 'Harbour Lane' : '',
+			'sendbeam_connect_granted'   => $via_connect ? 'forms,transactional:send,domain' : '',
+		)
+	);
+	sendbeam_flush_cache();
+	sendbeam_connect_cache_status( sendbeam_connect_normalise_status( array( 'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ) ) ) );
+	ob_start();
+	sendbeam_connect_connected_panel( sendbeam_connect_status() );
+	return ob_get_clean();
+}
+
+$sb_pasted = sb_connected_card( false );
+has( $sb_pasted, 'Connected to Harbour Lane', 'pasted key: the card says what it is connected to' );
+has( $sb_pasted, 'using an API key', 'pasted key: and how the key got here' );
+ok( 1 === substr_count( $sb_pasted, 'sb-confirm__ask' ), 'pasted key: exactly one Disconnect' );
+has( $sb_pasted, 'Disconnect', 'pasted key: which is the one action a connected card is for' );
+lacks( $sb_pasted, 'Connect this site', 'pasted key: nothing offers to connect a site that says Connected above it' );
+lacks( $sb_pasted, 'Replace the key', 'pasted key: nor to replace a key, which is a settings job' );
+lacks( $sb_pasted, 'sb-btn--primary', 'pasted key: and there is no primary button on a card whose answer is "yes"' );
+lacks( $sb_pasted, 'Reconnect', 'pasted key: Reconnect needs a connection to re-make, and a pasted key has none' );
+has( $sb_pasted, 'nothing is revoked in SendBeam', 'pasted key: the confirmation says the key is left alone' );
+has( $sb_pasted, 'may be in use somewhere else', 'pasted key: and why' );
+lacks( $sb_pasted, 'checklist say anything useful', 'pasted key: the sales pitch is gone from the card' );
+
+$sb_via = sb_connected_card( true );
+has( $sb_via, 'Connected to Harbour Lane', 'connect-made: the card says what it is connected to' );
+has( $sb_via, 'via Connect', 'connect-made: and how the key got here' );
+ok( 1 === substr_count( $sb_via, 'sb-confirm__ask' ), 'connect-made: exactly one Disconnect' );
+has( $sb_via, 'Reconnect', 'connect-made: with Reconnect beside it' );
+has( $sb_via, 'action=sendbeam_connect_start', 'connect-made: starting the Connect flow' );
+has( $sb_via, 'Its key is revoked', 'connect-made: the confirmation says the key is revoked' );
+lacks( $sb_via, 'sb-btn--primary', 'connect-made: and no primary button here either' );
+lacks( $sb_via, 'Connect this site', 'connect-made: nothing offers to connect an already-connected site' );
+
+/*
+ * The upgrade to Connect appears where a pasted key actually falls short —
+ * the step that cannot answer without the permissions Connect grants — and
+ * nowhere else.
+ */
+$sb_pasted_settings = array(
+	'api_key'                  => 'sb_live_cardkeycardkeycard',
+	'sendbeam_connected_via'   => '',
+	'sendbeam_connect_granted' => '',
 );
+$ov = sb_overview( $sb_pasted_settings, array( 'workspace' => array( 'id' => 'w1' ), 'domain_state' => 'no_site' ) );
+has( $ov, 'Switch to one-click Connect', 'pasted key: the domain step with no site host offers the upgrade' );
+has( $ov, 'action=sendbeam_connect_start', 'pasted key: which starts the Connect flow' );
+has( $ov, 'sendbeam_scopes=forms,contacts:write,transactional:send,ecommerce,domain', 'pasted key: with every permission preselected' );
+lacks( $ov, 'Reconnect with more permissions', 'pasted key: worded as an upgrade, not as re-doing something' );
+/*
+ * Twice, and both of them earned: the domain step cannot name a sending
+ * domain, and the mail step is queued behind it. The way out is the same
+ * link, and offering it only on the step somebody is not standing on is one
+ * hop too many.
+ */
+ok( 2 === substr_count( $ov, 'Switch to one-click Connect' ), 'pasted key: offered on the step that needs it and on the one waiting behind it' );
+ok( 1 === substr_count( $ov, 'sb-confirm__ask' ), 'pasted key: and still exactly one Disconnect on the screen' );
+lacks( $ov, 'Connect this site', 'pasted key: with nothing on the connected card offering to connect' );
+
+// A domain that simply has not been added is not a reason to sell anything.
+$ov = sb_overview( $sb_pasted_settings, array( 'workspace' => array( 'id' => 'w1' ), 'domain_state' => 'not_found' ) );
+lacks( $ov, 'Switch to one-click Connect', 'pasted key: a missing domain row is not an argument for reconnecting' );
+
+/*
+ * "Was this key given that permission?" has three answers for a pasted key,
+ * and the third is "no idea". The step was saying it as "no", which is a
+ * claim about somebody's key that this site has no way of knowing.
+ */
+ok( ! sendbeam_connect_permissions_known(), 'pasted key: this site does not know what its key may do' );
+lacks( $ov, 'was not given permission to send your site', 'pasted key: so the step does not claim a permission was withheld' );
+
+$sb_verified_pasted = array(
+	'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+	'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ),
+	'sender'    => array( 'from_name' => 'Harbour Lane', 'from_email' => 'hello@harbourlane.co.uk' ),
+);
+$ov = sb_overview( $sb_pasted_settings, $sb_verified_pasted );
+has( $ov, 'Switch on', 'pasted key: and the switch-on is offered rather than hidden behind a permission nobody recorded' );
+lacks( $ov, 'Switch to one-click Connect', 'pasted key: with nothing selling Connect on a step that works' );
+
+// A connection that DOES know, and was refused, still says so.
+$sb_denied = array(
+	'api_key'                  => 'sb_live_cardkeycardkeycard',
+	'sendbeam_connected_via'   => 'connect',
+	'sendbeam_connect_granted' => 'forms',
+);
+$ov = sb_overview( $sb_denied, $sb_verified_pasted );
+has( $ov, 'was not given permission to send your site', 'connect-made: a permission actually withheld is still named' );
+
+// The same offer, worded for a connection that exists.
+$sb_via_settings = array(
+	'api_key'                  => 'sb_live_cardkeycardkeycard',
+	'sendbeam_connected_via'   => 'connect',
+	'sendbeam_connect_granted' => 'forms',
+);
+$ov = sb_overview( $sb_via_settings, array( 'workspace' => array( 'id' => 'w1' ), 'domain_state' => 'not_granted' ) );
+has( $ov, 'Reconnect with more permissions', 'connect-made: a permission nobody ticked is offered as a reconnect' );
+lacks( $ov, 'Switch to one-click Connect', 'connect-made: not as a switch to something it already uses' );
+
+// Nothing connected: the Connect panel, unchanged.
+$ov = sb_overview( array(), array() );
+has( $ov, 'Connect SendBeam', 'not connected: the Connect button is the primary action' );
+has( $ov, 'sb-btn--primary', 'not connected: and it is primary' );
+has( $ov, 'I already have an API key', 'not connected: with the paste field folded away under it' );
+lacks( $ov, 'sb-confirm__ask', 'not connected: and nothing to disconnect' );
+
+update_option( 'sendbeam_settings', array() );
+$GLOBALS['stub']['remote_reply'] = null;
+sendbeam_flush_cache();
+sendbeam_connect_forget_status();
 
 /*
  * The way back into the guide. Every plugin in the field study with a wizard
@@ -1351,6 +1452,26 @@ delete_option( 'sendbeam_setup_done' );
 update_option( 'sendbeam_settings', array() );
 $GLOBALS['stub']['remote_reply'] = null;
 sendbeam_flush_cache();
+
+/*
+ * A key somebody pasted was minted for whatever they minted it for, and may
+ * be in use on another site. Revoking it because this one is being
+ * disconnected would take those down without warning.
+ */
+sb_connect_reset();
+update_option( 'sendbeam_settings', array( 'api_key' => 'sb_live_pastedpastedpasted', 'sendbeam_connected_via' => '' ) );
+$GLOBALS['stub']['remote']       = array();
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => '{}' );
+$_REQUEST                        = array( '_wpnonce' => 'nonce:sendbeam_disconnect' );
+try {
+	sendbeam_connect_disconnect();
+} catch ( SendBeamStubExit $e ) {
+	unset( $e );
+}
+$_REQUEST = array();
+ok( empty( $GLOBALS['stub']['remote'] ), 'disconnect: a pasted key is not revoked — it is not this site\'s to revoke' );
+ok( '' === sendbeam_settings()['api_key'], 'disconnect: but this site forgets it' );
+has( $GLOBALS['stub']['redirect']['url'], 'sendbeam_disconnected=pasted', 'disconnect: and the notice says which of the two happened' );
 
 // wp-config constant wins over the option.
 define( 'SENDBEAM_API_KEY', 'sb_const_0123456789abcdef' );
@@ -2235,6 +2356,7 @@ ok( '' === $v2['sendbeam_connected_via'] && '' === $v2['sendbeam_connect_workspa
 ok( '' === $v2['sendbeam_connect_granted'] && empty( $v2['sendbeam_mail_deferred'] ), 'disconnect: the permissions and the held-back switch-on are forgotten' );
 ok( false === get_transient( sendbeam_connect_status_key() ), 'disconnect: the cached status is dropped' );
 has( $url, 'sendbeam_disconnected=ok', 'disconnect: the notice says the key was revoked' );
+
 
 // SendBeam unreachable: the site still forgets the key, and says so.
 sb_connected_site();
@@ -3204,6 +3326,19 @@ has( $sendbeam_css, '.sb-scroll{overflow-x:auto', 'design: a table that will not
 has( $sendbeam_css, '@media (max-width:782px)', 'design: and the whole thing has a phone layout' );
 
 /*
+ * Three single digits stacked down a card took half of it. They stay in a row
+ * on a phone and only break at a width no phone actually is.
+ */
+has( $sendbeam_css, '@media (max-width:340px){', 'design: the workspace figures only stack on something narrower than a phone' );
+has( $sendbeam_css, '.sb-stats .sb-fig{font-size:24px}', 'design: with the figure tightened so the row is one compact band' );
+// One message, one line: a result that wraps under an address reads as a row
+// of its own, and the address gives way first.
+has( $sendbeam_css, 'flex-wrap:nowrap', 'design: a log row stays on one line' );
+has( $sendbeam_css, '.sb-recent__who{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis', 'design: where the address truncates rather than pushing the result down' );
+has( $sendbeam_css, '.sb-recent__what{flex:0 0 auto;white-space:nowrap}', 'design: and the result stays whole, on the right' );
+has( $sendbeam_css, '.sb-recent__long{display:none}', 'design: the long date is swapped for the short one on a phone' );
+
+/*
  * The copy field's height comes from its line box, not from a pinned one: a
  * pinned height on a 12px mono field clips its own descenders, and the
  * underscore in `resend._domainkey` simply vanished.
@@ -3453,6 +3588,10 @@ has( $ov, 'Subscribers counts people, not list memberships. Cached for five minu
 // And the card earns its height with what this site has actually done.
 has( $ov, 'Recent site email', 'overview: the workspace card shows what this site has been sending' );
 has( $ov, 'sb-recent__when', 'overview: with a date per row' );
+// Two dates, one shown at a time by CSS: the site's own format is right on a
+// desktop and took half the row on a phone.
+has( $ov, 'sb-recent__long', 'overview: the site\'s own date format' );
+has( $ov, 'sb-recent__short', 'overview: and a short one for a phone' );
 has( $ov, 'sb-recent__who', 'overview: who it went to' );
 has( $ov, 'sb-recent__what', 'overview: and how it went' );
 has( $ov, 'View the log', 'overview: and a way through to the whole log' );

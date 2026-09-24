@@ -516,7 +516,9 @@ function sendbeam_handle_mail_switch_on() {
 	}
 	check_admin_referer( 'sendbeam_mail_switch_on' );
 
-	if ( ! sendbeam_connect_granted( 'transactional:send' ) ) {
+	// A pasted key's permissions are not on record, so this cannot be
+	// decided here: SendBeam decides it, on the first message.
+	if ( sendbeam_connect_permissions_known() && ! sendbeam_connect_granted( 'transactional:send' ) ) {
 		wp_safe_redirect( add_query_arg( 'sendbeam_mail', 'noscope', sendbeam_tab_url( 'overview' ) ) );
 		exit;
 	}
