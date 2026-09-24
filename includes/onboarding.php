@@ -361,9 +361,22 @@ function sendbeam_setup_steps() {
 			? $note
 			: __( 'This site runs on a hosting company\'s own domain, so mail cannot be sent from it. Add a domain you own under Settings → Domains in SendBeam.', 'sendbeam' );
 	} elseif ( 'unavailable' === $state ) {
-		$domain_detail = __( 'SendBeam could not be reached; showing the last known state.', 'sendbeam' );
-		if ( '' !== $domain['name'] ) {
-			$domain_detail .= ' ' . sendbeam_domain_sentence( $domain['name'], $verified );
+		/*
+		 * Two different things wear this word. The plugin sets it when the
+		 * request failed, and SendBeam sends it in a perfectly successful
+		 * answer to mean "I could not set that domain up, and here is why" —
+		 * "That domain is already registered", most often. Only the first
+		 * reading was in the sentence, so a site that had just connected,
+		 * and whose cached status held SendBeam's own explanation in two
+		 * places, was told SendBeam could not be reached.
+		 */
+		if ( sendbeam_connect_status_is_live( $status ) && '' !== $note ) {
+			$domain_detail = rtrim( $note, '.' ) . '. ' . __( 'Add one under Settings → Domains in SendBeam, or reconnect and choose a different one.', 'sendbeam' );
+		} else {
+			$domain_detail = __( 'SendBeam could not be reached; showing the last known state.', 'sendbeam' );
+			if ( '' !== $domain['name'] ) {
+				$domain_detail .= ' ' . sendbeam_domain_sentence( $domain['name'], $verified );
+			}
 		}
 	} elseif ( 'no_site' === $state || 'not_found' === $state ) {
 		$domain_detail = __( 'No sending domain is set up for this site.', 'sendbeam' );

@@ -242,6 +242,29 @@ function sendbeam_connect_domain_state( $status ) {
 }
 
 /**
+ * Did this status come from SendBeam just now, or out of the cupboard?
+ *
+ * `domain_state` of `unavailable` means one of two opposite things: the
+ * plugin could not reach SendBeam, or SendBeam answered and said it could
+ * not set the domain up. This is the difference. A reply that was served
+ * because the request failed is marked stale and carries the error; a reply
+ * SendBeam actually gave carries neither, and its `domain_note` is SendBeam
+ * speaking rather than a sentence left over from the last successful call.
+ *
+ * @param array $status Normalised status.
+ * @return bool
+ */
+function sendbeam_connect_status_is_live( $status ) {
+	if ( ! empty( $status['stale'] ) ) {
+		return false;
+	}
+	if ( '' !== trim( (string) ( isset( $status['error'] ) ? $status['error'] : '' ) ) ) {
+		return false;
+	}
+	return ! empty( $status['ok'] );
+}
+
+/**
  * Is this an https URL on the SendBeam app's own host?
  *
  * @param string $url Candidate URL.

@@ -4315,6 +4315,42 @@ ok( 'own_domain' === $sb_s['kind'], 'sender: an address on the site\'s own unver
 ok( true === $sb_s['substituted'] && 'mail.sendbeam.io' === $sb_s['signed'], 'sender: but nothing signs for a domain DNS has not proved' );
 sb_seed_settings( array() );
 
+// ── #4 "SendBeam could not be reached" when SendBeam answered ───────────
+// domain_state 'unavailable' means two opposite things: the plugin could not
+// reach SendBeam, and SendBeam answered saying it could not create the domain.
+// Straight after a successful Connect the cached status held ok:true and
+// "wp-test.sendbeam.io could not be added as a sending domain: That domain is
+// already registered." in two places, and step 2 printed a different, false
+// reason instead.
+sb_seed_settings( array( 'api_key' => 'sb_live_unavailablexxxxxxxx' ) );
+$sb_live = sendbeam_connect_normalise_status(
+	array(
+		'workspace'    => array( 'id' => 'w1', 'name' => 'E2E UI' ),
+		'domain'       => null,
+		'domain_state' => 'unavailable',
+		'domain_note'  => 'wp-test.sendbeam.io could not be added as a sending domain: That domain is already registered.',
+	)
+);
+ok( sendbeam_connect_status_is_live( $sb_live ), 'status: an answer SendBeam gave is live' );
+sendbeam_connect_cache_status( $sb_live );
+$sb_step = sendbeam_setup_steps()[1];
+has( $sb_step['detail'], 'That domain is already registered', 'step 2: prints the reason SendBeam gave' );
+lacks( $sb_step['detail'], 'could not be reached', 'step 2: and does not claim SendBeam was unreachable' );
+
+// The other reading of the same word still says the right thing.
+$sb_dead          = sendbeam_connect_empty_status();
+$sb_dead['stale'] = true;
+$sb_dead['ok']    = true;
+$sb_dead['error'] = 'cURL error 28: Operation timed out';
+$sb_dead['domain_state'] = 'unavailable';
+$sb_dead['domain_note']  = 'wp-test.sendbeam.io could not be added as a sending domain: That domain is already registered.';
+ok( ! sendbeam_connect_status_is_live( $sb_dead ), 'status: a stale copy served after a failed request is not live' );
+sendbeam_connect_cache_status( $sb_dead );
+$sb_step = sendbeam_setup_steps()[1];
+has( $sb_step['detail'], 'could not be reached', 'step 2: a failed request still says so' );
+lacks( $sb_step['detail'], 'already registered', 'step 2: and does not pass off a stale note as this answer' );
+sb_seed_settings( array() );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.
