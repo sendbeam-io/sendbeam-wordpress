@@ -929,7 +929,7 @@ function sendbeam_connect_panel() {
 	}
 	echo '</ul>';
 	printf(
-		'<p><button type="submit" class="sb-btn">%s</button></p>',
+		'<p><button type="submit" class="sb-btn sb-btn--primary">%s</button></p>',
 		esc_html__( 'Connect SendBeam', 'sendbeam' )
 	);
 	echo '</form>';

@@ -321,7 +321,7 @@ function sendbeam_field_checkbox( $args ) {
 	$settings = sendbeam_settings();
 	$key      = $args['key'];
 	printf(
-		'<label><input type="checkbox" id="sendbeam_%1$s" name="sendbeam_settings[%1$s]" value="1"%2$s /> %3$s</label>',
+		'<label class="sb-toggle"><input type="checkbox" id="sendbeam_%1$s" name="sendbeam_settings[%1$s]" value="1"%2$s /> <span>%3$s</span></label>',
 		esc_attr( $key ),
 		checked( ! empty( $settings[ $key ] ), true, false ),
 		esc_html( $args['label'] )

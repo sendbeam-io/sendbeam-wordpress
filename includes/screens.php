@@ -23,9 +23,17 @@ function sendbeam_form_open( $tab ) {
 	printf( '<input type="hidden" name="sendbeam_settings[_tab]" value="%s" />', esc_attr( $tab ) );
 }
 
-/** Close a settings form. */
+/**
+ * Close a settings form.
+ *
+ * The plugin's own button rather than `submit_button()`: core's renders a
+ * `.button-primary`, and a core blue pill in the middle of a screen built out
+ * of square ink-ruled cards is the one element that looks pasted in. It is
+ * the admin theme colour either way — this one just wears the rest of the
+ * plugin's shape.
+ */
 function sendbeam_form_close() {
-	submit_button( __( 'Save changes', 'sendbeam' ) );
+	printf( '<p class="submit"><button type="submit" class="sb-btn sb-btn--primary">%s</button></p>', esc_html__( 'Save changes', 'sendbeam' ) );
 	echo '</form>';
 }
 
@@ -533,7 +541,7 @@ function sendbeam_overview_mail_panel( $status, $connected ) {
 	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
 	wp_nonce_field( 'sendbeam_mail_switch_on' );
 	echo '<input type="hidden" name="action" value="sendbeam_mail_switch_on" />';
-	printf( '<button type="submit" class="sb-btn sb-btn--small">%s</button>', esc_html__( 'Switch on', 'sendbeam' ) );
+	printf( '<button type="submit" class="sb-btn sb-btn--small sb-btn--primary">%s</button>', esc_html__( 'Switch on', 'sendbeam' ) );
 	echo '</form>';
 	echo '</div>';
 	echo '<p class="sb-note">' . esc_html(
@@ -626,12 +634,12 @@ function sendbeam_connect_connected_panel( $status = null ) {
 		esc_html__( 'Reconnect', 'sendbeam' )
 	);
 	printf(
-		'<button type="button" class="sb-btn sb-btn--ghost sb-btn--small sb-confirm__ask" hidden>%s</button>',
+		'<button type="button" class="sb-btn sb-btn--danger sb-btn--small sb-confirm__ask" hidden>%s</button>',
 		esc_html__( 'Disconnect', 'sendbeam' )
 	);
 	echo '<div class="sb-confirm__box">';
 	echo '<p class="sb-note">' . esc_html__( 'Disconnect this site? Its key is revoked. Your list, form and sending domain stay in SendBeam. Forms already on your pages stop loading until you connect again.', 'sendbeam' ) . '</p>';
-	printf( '<button type="submit" class="sb-btn sb-btn--small">%s</button> ', esc_html__( 'Yes, disconnect', 'sendbeam' ) );
+	printf( '<button type="submit" class="sb-btn sb-btn--small sb-btn--danger">%s</button> ', esc_html__( 'Yes, disconnect', 'sendbeam' ) );
 	printf( '<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-confirm__cancel">%s</button>', esc_html__( 'Cancel', 'sendbeam' ) );
 	echo '</div></form>';
 
@@ -764,7 +772,7 @@ function sendbeam_screen_forms() {
 	echo '</select></label>';
 	echo '</div>';
 	printf(
-		'<p style="margin-top:14px"><label class="sb-inline"><input type="checkbox" name="sendbeam_settings[style_bare]" value="1" %s /> %s</label></p>',
+		'<p style="margin-top:14px"><label class="sb-toggle"><input type="checkbox" name="sendbeam_settings[style_bare]" value="1" %s /> <span>%s</span></label></p>',
 		checked( ! empty( $s['style_bare'] ), true, false ),
 		esc_html__( 'Hide the form name and subtitle inside the embed (your page already has a heading)', 'sendbeam' )
 	);
@@ -818,7 +826,7 @@ function sendbeam_screen_form_plugins( $lists ) {
 	sendbeam_card_open( __( 'Form plugins', 'sendbeam' ) );
 	echo '<p style="margin-top:0">' . esc_html__( 'Send the people who fill in forms built with another plugin to SendBeam. Each form is switched on where that plugin keeps its settings, and sends someone only when they ticked the consent field you name — or every submission, when you mark the form as a signup form.', 'sendbeam' ) . '</p>';
 
-	echo '<table class="sb-table"><thead><tr>';
+	echo '<div class="sb-scroll"><table class="sb-table"><thead><tr>';
 	echo '<th>' . esc_html__( 'Form plugin', 'sendbeam' ) . '</th><th>' . esc_html__( 'On this site', 'sendbeam' ) . '</th><th>' . esc_html__( 'Where to set it up', 'sendbeam' ) . '</th>';
 	echo '</tr></thead><tbody>';
 	foreach ( $rows as $key => $row ) {
@@ -829,7 +837,7 @@ function sendbeam_screen_form_plugins( $lists ) {
 			esc_html( $row[1] )
 		);
 	}
-	echo '</tbody></table>';
+	echo '</tbody></table></div>';
 	echo '<p class="sb-note" style="margin-top:12px">' . esc_html__( 'The key needs Contacts (read and write), Lists (write) to add people to a list, and Tags (read and write) when a form adds a tag. Each person\'s source in SendBeam names the form plugin they came from.', 'sendbeam' ) . '</p>';
 
 	if ( $hosts['fluentforms'] && function_exists( 'sendbeam_fluentforms_forms' ) ) {
@@ -868,7 +876,7 @@ function sendbeam_screen_fluentforms( $lists ) {
 
 		echo '<fieldset style="border-top:1px solid #ddd;padding:12px 0">';
 		printf(
-			'<p><label class="sb-inline"><input type="checkbox" name="%1$s[enabled]" value="1"%2$s /> <strong>%3$s</strong></label></p>',
+			'<p><label class="sb-toggle"><input type="checkbox" name="%1$s[enabled]" value="1"%2$s /> <strong>%3$s</strong></label></p>',
 			esc_attr( $name ),
 			checked( $config['enabled'], 1, false ),
 			esc_html( '' !== $title ? $title : sprintf( /* translators: %d: form ID */ __( 'Form %d', 'sendbeam' ), $form_id ) )
@@ -889,7 +897,7 @@ function sendbeam_screen_fluentforms( $lists ) {
 			);
 		}
 		printf(
-			'<p><label class="sb-inline"><input type="checkbox" name="%1$s[consent]" value="signup"%2$s /> %3$s</label></p>',
+			'<p><label class="sb-toggle"><input type="checkbox" name="%1$s[consent]" value="signup"%2$s /> <span>%3$s</span></label></p>',
 			esc_attr( $name ),
 			checked( $config['consent'], 'signup', false ),
 			esc_html__( 'Everyone who submits this form is asking to subscribe, so no consent field is needed', 'sendbeam' )
@@ -911,7 +919,7 @@ function sendbeam_screen_fluentforms( $lists ) {
 	}
 
 	echo '<p class="sb-note">' . esc_html__( 'Field names are the names shown in each field\'s settings in Fluent Forms. A name field is written as names.first_name and names.last_name.', 'sendbeam' ) . '</p>';
-	echo '<p><button type="submit" class="sb-btn">' . esc_html__( 'Save', 'sendbeam' ) . '</button></p>';
+	echo '<p><button type="submit" class="sb-btn sb-btn--primary">' . esc_html__( 'Save', 'sendbeam' ) . '</button></p>';
 	echo '</form>';
 }
 
@@ -946,7 +954,7 @@ function sendbeam_screen_sync( $lists ) {
 	echo '<p class="sb-label">' . esc_html__( 'Ask on', 'sendbeam' ) . '</p>';
 	foreach ( $sources as $key => $meta ) {
 		printf(
-			'<p class="sb-inline" style="display:flex"><label class="sb-inline"><input type="checkbox" name="sendbeam_sync[%1$s]" value="1" %2$s %3$s /> %4$s</label>%5$s</p>',
+			'<p><label class="sb-toggle"><input type="checkbox" name="sendbeam_sync[%1$s]" value="1" %2$s %3$s /> <span>%4$s%5$s</span></label></p>',
 			esc_attr( $key ),
 			checked( ! empty( $sync[ $key ] ), true, false ),
 			$meta[1] ? '' : 'disabled',
@@ -975,14 +983,14 @@ function sendbeam_screen_sync( $lists ) {
 		esc_attr( sendbeam_sync_label() )
 	);
 
-	echo '<p><button type="submit" class="sb-btn">' . esc_html__( 'Save', 'sendbeam' ) . '</button></p>';
+	echo '<p><button type="submit" class="sb-btn sb-btn--primary">' . esc_html__( 'Save', 'sendbeam' ) . '</button></p>';
 	echo '</form>';
 	sendbeam_card_close();
 
 	$log = get_option( SENDBEAM_SYNC_LOG, array() );
 	if ( is_array( $log ) && $log ) {
 		sendbeam_card_open( __( 'Recent subscriptions', 'sendbeam' ) );
-		echo '<table class="sb-table"><thead><tr>';
+		echo '<div class="sb-scroll"><table class="sb-table"><thead><tr>';
 		echo '<th>' . esc_html__( 'When', 'sendbeam' ) . '</th><th>' . esc_html__( 'Who', 'sendbeam' ) . '</th>';
 		echo '<th>' . esc_html__( 'From', 'sendbeam' ) . '</th><th>' . esc_html__( 'Result', 'sendbeam' ) . '</th>';
 		echo '</tr></thead><tbody>';
@@ -994,7 +1002,7 @@ function sendbeam_screen_sync( $lists ) {
 			echo '<td>' . ( $row['ok'] ? esc_html__( 'Subscribed', 'sendbeam' ) : esc_html( __( 'Failed', 'sendbeam' ) . ' — ' . $row['note'] ) ) . '</td>';
 			echo '</tr>';
 		}
-		echo '</tbody></table>';
+		echo '</tbody></table></div>';
 		sendbeam_card_close();
 	}
 }
@@ -1022,7 +1030,7 @@ function sendbeam_screen_popup() {
 	echo '</div>';
 
 	echo '<p style="margin-top:14px"><button type="button" class="sb-btn sb-btn--ghost" id="sb-add-popup">' . esc_html__( '+ Add a pop-up', 'sendbeam' ) . '</button></p>';
-	echo '<p><button type="submit" class="sb-btn">' . esc_html__( 'Save pop-ups', 'sendbeam' ) . '</button></p>';
+	echo '<p><button type="submit" class="sb-btn sb-btn--primary">' . esc_html__( 'Save pop-ups', 'sendbeam' ) . '</button></p>';
 	echo '</form>';
 
 	// The blank row the "add" button clones. __i__ is swapped for the index.
@@ -1143,10 +1151,11 @@ function sendbeam_popup_row( $i, $rule ) {
 					placeholder="<?php esc_attr_e( 'Subscribe', 'sendbeam' ); ?>" class="regular-text" />
 			</label>
 
-			<label class="sb-inline" style="grid-column:1/-1;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+			<label class="sb-toggle" style="grid-column:1/-1">
 				<input type="checkbox" name="<?php echo esc_attr( $name ); ?>[proof]" value="1" <?php checked( ! empty( $rule['proof'] ) ); ?> />
-				<span><?php esc_html_e( 'Show subscriber count', 'sendbeam' ); ?></span>
-				<span class="sb-note"><?php esc_html_e( 'Shows "Joined by N readers" once the list has 50 people.', 'sendbeam' ); ?></span>
+				<span><?php esc_html_e( 'Show subscriber count', 'sendbeam' ); ?>
+					<span class="sb-note"><?php esc_html_e( 'Shows "Joined by N readers" once the list has 50 people.', 'sendbeam' ); ?></span>
+				</span>
 			</label>
 
 			<label class="sb-when-button" <?php echo 'button' === $rule['trigger'] ? '' : 'hidden'; ?>>
@@ -1165,9 +1174,9 @@ function sendbeam_popup_row( $i, $rule ) {
 		</div>
 
 		<div class="sb-rule__foot">
-			<label class="sb-inline">
+			<label class="sb-toggle">
 				<input type="checkbox" name="<?php echo esc_attr( $name ); ?>[enabled]" value="1" <?php checked( ! empty( $rule['enabled'] ) ); ?> />
-				<?php esc_html_e( 'Active', 'sendbeam' ); ?>
+				<span><?php esc_html_e( 'Active', 'sendbeam' ); ?></span>
 			</label>
 			<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-remove"><?php esc_html_e( 'Remove', 'sendbeam' ); ?></button>
 		</div>
@@ -1373,17 +1382,17 @@ function sendbeam_screen_ecommerce() {
 	wp_nonce_field( 'sendbeam_save_ecommerce' );
 
 	printf(
-		'<p class="sb-inline" style="display:flex"><label class="sb-inline"><input type="checkbox" name="sendbeam_ecommerce[order_placed]" value="1" %1$s /> %2$s</label></p>',
+		'<p><label class="sb-toggle"><input type="checkbox" name="sendbeam_ecommerce[order_placed]" value="1" %1$s /> <span>%2$s</span></label></p>',
 		checked( ! empty( $settings['order_placed'] ), true, false ),
 		esc_html__( 'Order placed — reliable, fires from WooCommerce\'s own order-processed hook. Also adds the order total to the contact\'s lifetime_value.', 'sendbeam' )
 	);
 	printf(
-		'<p class="sb-inline" style="display:flex"><label class="sb-inline"><input type="checkbox" name="sendbeam_ecommerce[product_viewed]" value="1" %1$s /> %2$s</label></p>',
+		'<p><label class="sb-toggle"><input type="checkbox" name="sendbeam_ecommerce[product_viewed]" value="1" %1$s /> <span>%2$s</span></label></p>',
 		checked( ! empty( $settings['product_viewed'] ), true, false ),
 		esc_html__( 'Product viewed — only for a known contact (logged in, or an email already entered this visit). No anonymous visitor tracking.', 'sendbeam' )
 	);
 	printf(
-		'<p class="sb-inline" style="display:flex"><label class="sb-inline"><input type="checkbox" name="sendbeam_ecommerce[cart_abandoned]" value="1" %1$s /> %2$s</label></p>',
+		'<p><label class="sb-toggle"><input type="checkbox" name="sendbeam_ecommerce[cart_abandoned]" value="1" %1$s /> <span>%2$s</span></label></p>',
 		checked( ! empty( $settings['cart_abandoned'] ), true, false ),
 		esc_html__( 'Cart abandoned — best effort. WooCommerce has no native "abandoned cart" event, so this is a heuristic: no order within the window below, and only when an email became known at some point.', 'sendbeam' )
 	);
@@ -1400,14 +1409,14 @@ function sendbeam_screen_ecommerce() {
 
 	echo '<p class="sb-note" style="margin-top:10px">' . esc_html__( 'None of this is a guarantee. "Abandoned" here means "no order followed within the window" — a shopper who orders later, on another device, still counts as abandoned by this measure. Treat the trigger as a nudge, not a fact.', 'sendbeam' ) . '</p>';
 
-	echo '<p style="margin-top:10px"><button type="submit" class="sb-btn">' . esc_html__( 'Save', 'sendbeam' ) . '</button></p>';
+	echo '<p style="margin-top:10px"><button type="submit" class="sb-btn sb-btn--primary">' . esc_html__( 'Save', 'sendbeam' ) . '</button></p>';
 	echo '</form>';
 	sendbeam_card_close();
 
 	$log = get_option( SENDBEAM_ECOMMERCE_LOG, array() );
 	if ( is_array( $log ) && $log ) {
 		sendbeam_card_open( __( 'Recent e-commerce events', 'sendbeam' ) );
-		echo '<table class="sb-table"><thead><tr>';
+		echo '<div class="sb-scroll"><table class="sb-table"><thead><tr>';
 		echo '<th>' . esc_html__( 'When', 'sendbeam' ) . '</th><th>' . esc_html__( 'Event', 'sendbeam' ) . '</th>';
 		echo '<th>' . esc_html__( 'Who', 'sendbeam' ) . '</th><th>' . esc_html__( 'Result', 'sendbeam' ) . '</th>';
 		echo '</tr></thead><tbody>';
@@ -1419,7 +1428,7 @@ function sendbeam_screen_ecommerce() {
 			echo '<td>' . ( $row['ok'] ? esc_html__( 'Sent', 'sendbeam' ) : esc_html( __( 'Failed', 'sendbeam' ) . ' — ' . $row['note'] ) ) . '</td>';
 			echo '</tr>';
 		}
-		echo '</tbody></table>';
+		echo '</tbody></table></div>';
 		sendbeam_card_close();
 	}
 }

@@ -2906,6 +2906,59 @@ try {
 ok( ! isset( $GLOBALS['stub']['redirect'] ), 'wizard: a site whose key is pinned in wp-config.php is not walked through setup' );
 delete_option( 'sendbeam_setup_done' );
 
+/* ─────────────────────────── The design system ─────────────────────────
+ * Four foreign signals had to go: 10px uppercase mono labels, black primary
+ * buttons, labels beside their fields, and a page with a right margin and no
+ * left one. What stays is ink on paper, the three-square mark, the cards, the
+ * header band and the state pill.
+ */
+$sendbeam_css = sendbeam_admin_css();
+
+ok( false === strpos( $sendbeam_css, 'text-transform:uppercase' ), 'design: nothing is shouted in uppercase any more' );
+ok( false === strpos( $sendbeam_css, 'letter-spacing:.1em' ), 'design: and nothing is tracked out like an eyebrow' );
+has( $sendbeam_css, '.sb-label{display:block;font-size:13px;font-weight:600', 'design: labels are sentence case at a readable size' );
+has( $sendbeam_css, '--brand:var(--wp-admin-theme-color,#2271b1)', 'design: the primary colour is the admin theme\'s, with core\'s blue as the fallback' );
+has( $sendbeam_css, '.sendbeam-app .sb-btn{', 'design: buttons are the plugin\'s own, scoped to the plugin' );
+has( $sendbeam_css, 'background:var(--brand);color:#fff', 'design: a primary button is the admin theme colour with white text' );
+has( $sendbeam_css, '.sendbeam-app .sb-btn--ghost{background:transparent;color:var(--ink);border-color:var(--ink)', 'design: secondary is an ink outline' );
+has( $sendbeam_css, '.sendbeam-app .sb-btn--danger{background:transparent;color:var(--v);border-color:var(--v)', 'design: danger is a vermilion outline, never a filled red button' );
+has( $sendbeam_css, '.sendbeam-app{--paper:#EDEBE6', 'design: the paper and ink are kept' );
+has( $sendbeam_css, 'margin:20px 20px 0;', 'design: the page has the same margin on both sides' );
+has( $sendbeam_css, '.sendbeam-app .sb-toggle input[type=checkbox]{appearance:none', 'design: on/off settings are switches' );
+has( $sendbeam_css, 'min-height:40px', 'design: fields are 40px tall' );
+has( $sendbeam_css, 'outline:2px solid var(--brand)', 'design: and focus is the admin theme colour' );
+has( $sendbeam_css, '.sendbeam-app .form-table th{font-size:13px', 'design: even core\'s two-column form table is stacked label-above' );
+has( $sendbeam_css, '.sb-scroll{overflow-x:auto', 'design: a table that will not fit scrolls inside its own box' );
+has( $sendbeam_css, '@media (max-width:782px)', 'design: and the whole thing has a phone layout' );
+
+// Every screen's markup: no core primary button, no leftover uppercase class.
+$GLOBALS['stub']['caps']['manage_options'] = true;
+foreach ( array_keys( sendbeam_pages() ) as $sendbeam_slug ) {
+	$_GET = array( 'page' => $sendbeam_slug );
+	ob_start();
+	sendbeam_render_admin_page();
+	$sendbeam_html = ob_get_clean();
+	lacks( $sendbeam_html, 'button-primary', "design: $sendbeam_slug uses no core button-primary" );
+	lacks( $sendbeam_html, 'sb-eyebrow', "design: $sendbeam_slug has no uppercase-mono eyebrow left" );
+}
+$_GET = array();
+
+/*
+ * The one place core's button classes are right is inside a core notice,
+ * where a brand-styled button is the thing that looks pasted in — that is
+ * asserted where the Dashboard notice is tested, above.
+ */
+
+// Every hand-rolled table that is left sits in the scroll wrapper the plugin
+// already owns. This is the exact fault that made two screens scroll
+// sideways at 393px.
+$sendbeam_screens_src = file_get_contents( dirname( __DIR__ ) . '/includes/screens.php' );
+ok(
+	substr_count( $sendbeam_screens_src, '<table class="sb-table"' ) === substr_count( $sendbeam_screens_src, '<div class="sb-scroll"><table class="sb-table"' ),
+	'design: every .sb-table in the plugin is inside a .sb-scroll'
+);
+ok( 0 === substr_count( $sendbeam_screens_src, "\tsubmit_button(" ), 'design: no screen renders core\'s submit_button()' );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.
