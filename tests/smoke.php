@@ -1063,6 +1063,37 @@ $GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 
 $st = sendbeam_connect_status();
 ok( ! $st['ok'] && '' !== $st['error'], 'status: a 200 that is not JSON is treated as a failure, not as an empty workspace' );
 
+// ── Per-record verdict ─────────────────────────────────────────────────
+// Every record SendBeam asks for is a CNAME under sendbeam.io, so there is no
+// priority to enter and the table must not invent a column for one. What the
+// table does need is the check's answer per row: two records right out of
+// three looks exactly like none without it.
+$v3_records = sendbeam_connect_normalise_status(
+	array(
+		'domain' => array(
+			'name'    => 'harbourlane.co.uk',
+			'records' => array(
+				array( 'type' => 'CNAME', 'name' => 'sb1._domainkey', 'value' => 'sb1.dkim.sendbeam.io', 'found' => true ),
+				array( 'type' => 'CNAME', 'name' => 'sb2._domainkey', 'value' => 'sb2.dkim.sendbeam.io', 'found' => false ),
+				array( 'type' => 'CNAME', 'name' => 'sbmail', 'value' => 'mail.sendbeam.io' ),
+			),
+		),
+	)
+)['domain']['records'];
+ok( true === $v3_records[0]['found'], 'records: a record the check found reads true' );
+ok( false === $v3_records[1]['found'], 'records: a record the check did not find reads false, not missing' );
+ok( null === $v3_records[2]['found'], 'records: a record nothing has looked at reads null, not false' );
+
+ob_start();
+sendbeam_domain_records_table( $v3_records );
+$v3_table = ob_get_clean();
+has( $v3_table, '>Found<', 'records: the table has a verdict column' );
+has( $v3_table, 'Not found yet', 'records: a record that is not in DNS says so on its own row' );
+has( $v3_table, 'Not checked yet', 'records: a record nothing has checked is not reported as wrong' );
+has( $v3_table, 'sb-tick', 'records: a record that is live is ticked' );
+lacks( $v3_table, 'Priority', 'records: there is no Priority column — every record is a CNAME' );
+lacks( $v3_table, 'priority', 'records: nothing on the table mentions priority' );
+
 // ── Check now ──────────────────────────────────────────────────────────
 /** Drive an admin-post handler that ends in a redirect. */
 function sb_run_admin_post( $fn ) {

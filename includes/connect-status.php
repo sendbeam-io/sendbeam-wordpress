@@ -177,8 +177,14 @@ function sendbeam_connect_is_app_url( $url ) {
  * every field is plain text. Twenty is far more than any sending domain needs
  * and stops a malformed reply filling the screen.
  *
+ * `found` is the check's verdict for that one record, and it has three
+ * values rather than two: true, false, and never-checked. They are three
+ * different sentences to a site owner — "this one is live", "this one is not
+ * there yet", "nobody has looked" — and collapsing the last two into false
+ * tells someone their DNS is wrong when in fact nothing has been asked.
+ *
  * @param mixed $raw Records from the API.
- * @return array<int,array{type:string,name:string,value:string}>
+ * @return array<int,array{type:string,name:string,value:string,found:?bool}>
  */
 function sendbeam_connect_clean_records( $raw ) {
 	if ( ! is_array( $raw ) ) {
@@ -195,10 +201,15 @@ function sendbeam_connect_clean_records( $raw ) {
 		if ( '' === $type || '' === $val ) {
 			continue;
 		}
+		$found = null;
+		if ( array_key_exists( 'found', $record ) && null !== $record['found'] ) {
+			$found = (bool) $record['found'];
+		}
 		$out[] = array(
 			'type'  => substr( $type, 0, 10 ),
 			'name'  => $name,
 			'value' => $val,
+			'found' => $found,
 		);
 	}
 	return $out;

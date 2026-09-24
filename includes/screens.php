@@ -262,13 +262,21 @@ function sendbeam_overview_domain_panel( $status, $connected ) {
 /**
  * The DNS records, one row each, every value one click from the clipboard.
  *
- * @param array<int,array{type:string,name:string,value:string}> $records Records.
+ * Every record is a CNAME under sendbeam.io, so there is no priority to enter
+ * anywhere and the table says nothing about one: a Priority column that is
+ * always empty is a box a site owner goes looking for in their registrar.
+ *
+ * The last column is the check's verdict for that row. Two records right out
+ * of three looks exactly like none until something says which is which.
+ *
+ * @param array<int,array{type:string,name:string,value:string,found:?bool}> $records Records.
  */
 function sendbeam_domain_records_table( $records ) {
 	echo '<div class="sb-scroll"><table class="sb-table sb-dns"><thead><tr>';
 	echo '<th>' . esc_html__( 'Type', 'sendbeam' ) . '</th>';
 	echo '<th>' . esc_html__( 'Name', 'sendbeam' ) . '</th>';
 	echo '<th>' . esc_html__( 'Value', 'sendbeam' ) . '</th>';
+	echo '<th>' . esc_html__( 'Found', 'sendbeam' ) . '</th>';
 	echo '<th><span class="screen-reader-text">' . esc_html__( 'Copy', 'sendbeam' ) . '</span></th>';
 	echo '</tr></thead><tbody>';
 	foreach ( $records as $record ) {
@@ -276,6 +284,7 @@ function sendbeam_domain_records_table( $records ) {
 		echo '<td class="sb-mono">' . esc_html( $record['type'] ) . '</td>';
 		echo '<td><code>' . esc_html( '' !== $record['name'] ? $record['name'] : '@' ) . '</code></td>';
 		echo '<td><code class="sb-dns__value">' . esc_html( $record['value'] ) . '</code></td>';
+		echo '<td class="sb-dns__found">' . sendbeam_record_verdict( isset( $record['found'] ) ? $record['found'] : null ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped inside sendbeam_record_verdict().
 		printf(
 			'<td><button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-copy" data-copy="%1$s" data-done="%2$s" aria-label="%3$s">%4$s</button></td>',
 			esc_attr( $record['value'] ),
@@ -292,6 +301,23 @@ function sendbeam_domain_records_table( $records ) {
 		echo '</tr>';
 	}
 	echo '</tbody></table></div>';
+}
+
+/**
+ * One record's verdict, in the three states the check actually has.
+ *
+ * @param bool|null $found True when the record is live, false when it is not
+ *                         there, null when nothing has looked yet.
+ * @return string Escaped HTML.
+ */
+function sendbeam_record_verdict( $found ) {
+	if ( null === $found ) {
+		return '<span class="sb-note">' . esc_html__( 'Not checked yet', 'sendbeam' ) . '</span>';
+	}
+	if ( $found ) {
+		return '<span class="sb-tick" aria-hidden="true">&#10003;</span><span class="screen-reader-text">' . esc_html__( 'Found', 'sendbeam' ) . '</span>';
+	}
+	return '<span class="sb-note">' . esc_html__( 'Not found yet', 'sendbeam' ) . '</span>';
 }
 
 /**
