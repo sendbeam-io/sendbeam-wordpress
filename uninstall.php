@@ -24,6 +24,7 @@ $sendbeam_options = array(
 	'sendbeam_activated_at',
 	'sendbeam_ecommerce',
 	'sendbeam_ecommerce_log',
+	'sendbeam_connect_recheck_runs',
 );
 foreach ( $sendbeam_options as $sendbeam_option ) {
 	delete_option( $sendbeam_option );
@@ -50,6 +51,7 @@ delete_post_meta_by_key( '_sendbeam_cf7' );
 wp_unschedule_hook( 'sendbeam_bridge_subscribe' );
 wp_unschedule_hook( 'sendbeam_ecommerce_send_event' );
 wp_unschedule_hook( 'sendbeam_check_cart_abandonment' );
+wp_unschedule_hook( 'sendbeam_connect_recheck' );
 
 // Two families of transient are named after something this file cannot list
 // up front — a shopper's session (sendbeam_cart_<md5>) and an administrator's
@@ -98,6 +100,7 @@ if ( is_multisite() ) {
 		wp_unschedule_hook( 'sendbeam_bridge_subscribe' );
 		wp_unschedule_hook( 'sendbeam_ecommerce_send_event' );
 		wp_unschedule_hook( 'sendbeam_check_cart_abandonment' );
+		wp_unschedule_hook( 'sendbeam_connect_recheck' );
 		sendbeam_uninstall_sweep_transients( $sendbeam_transient_prefixes );
 		restore_current_blog();
 	}

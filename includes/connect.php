@@ -583,6 +583,7 @@ function sendbeam_connect_store_key( $api_key, $workspace, $data = array() ) {
 	update_option( 'sendbeam_settings', $clean );
 	sendbeam_flush_cache();
 	sendbeam_connect_cache_status( $status );
+	sendbeam_connect_schedule_recheck( $status );
 	return true;
 }
 
@@ -699,6 +700,7 @@ function sendbeam_connect_disconnect() {
 
 	sendbeam_flush_cache();
 	sendbeam_connect_forget_status();
+	sendbeam_connect_unschedule_recheck();
 	delete_transient( 'sendbeam_form_placed' );
 
 	wp_safe_redirect( add_query_arg( 'sendbeam_disconnected', $note, sendbeam_tab_url( 'overview' ) ) );

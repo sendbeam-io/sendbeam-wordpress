@@ -19,6 +19,7 @@
 defined( 'ABSPATH' ) || exit;
 
 register_activation_hook( SENDBEAM_FILE, 'sendbeam_on_activate' );
+register_deactivation_hook( SENDBEAM_FILE, 'sendbeam_on_deactivate' );
 add_action( 'admin_notices', 'sendbeam_setup_notice' );
 add_action( 'admin_post_sendbeam_dismiss_setup', 'sendbeam_dismiss_setup' );
 
@@ -30,6 +31,17 @@ function sendbeam_on_activate() {
 		add_option( 'sendbeam_activated_at', time(), '', false );
 	}
 	sendbeam_flush_cache();
+}
+
+/**
+ * Switched off: stop the clock.
+ *
+ * A deactivated plugin that leaves a scheduled event behind is a site making
+ * requests nobody can see, explain or stop from the screen they turned it off
+ * on. The hourly DNS re-check is the only one Connect owns.
+ */
+function sendbeam_on_deactivate() {
+	sendbeam_connect_unschedule_recheck();
 }
 
 /**

@@ -5,7 +5,7 @@
  * for the inputs the plugin passes it.
  */
 define( 'ABSPATH', '/stub/' );
-$GLOBALS['stub'] = array( 'remote' => array(), 'remote_reply' => null, 'actions' => array(), 'options' => array(), 'hooks' => array(), 'shortcodes' => array(), 'scripts' => array(), 'inline' => array(), 'printed' => '', 'caps' => array(), 'query' => array(), 'errors' => array() );
+$GLOBALS['stub'] = array( 'remote' => array(), 'remote_reply' => null, 'actions' => array(), 'options' => array(), 'hooks' => array(), 'shortcodes' => array(), 'cron' => array(), 'scripts' => array(), 'inline' => array(), 'printed' => '', 'caps' => array(), 'query' => array(), 'errors' => array() );
 
 function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
 function plugin_basename( $f ) { return 'sendbeam/sendbeam.php'; }
@@ -169,6 +169,9 @@ function nocache_headers() {}
 
 // ── Form plugin bridges ────────────────────────────────────────────────
 function wp_schedule_single_event( $timestamp, $hook, $args = array() ) { $GLOBALS['stub']['cron'][] = array( 'hook' => $hook, 'args' => $args ); return true; }
+/** The recurring counterpart: the DNS re-check runs hourly for a day. */
+function wp_schedule_event( $timestamp, $recurrence, $hook, $args = array() ) { $GLOBALS['stub']['cron'][] = array( 'hook' => $hook, 'args' => $args, 'recurrence' => $recurrence ); return true; }
+function wp_clear_scheduled_hook( $hook, $args = array() ) { wp_unschedule_hook( $hook ); }
 /** Whether the same hook+args is already queued — cart-abandonment tracking dedupes on this. */
 function wp_next_scheduled( $hook, $args = array() ) {
 	foreach ( $GLOBALS['stub']['cron'] as $c ) {

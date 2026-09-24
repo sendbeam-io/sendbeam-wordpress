@@ -1463,6 +1463,99 @@ ok( array() === sendbeam_settings()['sendbeam_connect_filled'], 'filled: a key c
 sb_connect_reset();
 update_option( 'sendbeam_settings', array() );
 
+// ── The hourly re-check ────────────────────────────────────────────────
+// Records almost never spread while somebody is sitting in wp-admin: they are
+// entered at the registrar and the tab is closed. Without this the step
+// stayed unticked and the site's email stayed held back until a human pressed
+// Check now — waiting for the one thing the plugin had just said was unneeded.
+$GLOBALS['stub']['cron'] = array();
+sb_v2_exchange( sb_v2_body() );
+ok( false !== wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: connecting with an unverified domain starts the hourly check' );
+ok( 'hourly' === $GLOBALS['stub']['cron'][0]['recurrence'], 'recheck: it runs hourly' );
+
+$GLOBALS['stub']['cron'] = array();
+sb_v2_exchange( sb_v2_body( array( 'domain' => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ) ) ) );
+ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: nothing is scheduled for a domain that is already verified' );
+
+$GLOBALS['stub']['cron'] = array();
+sb_v2_exchange( sb_v2_body( array( 'scopes' => array( 'forms' ), 'domain' => null ) ) );
+ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: nothing is scheduled when there is no domain to wait for' );
+
+/** A connected site mid-wait, with one reply armed for the re-check. */
+function sb_recheck_site( $verified ) {
+	sb_connect_reset();
+	sendbeam_connect_forget_status();
+	update_option(
+		'sendbeam_settings',
+		array(
+			'api_key'                  => 'sb_live_connectedconnectedxx',
+			'sendbeam_connected_via'   => 'connect',
+			'sendbeam_connect_granted' => 'forms,transactional:send,domain',
+			'sendbeam_mail_deferred'   => 1,
+			'mail_enabled'             => 0,
+		)
+	);
+	$GLOBALS['stub']['cron'] = array( array( 'hook' => 'sendbeam_connect_recheck', 'args' => array(), 'recurrence' => 'hourly' ) );
+	update_option( 'sendbeam_connect_recheck_runs', 0 );
+	$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( $verified ) );
+}
+
+sb_recheck_site( false );
+sendbeam_connect_run_recheck();
+ok( 'POST' === $GLOBALS['stub']['remote'][0]['method'], 'recheck: a run asks SendBeam to look the DNS up now' );
+ok( false !== wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: an unverified domain is worth asking about again' );
+ok( empty( sendbeam_settings()['mail_enabled'] ), 'recheck: nothing is switched on while the domain is unverified' );
+ok( 1 === (int) get_option( 'sendbeam_connect_recheck_runs' ), 'recheck: the run is counted' );
+
+sb_recheck_site( true );
+sendbeam_connect_run_recheck();
+ok( ! empty( sendbeam_settings()['mail_enabled'] ), 'recheck: a verified domain finishes the held-back switch-on with nobody watching' );
+ok( empty( sendbeam_settings()['sendbeam_mail_deferred'] ), 'recheck: nothing is left held back' );
+ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: it unschedules itself once there is nothing left to find out' );
+
+// A day of trying is enough: DNS that has not spread in 24 hours was not entered.
+sb_recheck_site( false );
+update_option( 'sendbeam_connect_recheck_runs', 24 );
+sendbeam_connect_run_recheck();
+ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: it gives up after a day rather than asking forever' );
+ok( empty( $GLOBALS['stub']['remote'] ), 'recheck: the run that gives up does not make the request first' );
+
+// SendBeam being down for an hour is not the same as the DNS not being there.
+sb_recheck_site( false );
+$GLOBALS['stub']['remote_reply'] = new WP_Error( 'http_request_failed', 'cURL error 28' );
+sendbeam_connect_run_recheck();
+ok( false !== wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: a failed request is tried again next hour' );
+
+// A domain that has gone from the workspace is not one to keep asking about.
+sb_recheck_site( false );
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'workspace' => array( 'id' => 'ws_1' ), 'domain' => null, 'domain_state' => 'not_found' ) ) );
+sendbeam_connect_run_recheck();
+ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: a domain that is no longer there stops it asking' );
+
+// Pressing Check now, disconnecting, or switching the plugin off all stop it.
+sb_recheck_site( true );
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_domain_check' );
+$_REQUEST = $_POST;
+sb_run_admin_post( 'sendbeam_handle_domain_check' );
+ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: a verified domain found by hand stops it too' );
+
+sb_recheck_site( false );
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_disconnect' );
+$_REQUEST = $_POST;
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 204 ), 'body' => '' );
+sb_run_admin_post( 'sendbeam_connect_disconnect' );
+ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: disconnecting stops it' );
+ok( false === get_option( 'sendbeam_connect_recheck_runs' ), 'recheck: and forgets the tally' );
+
+sb_recheck_site( false );
+sendbeam_on_deactivate();
+ok( false === wp_next_scheduled( 'sendbeam_connect_recheck' ), 'recheck: deactivating the plugin stops it' );
+ok( in_array( 'sendbeam_on_deactivate', $GLOBALS['stub']['deactivation'], true ), 'recheck: and WordPress is told to call that on deactivation' );
+
+sb_connect_reset();
+update_option( 'sendbeam_settings', array() );
+$GLOBALS['stub']['cron'] = array();
+
 // ── A blocked pop-up ───────────────────────────────────────────────────
 sb_connect_reset();
 $_POST    = array( '_wpnonce' => 'nonce:sendbeam_connect_start', 'sendbeam_popup' => '0' );

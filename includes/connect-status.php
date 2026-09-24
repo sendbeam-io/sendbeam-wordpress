@@ -35,6 +35,21 @@ add_action( 'admin_post_sendbeam_mail_switch_on', 'sendbeam_handle_mail_switch_o
 /** Where the status lives between renders. */
 const SENDBEAM_CACHE_STATUS = 'sendbeam_connect_status';
 
+/** The hourly DNS re-check, and where its tally lives. */
+const SENDBEAM_RECHECK_HOOK  = 'sendbeam_connect_recheck';
+const SENDBEAM_RECHECK_COUNT = 'sendbeam_connect_recheck_runs';
+
+/**
+ * A day of hourly re-checks, and then it gives up.
+ *
+ * DNS that has not spread in twenty-four hours has not been entered, and a
+ * site quietly asking SendBeam about it every hour for the rest of its life
+ * is a request nobody is waiting for.
+ */
+const SENDBEAM_RECHECK_MAX = 24;
+
+add_action( SENDBEAM_RECHECK_HOOK, 'sendbeam_connect_run_recheck' );
+
 /**
  * One minute.
  *
@@ -400,6 +415,7 @@ function sendbeam_handle_domain_check() {
 			sendbeam_connect_enable_mail( $status );
 			$note = 'verified_mail';
 		}
+		sendbeam_connect_unschedule_recheck();
 	} else {
 		$note = 'pending';
 	}
@@ -478,4 +494,84 @@ function sendbeam_connect_enable_mail( $status ) {
 	$settings['sendbeam_connect_filled'] = array_values( array_unique( $filled ) );
 
 	update_option( 'sendbeam_settings', $settings );
+}
+
+/**
+ * Start re-checking the DNS on this site's own, for a day.
+ *
+ * Records almost never propagate while somebody is sitting in wp-admin: they
+ * enter them at the registrar, close the tab, and come back tomorrow. Until
+ * now that meant step 2 stayed unticked and the site's email stayed held back
+ * until a human pressed **Check now** — the plugin was waiting for the one
+ * thing it had just told the owner they did not need to do.
+ *
+ * One request an hour is well inside the check's own rate limit, and it stops
+ * the moment there is nothing left to find out.
+ *
+ * @param array $status The status that decided there was something to wait for.
+ */
+function sendbeam_connect_schedule_recheck( $status ) {
+	if ( '' === sendbeam_api_key() || ! sendbeam_connect_granted( 'domain' ) ) {
+		return;
+	}
+	// Nothing to wait for: no domain to check, or one that is already done.
+	if ( '' === $status['domain']['name'] || ! empty( $status['domain']['verified'] ) ) {
+		sendbeam_connect_unschedule_recheck();
+		return;
+	}
+
+	update_option( SENDBEAM_RECHECK_COUNT, 0, false );
+	if ( ! wp_next_scheduled( SENDBEAM_RECHECK_HOOK ) ) {
+		wp_schedule_event( time() + HOUR_IN_SECONDS, 'hourly', SENDBEAM_RECHECK_HOOK );
+	}
+}
+
+/** Stop re-checking: verified, disconnected, deactivated, or out of tries. */
+function sendbeam_connect_unschedule_recheck() {
+	wp_clear_scheduled_hook( SENDBEAM_RECHECK_HOOK );
+	delete_option( SENDBEAM_RECHECK_COUNT );
+}
+
+/**
+ * One hourly re-check.
+ *
+ * It does exactly what **Check now** does, including finishing the held-back
+ * switch-on, and then decides whether there is any reason to run again. A
+ * request that fails is not counted against the site — sendbeam.io being down
+ * for an hour is not the same as the DNS not being there — but the tally is,
+ * so a site cannot ask forever.
+ */
+function sendbeam_connect_run_recheck() {
+	if ( '' === sendbeam_api_key() ) {
+		sendbeam_connect_unschedule_recheck();
+		return;
+	}
+
+	$runs = (int) get_option( SENDBEAM_RECHECK_COUNT, 0 ) + 1;
+	update_option( SENDBEAM_RECHECK_COUNT, $runs, false );
+	if ( $runs > SENDBEAM_RECHECK_MAX ) {
+		sendbeam_connect_unschedule_recheck();
+		return;
+	}
+
+	$status = sendbeam_connect_status( true );
+	if ( ! $status['ok'] ) {
+		return; // Ask again next hour.
+	}
+	if ( '' === $status['domain']['name'] ) {
+		sendbeam_connect_unschedule_recheck();
+		return;
+	}
+	if ( empty( $status['domain']['verified'] ) ) {
+		return;
+	}
+
+	$settings = sendbeam_settings();
+	if ( ! empty( $settings['sendbeam_mail_deferred'] )
+		&& empty( $settings['mail_enabled'] )
+		&& sendbeam_connect_granted( 'transactional:send' ) ) {
+		sendbeam_connect_enable_mail( $status );
+	}
+
+	sendbeam_connect_unschedule_recheck();
 }
