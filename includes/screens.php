@@ -223,6 +223,7 @@ function sendbeam_overview_step_panel( $step, $status, $connected ) {
 			break;
 		case 'domain':
 			sendbeam_overview_domain_panel( $status, $connected );
+
 			/*
 			 * The domain this site sends from is chosen on the consent page,
 			 * and going back there is the only way to change it. Nothing said
