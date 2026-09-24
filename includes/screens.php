@@ -474,6 +474,9 @@ function sendbeam_domain_panel( $status, $standalone = false ) {
 	echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post">';
 	wp_nonce_field( 'sendbeam_domain_check' );
 	echo '<input type="hidden" name="action" value="sendbeam_domain_check" />';
+	// Somebody copying records on the Sending domain tab should be told the
+	// result there, not moved to the Overview and left to navigate back.
+	printf( '<input type="hidden" name="sendbeam_back" value="%s" />', esc_attr( sendbeam_current_page() ) );
 	printf(
 		'<button type="submit" class="sb-btn sb-btn--small%1$s">%2$s</button>',
 		esc_attr( $verified ? '' : ' sb-btn--primary' ),

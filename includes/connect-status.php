@@ -521,8 +521,33 @@ function sendbeam_handle_domain_check() {
 		$note = 'pending';
 	}
 
-	wp_safe_redirect( add_query_arg( 'sendbeam_domain', $note, sendbeam_tab_url( 'overview' ) ) );
+	wp_safe_redirect( add_query_arg( 'sendbeam_domain', $note, sendbeam_check_return_url() ) );
 	exit;
+}
+
+/**
+ * Where a Check now should land: the screen it was pressed on.
+ *
+ * The check is offered on the Overview and on Settings → Sending domain, and
+ * always redirected to the Overview — so somebody working through the records
+ * on the Sending tab was moved to a different screen to be told the result and
+ * had to navigate back to carry on. The form says which screen it is on; a
+ * value that is not one of this plugin's own pages falls back to the Overview.
+ *
+ * @return string
+ */
+function sendbeam_check_return_url() {
+	// phpcs:ignore WordPress.Security.NonceVerification.Missing -- the caller checks the nonce before calling this.
+	$back = isset( $_POST['sendbeam_back'] ) ? sanitize_key( wp_unslash( $_POST['sendbeam_back'] ) ) : '';
+	$page = sendbeam_pages();
+
+	if ( '' === $back || ! isset( $page[ $back ] ) ) {
+		return sendbeam_tab_url( 'overview' );
+	}
+	if ( 'sendbeam-settings' === $back ) {
+		return add_query_arg( 'tab', 'domain', sendbeam_page_url( $back ) );
+	}
+	return sendbeam_page_url( $back );
 }
 
 /**

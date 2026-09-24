@@ -4597,6 +4597,40 @@ $sb_long = 'resend._domainkey.mail.wp-test.sendbeam.io';
 has( sendbeam_copy_field( $sb_long, 'Host', 'sb-h1' ), '>' . $sb_long . '</textarea>', 'records: the whole host is in the field' );
 has( sendbeam_copy_field( $sb_long, 'Host', 'sb-h1' ), 'data-copy="' . $sb_long . '"', 'records: and the whole host is what gets copied' );
 
+// ── #14 Check now threw you to the Overview ─────────────────────────────
+// The check is offered on the Overview and on Settings → Sending domain, and
+// always landed on the Overview. Somebody copying records on the Sending tab
+// was moved to another screen to be told the result and had to navigate back
+// to carry on with the records they were half-way through.
+sb_connect_reset();
+sb_seed_settings( array( 'api_key' => SENDBEAM_API_KEY ) );
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( false ) );
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_domain_check', 'sendbeam_back' => 'sendbeam-settings' );
+$_REQUEST = $_POST;
+$sb_url   = sb_run_admin_post( 'sendbeam_handle_domain_check' );
+has( $sb_url, 'page=sendbeam-settings', 'check: pressed on the Sending tab, it comes back to the Sending tab' );
+has( $sb_url, 'tab=domain', 'check: on the records themselves' );
+has( $sb_url, 'sendbeam_domain=', 'check: still carrying the result' );
+
+// Pressed on the Overview, it stays on the Overview.
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( false ) );
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_domain_check', 'sendbeam_back' => 'sendbeam' );
+$_REQUEST = $_POST;
+$sb_url   = sb_run_admin_post( 'sendbeam_handle_domain_check' );
+has( $sb_url, 'page=sendbeam&', 'check: pressed on the Overview, it stays there' );
+
+// Anything that is not one of this plugin's pages goes to the Overview.
+$GLOBALS['stub']['remote_reply'] = array( 'response' => array( 'code' => 200 ), 'body' => sb_status_body( false ) );
+$_POST    = array( '_wpnonce' => 'nonce:sendbeam_domain_check', 'sendbeam_back' => 'https://evil.test/' );
+$_REQUEST = $_POST;
+$sb_url   = sb_run_admin_post( 'sendbeam_handle_domain_check' );
+lacks( $sb_url, 'evil.test', 'check: a return value that is not one of our pages is ignored' );
+has( $sb_url, 'page=sendbeam&', 'check: and falls back to the Overview' );
+$_POST    = array();
+$_REQUEST = array();
+sb_connect_reset();
+sb_seed_settings( array() );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

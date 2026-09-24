@@ -75,6 +75,8 @@
 
 - **The longest DNS host was cut off inside the field you are told to click.** The wrapping rule lived only inside the ≤782px media query, so the phone case that had been complained about was fixed and the desktop one was not: at 1280px the Host column is about 282px and `resend._domainkey.mail.<domain>` does not fit in it. Click-to-copy still copied the whole value, but somebody comparing what they pasted into their registrar against what is on screen could not see the end of it. The field wraps at every width now, and keeps `overflow: auto` so a browser with no JavaScript scrolls to the rest rather than hiding it.
 
+- **Check now comes back to the screen it was pressed on.** The check is offered on the Overview and on Settings → Sending domain and always landed on the Overview, so somebody working through the DNS records was moved to a different screen to be told the result and had to navigate back to carry on.
+
 ### Connect
 
 - **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.
