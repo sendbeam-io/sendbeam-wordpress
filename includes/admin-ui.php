@@ -239,7 +239,7 @@ function sendbeam_admin_css() {
 	.sb-card{background:#fff;border:1px solid var(--ink);margin:0 0 18px}
 	.sb-card__head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;
 		padding:13px 16px;border-bottom:1px solid var(--ink)}
-	.sb-card__head h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em;margin-right:auto}
+	.sb-card__head h2,.sb-card__head h3{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em;margin-right:auto}
 	.sb-card__action{flex:0 0 auto}
 	.sb-card__body{padding:16px}
 	.sb-note{font-size:13px;color:var(--ink-60)}
@@ -479,13 +479,20 @@ function sendbeam_admin_css() {
 	.sendbeam-app .is-hidden{display:none}
 
 	/* ── Pop-up rules ─────────────────────────────────────────────────── */
-	.sb-rule{border:1px solid var(--ink);background:var(--paper);padding:14px 16px;margin:0 0 14px}
-	.sb-rule legend{padding:0 6px;background:var(--ink);color:var(--paper);font-size:12px;font-weight:600}
-	.sb-rule__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;align-items:end}
-	.sb-rule__grid label{display:block}
-	.sb-rule__grid select,.sb-rule__grid input[type=text]{width:100%;max-width:100%}
-	.sb-rule__foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
-		margin-top:14px;padding-top:12px;border-top:1px solid var(--rule)}
+	/* A rule is a card, like everything else on every other screen. It used
+	   to be a grey fieldset with a black legend tag — the one place in the
+	   plugin that looked like a different product. */
+	.sb-rule .sb-toggle{flex:0 0 auto}
+	/* Start-aligned, because each cell is a label above its field: bottom
+	   alignment put a label with helper text half a line out from the one
+	   beside it. */
+	.sb-rule__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;align-items:start}
+	.sb-rule__grid>label{display:block}
+	.sb-rule__grid select,.sb-rule__grid input[type=text],.sb-rule__grid input[type=url]{width:100%;max-width:100%}
+	.sb-rule__grid .sb-note{display:block;margin-top:4px}
+	/* Two fields that belong together, side by side and the same width. */
+	.sb-rule__pair{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+	.sb-rule__pair>label{display:block}
 
 	/* ── Help ─────────────────────────────────────────────────────────── */
 	.sb-doc h3{font-size:15px;margin:0 0 6px}
@@ -513,6 +520,9 @@ function sendbeam_admin_css() {
 		.sb-rail__step:last-child{border-bottom:0}
 		.sb-wizard__foot .sb-btn{flex:1 1 100%}
 		.sb-doc__row code{flex:1 1 100%}
+		.sb-rule__pair{grid-template-columns:1fr}
+		/* The card header wraps rather than squeezing the title to nothing. */
+		.sb-card__head h3{margin-right:0;flex:1 1 100%}
 		/* Three single digits still fit across 393px, and stacking them made
 		   three numbers occupy half a card. Only a genuinely narrow screen
 		   gets the column. */

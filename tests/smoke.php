@@ -3720,6 +3720,73 @@ delete_option( 'sendbeam_form_placed' );
 update_option( 'sendbeam_mail_log', array() );
 has( sb_overview( $sb_done, $sb_verified ), 'Nothing has gone out through SendBeam from this site yet', 'overview: a site that has sent nothing is told so, not shown an empty list' );
 
+/* ────────────────────── The pop-up rules, as cards ─────────────────────
+ * Each rule was a grey fieldset with a black legend tag — the one screen in
+ * the plugin that looked like a different product.
+ */
+$GLOBALS['stub']['caps']['manage_options'] = true;
+update_option(
+	'sendbeam_popups',
+	array(
+		array( 'enabled' => 1, 'form' => $form, 'trigger' => 'timer', 'delay' => 3, 'scroll' => 50, 'label' => '', 'once' => 'week', 'where' => 'everywhere', 'url' => '', 'heading' => 'Get the roast notes', 'blurb' => '', 'style' => 'split', 'image' => '', 'eyebrow' => 'Monthly', 'button' => 'Subscribe', 'proof' => 1 ),
+		array( 'enabled' => 0, 'form' => $other, 'trigger' => 'scroll', 'delay' => 5, 'scroll' => 70, 'label' => '', 'once' => 'day', 'where' => 'posts', 'url' => '', 'heading' => 'Before you go', 'blurb' => '', 'style' => 'bold', 'image' => '', 'eyebrow' => '', 'button' => '', 'proof' => 0 ),
+	)
+);
+
+ob_start();
+sendbeam_screen_popup();
+$sb_popups = ob_get_clean();
+
+has( $sb_popups, '<section class="sb-card sb-rule">', 'pop-ups: a rule is the same card as everything else on every other screen' );
+lacks( $sb_popups, '<fieldset class="sb-rule">', 'pop-ups: not a fieldset' );
+lacks( $sb_popups, '<legend', 'pop-ups: with no legend tag' );
+lacks( $sb_popups, 'sb-rule__foot', 'pop-ups: and no footer strip' );
+// Two rules and the blank one the Add button clones.
+ok( 3 === substr_count( $sb_popups, '<section class="sb-card sb-rule">' ), 'pop-ups: one card per rule, plus the template' );
+
+// The order is the rule, so the cards say which is which.
+has( $sb_popups, '<h3>Pop-up 1</h3>', 'pop-ups: numbered, because the first match wins' );
+has( $sb_popups, '<h3>Pop-up 2</h3>', 'pop-ups: in the order they are matched' );
+
+// The header carries the two things you do to a whole rule.
+$sb_head = substr( $sb_popups, strpos( $sb_popups, '<h3>Pop-up 1</h3>' ) );
+$sb_head = substr( $sb_head, 0, strpos( $sb_head, '</header>' ) );
+has( $sb_head, '[enabled]', 'pop-ups: the Active toggle is in the card header' );
+has( $sb_head, 'sb-toggle', 'pop-ups: as a switch' );
+has( $sb_head, 'sb-remove', 'pop-ups: and Remove beside it' );
+
+// Two fields that belong together, side by side and the same width.
+has( $sb_popups, '<div class="sb-rule__pair">', 'pop-ups: Eyebrow and Button label share a row' );
+has( $sb_popups, 'The words on the pop-up', 'pop-ups: with helper text under each, so the labels line up' );
+
+// Every field keeps its name, so saving is unchanged.
+foreach ( array( 'form', 'where', 'url', 'trigger', 'delay', 'scroll', 'heading', 'blurb', 'style', 'image', 'eyebrow', 'button', 'proof', 'label', 'once', 'enabled' ) as $sb_field ) {
+	has( $sb_popups, 'sendbeam_popup[0][' . $sb_field . ']', "pop-ups: the $sb_field field keeps its name" );
+}
+has( $sb_popups, 'sendbeam_popup[1][form]', 'pop-ups: and the second rule keeps its index' );
+
+// The blank row the Add button clones carries placeholders for both.
+has( $sb_popups, 'sendbeam_popup[__i__]', 'pop-ups: the template still carries the index placeholder' );
+has( $sb_popups, '<h3>Pop-up __n__</h3>', 'pop-ups: and one for the number, so a new card is not called Pop-up __i__' );
+
+// The page's own actions sit below the cards.
+ok(
+	strpos( $sb_popups, '+ Add a pop-up' ) > strpos( $sb_popups, '<h3>Pop-up 2</h3>' ),
+	'pop-ups: Add a pop-up sits below the cards'
+);
+has( $sb_popups, 'Save pop-ups', 'pop-ups: and Save with it' );
+
+// The grey is gone from the stylesheet too.
+lacks( $sendbeam_css, '.sb-rule{border:1px solid var(--ink);background:var(--paper)', 'pop-ups: nothing paints a rule grey any more' );
+has( $sendbeam_css, '.sb-rule__pair{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr', 'pop-ups: the paired fields are equal columns' );
+has( $sendbeam_css, '.sb-rule__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;align-items:start}', 'pop-ups: and the grid aligns labels at the top rather than fields at the bottom' );
+
+// Removing a card renumbers the rest, or the numbers start lying.
+has( $sendbeam_admin_js, 'function renumber()', 'pop-ups: the cards renumber themselves' );
+ok( 2 === substr_count( $sendbeam_admin_js, 'renumber();' ), 'pop-ups: after an add and after a remove' );
+
+update_option( 'sendbeam_popups', array() );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

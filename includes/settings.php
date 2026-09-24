@@ -640,6 +640,18 @@ function sendbeam_admin_assets( $hook ) {
 				} );
 			}
 		}
+		/*
+		 * The order is the rule — the first pop-up that matches a page is the
+		 * one that opens — so a number that survives a removal and points at
+		 * the wrong card is worse than no number at all.
+		 */
+		function renumber() {
+			if ( ! host ) { return; }
+			host.querySelectorAll( ".sb-rule .sb-card__head h3" ).forEach( function ( h, n ) {
+				h.textContent = h.textContent.replace( /\d+$/, String( n + 1 ) );
+			} );
+		}
+
 		if ( host ) {
 			host.querySelectorAll( ".sb-rule" ).forEach( syncRule );
 			host.addEventListener( "change", function ( e ) {
@@ -649,18 +661,19 @@ function sendbeam_admin_assets( $hook ) {
 			host.addEventListener( "click", function ( e ) {
 				if ( ! e.target.closest( ".sb-remove" ) ) { return; }
 				var rule = e.target.closest( ".sb-rule" );
-				if ( rule ) { rule.remove(); }
+				if ( rule ) { rule.remove(); renumber(); }
 			} );
 		}
 		if ( addBtn && tpl && host ) {
 			addBtn.addEventListener( "click", function () {
 				var i = host.querySelectorAll( ".sb-rule" ).length;
-				var html = tpl.innerHTML.split( "__i__" ).join( String( i ) );
+				var html = tpl.innerHTML.split( "__i__" ).join( String( i ) ).split( "__n__" ).join( String( i + 1 ) );
 				var box = document.createElement( "div" );
 				box.innerHTML = html;
 				var rule = box.firstElementChild;
 				host.appendChild( rule );
 				syncRule( rule );
+				renumber();
 				var first = rule.querySelector( "select, input" );
 				if ( first ) { first.focus(); }
 			} );

@@ -1334,10 +1334,25 @@ function sendbeam_screen_popup() {
 function sendbeam_popup_row( $i, $rule ) {
 	$name    = 'sendbeam_popup[' . $i . ']';
 	$choices = sendbeam_form_choices( 'signup' );
-	?>
-	<fieldset class="sb-rule">
-		<legend class="sb-label"><?php esc_html_e( 'Pop-up', 'sendbeam' ); ?></legend>
 
+	/*
+	 * Numbered, because the order is the rule: the first pop-up that matches
+	 * a page is the one that opens. The template's placeholder is swapped by
+	 * the same script that swaps the field index, and the rows renumber
+	 * themselves after an add or a remove so the numbers never lie.
+	 */
+	$number = is_numeric( $i ) ? (string) ( (int) $i + 1 ) : '__n__';
+	?>
+	<section class="sb-card sb-rule">
+		<header class="sb-card__head">
+			<h3><?php echo esc_html( sprintf( /* translators: %s: the pop-up's position in the list */ __( 'Pop-up %s', 'sendbeam' ), $number ) ); ?></h3>
+			<label class="sb-toggle">
+				<input type="checkbox" name="<?php echo esc_attr( $name ); ?>[enabled]" value="1" <?php checked( ! empty( $rule['enabled'] ) ); ?> />
+				<span><?php esc_html_e( 'Active', 'sendbeam' ); ?></span>
+			</label>
+			<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-remove"><?php esc_html_e( 'Remove', 'sendbeam' ); ?></button>
+		</header>
+		<div class="sb-card__body">
 		<div class="sb-rule__grid">
 			<label>
 				<span class="sb-label"><?php esc_html_e( 'Form', 'sendbeam' ); ?></span>
@@ -1418,20 +1433,23 @@ function sendbeam_popup_row( $i, $rule ) {
 						placeholder="https://example.com/wp-content/uploads/letter.jpg" class="regular-text sb-image" style="width:100%" />
 					<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-image-pick"><?php esc_html_e( 'Choose', 'sendbeam' ); ?></button>
 				</span>
-				<span class="sb-note" style="display:block;margin-top:4px"><?php esc_html_e( 'Shown beside the form in the split and slide-in styles. Pick one from your Media Library, or paste an https address.', 'sendbeam' ); ?></span>
+				<span class="sb-note"><?php esc_html_e( 'Shown beside the form in the split and slide-in styles. Pick one from your Media Library, or paste an https address.', 'sendbeam' ); ?></span>
 			</label>
 
-			<label>
-				<span class="sb-label"><?php esc_html_e( 'Eyebrow', 'sendbeam' ); ?></span>
-				<input type="text" maxlength="40" name="<?php echo esc_attr( $name ); ?>[eyebrow]" value="<?php echo esc_attr( $rule['eyebrow'] ); ?>" class="regular-text" />
-				<span class="sb-note" style="display:block;margin-top:4px"><?php esc_html_e( 'A short label above the headline, e.g. Monthly · Free', 'sendbeam' ); ?></span>
-			</label>
+			<div class="sb-rule__pair">
+				<label>
+					<span class="sb-label"><?php esc_html_e( 'Eyebrow', 'sendbeam' ); ?></span>
+					<input type="text" maxlength="40" name="<?php echo esc_attr( $name ); ?>[eyebrow]" value="<?php echo esc_attr( $rule['eyebrow'] ); ?>" class="regular-text" />
+					<span class="sb-note"><?php esc_html_e( 'A short label above the headline, e.g. Monthly · Free', 'sendbeam' ); ?></span>
+				</label>
 
-			<label>
-				<span class="sb-label"><?php esc_html_e( 'Button label', 'sendbeam' ); ?></span>
-				<input type="text" maxlength="30" name="<?php echo esc_attr( $name ); ?>[button]" value="<?php echo esc_attr( $rule['button'] ); ?>"
-					placeholder="<?php esc_attr_e( 'Subscribe', 'sendbeam' ); ?>" class="regular-text" />
-			</label>
+				<label>
+					<span class="sb-label"><?php esc_html_e( 'Button label', 'sendbeam' ); ?></span>
+					<input type="text" maxlength="30" name="<?php echo esc_attr( $name ); ?>[button]" value="<?php echo esc_attr( $rule['button'] ); ?>"
+						placeholder="<?php esc_attr_e( 'Subscribe', 'sendbeam' ); ?>" class="regular-text" />
+					<span class="sb-note"><?php esc_html_e( 'The words on the pop-up\'s own button.', 'sendbeam' ); ?></span>
+				</label>
+			</div>
 
 			<label class="sb-toggle" style="grid-column:1/-1">
 				<input type="checkbox" name="<?php echo esc_attr( $name ); ?>[proof]" value="1" <?php checked( ! empty( $rule['proof'] ) ); ?> />
@@ -1454,15 +1472,8 @@ function sendbeam_popup_row( $i, $rule ) {
 				</select>
 			</label>
 		</div>
-
-		<div class="sb-rule__foot">
-			<label class="sb-toggle">
-				<input type="checkbox" name="<?php echo esc_attr( $name ); ?>[enabled]" value="1" <?php checked( ! empty( $rule['enabled'] ) ); ?> />
-				<span><?php esc_html_e( 'Active', 'sendbeam' ); ?></span>
-			</label>
-			<button type="button" class="sb-btn sb-btn--small sb-btn--ghost sb-remove"><?php esc_html_e( 'Remove', 'sendbeam' ); ?></button>
 		</div>
-	</fieldset>
+	</section>
 	<?php
 }
 
