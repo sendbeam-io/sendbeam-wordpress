@@ -11,10 +11,12 @@ inside them. `.distignore` keeps this folder out of the distributed zip.
 | `icon.svg` | The same mark as vector, preferred where it is supported |
 | `banner-772x250.png` | The header of the listing page |
 | `banner-1544x500.png` | The same, on high-density screens |
-| `screenshot-1.png` … `screenshot-7.png` | The Screenshots section, captioned in order by `readme.txt` |
+| `screenshot-1.png` … `screenshot-9.png` | The Screenshots section, captioned in order by `readme.txt` |
 
 Captions come from the `== Screenshots ==` list in `readme.txt`: the *n*th line
 captions `screenshot-n.png`. Adding a screenshot means adding both.
 
-Screenshots are 1280px wide, taken on a real site running the plugin against a
-live SendBeam workspace.
+Screenshots are 1280x800 at 1x, taken on a real site running the plugin
+against a live SendBeam workspace. Nothing in them is seeded, mocked or
+blurred: the only editing is that other plugins' admin notices are hidden, so
+each one shows this plugin rather than somebody else's nag.
