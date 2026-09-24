@@ -62,6 +62,8 @@
 
 - **The setup guide ticked steps nobody had done.** The rail ticked every step whose number was below the current one, and **Skip this step** is on every step — so opening step 3 on a site with no API key showed "✓ Connect · ✓ Sending domain" above a body reading "This step needs a connected site. Go back to step 1", while the Overview's own checklist said neither was done. The rail reads the same answer the checklist does.
 
+- **"A SendBeam pop-up is live on the site" with every rule switched off.** The checklist asked whether any pop-up rule had ever been saved. A rule that is unticked, or has no form chosen, puts nothing on the site — the front end serves no loader at all — so the step ticked itself on evidence the visitor could not see. There is one helper for "could this actually show somebody a pop-up", and the checklist uses it.
+
 ### Connect
 
 - **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.

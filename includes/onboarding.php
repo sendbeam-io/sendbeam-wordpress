@@ -109,7 +109,9 @@ function sendbeam_form_placement( $force = false ) {
 	if ( get_option( 'sendbeam_form_placed' ) ) {
 		return 'manual';
 	}
-	if ( sendbeam_popups() ) {
+	// A rule that is switched off, or has no form chosen, puts nothing on
+	// the site: the front end serves no loader at all for it.
+	if ( sendbeam_live_popups() ) {
 		return 'popup';
 	}
 
@@ -328,7 +330,7 @@ function sendbeam_setup_steps() {
 	$status     = $connected ? sendbeam_connect_status() : sendbeam_connect_empty_status();
 
 	$using_form  = '' !== $settings['default_form'] || '' !== $settings['contact_form'];
-	$using_popup = (bool) sendbeam_popups();
+	$using_popup = (bool) sendbeam_live_popups();
 	$using_mail  = ! empty( $settings['mail_enabled'] );
 
 	$domain   = $status['domain'];

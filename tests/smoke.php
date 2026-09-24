@@ -1602,6 +1602,34 @@ $sb_rail = ob_get_clean();
 ok( false !== strpos( $sb_rail, '&#10003;' ), 'wizard: a step that is done is ticked from step 1' );
 sb_seed_settings( array() );
 
+// ── #6 "A SendBeam pop-up is live" with every rule switched off ─────────
+// sendbeam_popups() returns every rule ever saved, switched off or not and
+// with or without a form. The front end serves no loader for those, so the
+// checklist was ticking a step nothing on the site could satisfy.
+$GLOBALS['stub']['options']['sendbeam_popups'] = array(
+	array( 'enabled' => 0, 'form' => '9da94d34-86f8-4fbc-9333-45c0b4c16d6a', 'where' => 'everywhere' ),
+	array( 'enabled' => 0, 'form' => '14dad6b8-6998-4f1f-8924-3ebd79524c94', 'where' => 'posts' ),
+);
+ok( 2 === count( sendbeam_popups() ), 'popups: the editing screen still sees every rule it has to edit' );
+ok( array() === sendbeam_live_popups(), 'popups: but none of them is live' );
+ok( '' === sendbeam_form_placement( true ), 'popups: so nothing reports a pop-up on the site' );
+
+// A rule that is on but has no form chosen is just as dead.
+$GLOBALS['stub']['options']['sendbeam_popups'] = array(
+	array( 'enabled' => 1, 'form' => '', 'where' => 'everywhere' ),
+);
+ok( array() === sendbeam_live_popups(), 'popups: a rule with no form shows nothing either' );
+ok( '' === sendbeam_form_placement( true ), 'popups: and does not count as a placed form' );
+
+// Switch one back on and it counts again.
+$GLOBALS['stub']['options']['sendbeam_popups'] = array(
+	array( 'enabled' => 1, 'form' => '9da94d34-86f8-4fbc-9333-45c0b4c16d6a', 'where' => 'everywhere' ),
+);
+ok( 1 === count( sendbeam_live_popups() ), 'popups: a rule that is on with a form is live' );
+ok( 'popup' === sendbeam_form_placement( true ), 'popups: and the checklist says so' );
+unset( $GLOBALS['stub']['options']['sendbeam_popups'] );
+delete_transient( 'sendbeam_form_placed' );
+
 /* ─────────────────────────────────────────────────────────────────────────
  * QA regressions that need a site with no API key at all. They have to sit
  * above the define() below: once SENDBEAM_API_KEY exists in this process,

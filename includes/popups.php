@@ -238,6 +238,28 @@ function sendbeam_popup_matches( $rule ) {
 }
 
 /**
+ * The rules that could actually show a pop-up to somebody.
+ *
+ * Switched on, and with a form to show. sendbeam_popups() returns every rule
+ * that was ever saved, including ones the owner unticked and ones with no
+ * form chosen, which is right for the editing screen and wrong for every
+ * question of the form "is there a pop-up on this site". Answering that with
+ * sendbeam_popups() told an owner who had just switched every rule off that
+ * "a SendBeam pop-up is live on the site".
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function sendbeam_live_popups() {
+	$out = array();
+	foreach ( sendbeam_popups() as $rule ) {
+		if ( ! empty( $rule['enabled'] ) && '' !== trim( (string) $rule['form'] ) ) {
+			$out[] = $rule;
+		}
+	}
+	return $out;
+}
+
+/**
  * The rule that owns this page, or null.
  *
  * @return array<string,mixed>|null
