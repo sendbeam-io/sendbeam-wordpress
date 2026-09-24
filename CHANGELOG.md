@@ -50,6 +50,10 @@
 - The wizard was registered with an empty parent, which routes correctly and then leaves `get_admin_page_title()` with nothing to find: WordPress hands a null to `strip_tags()`, which is a deprecation notice on PHP 8 and a browser tab reading "— WordPress". Its parent is `options.php`, which is in no menu.
 - The Connect consent checkboxes rendered ticked and looked empty. Core fills the box with the admin theme colour and draws a white tick on it; forcing the background white left a white tick on white.
 
+### What a QA sweep found
+
+- **Pressing Save on one card of the Forms screen emptied the other.** Forms is one tab with two cards and two Save buttons, and the sanitiser grouped its fields by tab: whichever card you did not press arrived missing from `$_POST` and was written as empty. Saving Appearance cleared `contact_form`, `[sendbeam_contact]` renders nothing without it, and a published contact page went to an empty box for every visitor with "Settings saved." on screen and nothing in the log. Field groups are per form now, not per tab.
+
 ### Connect
 
 - **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.

@@ -4,8 +4,9 @@
  *
  * Each one is a small function so the router stays readable. Anything that
  * saves posts to options.php in the 'sendbeam' option group and carries a
- * hidden `_tab`, which is what lets a tab save its own fields without
- * flattening the settings belonging to the other tabs.
+ * hidden `_tab` naming its own field group, which is what lets one form save
+ * its own fields without flattening the settings belonging to the others. A
+ * screen with two Save buttons needs two groups: see sendbeam_sanitize_settings().
  *
  * @package SendBeam
  */
@@ -13,9 +14,9 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Open a settings form for one tab.
+ * Open a settings form for one group of fields.
  *
- * @param string $tab Tab key.
+ * @param string $tab Field-group key, from sendbeam_sanitize_settings().
  */
 function sendbeam_form_open( $tab ) {
 	echo '<form action="' . esc_url( admin_url( 'options.php' ) ) . '" method="post">';
@@ -1012,7 +1013,7 @@ function sendbeam_screen_forms() {
 	sendbeam_card_close();
 
 	sendbeam_card_open( __( 'Appearance', 'sendbeam' ), __( 'How the form looks on your pages.', 'sendbeam' ) );
-	sendbeam_form_open( 'forms' );
+	sendbeam_form_open( 'forms_style' );
 	$s = sendbeam_settings();
 	echo '<p style="margin-top:0">' . esc_html__( 'Forms are served by SendBeam, so give them your site\'s colours and they will stop looking like something pasted in from elsewhere. Leave a field blank to keep the SendBeam default.', 'sendbeam' ) . '</p>';
 	echo '<div class="sb-rule__grid">';

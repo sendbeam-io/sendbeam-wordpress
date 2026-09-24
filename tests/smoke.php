@@ -274,7 +274,7 @@ lacks( sendbeam_form_url( $form ), 'accent=#', 'no bare hash in the URL' );
 ok( $args['radius'] === '2', 'radius passed' );
 ok( $args['font'] === 'serif', 'font passed' );
 ok( ! isset( $args['text'] ), 'a non-hex colour is not sent at all' );
-$clean_style = sendbeam_sanitize_settings( array( '_tab' => 'forms', 'style_accent' => 'red', 'style_radius' => '999', 'style_font' => 'Comic Sans' ) );
+$clean_style = sendbeam_sanitize_settings( array( '_tab' => 'forms_style', 'style_accent' => 'red', 'style_radius' => '999', 'style_font' => 'Comic Sans' ) );
 ok( $clean_style['style_accent'] === '#B45309', 'a bad colour leaves the saved one untouched' );
 ok( $clean_style['style_radius'] === '28', 'radius clamped on save' );
 ok( $clean_style['style_font'] === 'inherit', 'an unknown font falls back' );
@@ -4164,6 +4164,50 @@ has( $sb_uninstall, "'sendbeam_db_version'", 'uninstall: and the version that sa
 has( $sb_uninstall, "'sendbeam_mail_log'", 'uninstall: with the old option swept too, for a site that never upgraded past it' );
 
 sb_log_reset();
+sb_seed_settings( array() );
+
+// ── #1 Two Save buttons on one tab, two field groups ────────────────────
+// The Forms screen has a Defaults card and an Appearance card, each its own
+// <form>. While both posted `_tab=forms` the sanitiser read the absent card's
+// fields as cleared, so pressing Save on Appearance emptied contact_form and
+// took the contact form off every published page that used [sendbeam_contact].
+sb_seed_settings(
+	sendbeam_sanitize_settings(
+		array(
+			'_tab'         => 'forms',
+			'default_form' => '9da94d34-86f8-4fbc-9333-45c0b4c16d6a',
+			'contact_form' => '14dad6b8-6998-4f1f-8924-3ebd79524c94',
+		)
+	)
+);
+sb_seed_settings(
+	sendbeam_sanitize_settings(
+		array(
+			'_tab'          => 'forms_style',
+			'style_accent'  => '#a8452a',
+			'style_radius'  => '4',
+			'style_size'    => '15',
+			'style_bare'    => '1',
+		)
+	)
+);
+$sb_before = sendbeam_settings();
+ok( '#a8452a' === $sb_before['style_accent'] && '14dad6b8-6998-4f1f-8924-3ebd79524c94' === $sb_before['contact_form'], 'forms: both cards are saved to begin with' );
+
+// Press Save on Defaults, having typed nothing. Appearance is not in $_POST.
+$sb_after = sendbeam_sanitize_settings( array( '_tab' => 'forms', 'default_form' => $sb_before['default_form'], 'contact_form' => $sb_before['contact_form'] ) );
+ok( '#a8452a' === $sb_after['style_accent'], 'forms: saving Defaults leaves the accent colour alone' );
+ok( '4' === $sb_after['style_radius'] && '15' === $sb_after['style_size'], 'forms: saving Defaults leaves radius and text size alone' );
+ok( 1 === (int) $sb_after['style_bare'], 'forms: saving Defaults does not untick "hide the form name"' );
+
+// Press Save on Appearance, having typed nothing. The form IDs are not in $_POST.
+$sb_after = sendbeam_sanitize_settings( array( '_tab' => 'forms_style', 'style_accent' => '#a8452a', 'style_radius' => '4', 'style_size' => '15', 'style_bare' => '1' ) );
+ok( '14dad6b8-6998-4f1f-8924-3ebd79524c94' === $sb_after['contact_form'], 'forms: saving Appearance does not empty the contact form — [sendbeam_contact] renders nothing without it' );
+ok( '9da94d34-86f8-4fbc-9333-45c0b4c16d6a' === $sb_after['default_form'], 'forms: saving Appearance does not empty the default form' );
+
+// And the guarantee that made the grouping exist in the first place still holds.
+$sb_after = sendbeam_sanitize_settings( array( '_tab' => 'forms_style', 'style_accent' => '#a8452a' ) );
+ok( $sb_before['api_key'] === $sb_after['api_key'], 'forms: saving Appearance does not touch the API key' );
 sb_seed_settings( array() );
 
 // One version number, five files. 1.6.2 shipped with the block's asset

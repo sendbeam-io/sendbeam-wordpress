@@ -252,14 +252,24 @@ function sendbeam_sanitize_settings( $input ) {
 		return $input;
 	}
 
-	// Each tab posts only its own fields. Starting from the saved values and
-	// touching only the keys belonging to the posted tab is what stops saving
-	// the pop-up from silently clearing the API key — an unchecked checkbox and
-	// a field that was never on screen look identical in $_POST otherwise.
+	/*
+	 * One group per FORM, not per tab. Starting from the saved values and
+	 * touching only the keys belonging to the posted group is what stops
+	 * saving the pop-up from silently clearing the API key — an unchecked
+	 * checkbox and a field that was never on screen look identical in $_POST
+	 * otherwise.
+	 *
+	 * The grouping has to be as fine as the submit buttons are. Forms is one
+	 * tab with two cards and two Save buttons, and while both posted `forms`
+	 * the fields of whichever card you did not press were read as cleared:
+	 * pressing Save on Appearance emptied `contact_form`, and [sendbeam_contact]
+	 * renders nothing without it, so a published contact page lost its form.
+	 */
 	$groups = array(
-		'connect' => array( 'api_key' ),
-		'forms'   => array( 'default_form', 'contact_form', 'style_accent', 'style_text', 'style_field', 'style_border', 'style_radius', 'style_font', 'style_size', 'style_bare' ),
-		'mail'    => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback', 'mail_log_days' ),
+		'connect'     => array( 'api_key' ),
+		'forms'       => array( 'default_form', 'contact_form' ),
+		'forms_style' => array( 'style_accent', 'style_text', 'style_field', 'style_border', 'style_radius', 'style_font', 'style_size', 'style_bare' ),
+		'mail'        => array( 'mail_enabled', 'mail_from_name', 'mail_from_email', 'mail_fallback', 'mail_log_days' ),
 	);
 	$tab    = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
 	$keys   = isset( $groups[ $tab ] ) ? $groups[ $tab ] : array_merge( ...array_values( $groups ) );
