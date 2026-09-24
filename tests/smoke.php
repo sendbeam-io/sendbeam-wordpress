@@ -320,9 +320,6 @@ ok( sendbeam_sanitize_settings( array( 'api_key' => 'bad key!' ) )['api_key'] ==
 ok( sendbeam_sanitize_settings( array( 'api_key_remove' => '1' ) )['api_key'] === '', 'remove clears the key' );
 ok( sendbeam_sanitize_settings( array( 'api_key' => 'sb_new_0123456789abcdef' ) )['api_key'] === 'sb_new_0123456789abcdef', 'new key saved' );
 
-// wp-config constant wins over the option.
-define( 'SENDBEAM_API_KEY', 'sb_const_0123456789abcdef' );
-ok( sendbeam_api_key() === 'sb_const_0123456789abcdef', 'constant wins' );
 
 
 // ── Form plugin bridges ─────────────────────────────────────────────────
@@ -605,6 +602,41 @@ ok( empty( $stub['cron'] ), 'cart abandoned: a cart nobody\'s email was ever kno
 $stub['cron'] = array( array( 'hook' => SENDBEAM_CART_CHECK_HOOK, 'args' => array( 'x' ) ), array( 'hook' => 'something_else', 'args' => array() ) );
 sendbeam_ecommerce_clear_scheduled();
 ok( 1 === count( $stub['cron'] ) && 'something_else' === $stub['cron'][0]['hook'], 'deactivation: only this plugin\'s own scheduled checks are cleared' );
+
+// ── A site with no key anywhere ────────────────────────────────────────
+// Everything from here on runs with SENDBEAM_API_KEY defined in wp-config.php,
+// because that is what the status and disconnect tests are about — and a key
+// pinned there cannot be un-defined again inside one process. These run first:
+// a site with no key at all is the site the Connect button exists for.
+//
+// The helpers below are declared further down the file; PHP binds top-level
+// functions before the first line runs, so they are callable from here.
+sb_connect_reset();
+ob_start();
+sendbeam_connect_panel();
+$sb_panel = ob_get_clean();
+has( $sb_panel, 'Connect SendBeam', 'panel: a site with no key gets the button' );
+has( $sb_panel, 'name="sendbeam_popup" value="0"', 'panel: the form defaults to "this tab" until the script says otherwise' );
+has( $sb_panel, 'example-site.test', 'panel: the domain permission names this site\'s domain' );
+
+$sb_ov = sb_overview( array(), array() );
+has( $sb_ov, 'Connect SendBeam', 'overview: an unconnected site gets the button' );
+has( $sb_ov, 'I already have an API key', 'overview: pasting a key is still possible' );
+lacks( $sb_ov, 'Check now', 'overview: nothing offers to check a domain that does not exist' );
+lacks( $sb_ov, 'value="sendbeam_disconnect"', 'overview: nothing offers to disconnect what is not connected' );
+has( $sb_ov, 'Connect the site first', 'overview: the domain step says to connect first' );
+
+sb_connect_reset();
+sendbeam_connect_forget_status();
+delete_transient( 'sendbeam_connection' );
+delete_transient( 'sendbeam_remote_forms' );
+delete_transient( 'sendbeam_remote_lists' );
+delete_transient( 'sendbeam_subscriber_count' );
+update_option( 'sendbeam_settings', array() );
+
+// wp-config constant wins over the option.
+define( 'SENDBEAM_API_KEY', 'sb_const_0123456789abcdef' );
+ok( sendbeam_api_key() === 'sb_const_0123456789abcdef', 'constant wins' );
 
 // ── Connect ────────────────────────────────────────────────────────────
 //
@@ -1736,13 +1768,7 @@ $popup_html                      = sb_connect_run( 'sendbeam_connect_return' );
 has( $popup_html, 'window.close()', 'pop-up: a real pop-up still closes itself' );
 has( $popup_html, 'Back to SendBeam settings', 'pop-up: the link underneath still points at the settings screen' );
 
-// The form carries the flag the script flips, and the script flips it.
-sb_connect_reset();
-ob_start();
-sendbeam_connect_panel();
-$panel_html = ob_get_clean();
-has( $panel_html, 'name="sendbeam_popup" value="0"', 'pop-up: the form defaults to "this tab" until the script says otherwise' );
-has( $panel_html, 'example-site.test', 'pop-up: the domain permission names this site\'s domain' );
+// The script flips the flag the form carries.
 has( sendbeam_connect_admin_js(), 'sb-connect-popup', 'pop-up: the script sets the flag it was given' );
 
 // ── The Overview itself ────────────────────────────────────────────────
@@ -1864,6 +1890,14 @@ $ov = sb_overview( $sb_connected, $sb_verified );
 lacks( $ov, 'Reconnect with more permissions', 'overview: a step with nothing missing does not offer it' );
 has( $ov, '>Reconnect<', 'overview: the connected card offers a plain Reconnect beside Disconnect' );
 
+// A key pinned in wp-config.php beats anything stored here, so connecting
+// would mint a real key, save it, and never use it.
+$ov = sb_overview( array(), array() );
+has( $ov, 'SENDBEAM_API_KEY in wp-config.php', 'overview: a site with the key pinned in wp-config is told where its key is' );
+lacks( $ov, 'Connect SendBeam', 'overview: and is not offered a button that would store a key nothing uses' );
+$ov = sb_overview( $sb_connected, $sb_verified );
+has( $ov, 'Disconnect will not revoke it', 'overview: the connected card says the live key is the pinned one' );
+
 // A site connected with a key pasted by hand: no recorded permissions, but a
 // domain it can plainly read. The screen must not print a table of records
 // under a sentence saying it has no permission to read them.
@@ -1879,13 +1913,6 @@ has( $ov, '/settings/domains', 'overview: and handed the page where it is added'
 lacks( $ov, 'table class="sb-table sb-dns"', 'overview: no records table for a domain that does not exist' );
 lacks( $ov, 'Check now', 'overview: nothing offers to check a domain that does not exist' );
 
-// Never connected: the Connect button, and no checklist that pretends to know anything.
-$ov = sb_overview( array(), array() );
-has( $ov, 'Connect SendBeam', 'overview: an unconnected site gets the button' );
-has( $ov, 'I already have an API key', 'overview: pasting a key is still possible' );
-lacks( $ov, 'Check now', 'overview: nothing offers to check a domain that does not exist' );
-lacks( $ov, 'value="sendbeam_disconnect"', 'overview: nothing offers to disconnect what is not connected' );
-has( $ov, 'Connect the site first', 'overview: the domain step says to connect first' );
 
 sb_connect_reset();
 sendbeam_connect_forget_status();

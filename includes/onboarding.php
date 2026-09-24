@@ -239,6 +239,27 @@ function sendbeam_form_in_widgets( $needles ) {
 }
 
 /**
+ * What step 1 says.
+ *
+ * A key pinned in wp-config.php is the one this site sends with, so telling
+ * its owner to press a button that is deliberately not on the screen — and
+ * which would store a second key nothing would use — is the wrong
+ * instruction twice over.
+ *
+ * @param bool $connected Whether the key works.
+ * @return string
+ */
+function sendbeam_connect_step_sentence( $connected ) {
+	if ( $connected ) {
+		return __( 'Your key works.', 'sendbeam' );
+	}
+	if ( sendbeam_key_in_config() ) {
+		return __( 'This site\'s key is the one in wp-config.php, and SendBeam is not answering to it. Change it there.', 'sendbeam' );
+	}
+	return __( 'Press Connect SendBeam, approve what this site may do, and the key arrives on its own.', 'sendbeam' );
+}
+
+/**
  * What step 2 says once there really is a sending domain.
  *
  * The name is always the one the answer carried, never one derived from
@@ -369,9 +390,7 @@ function sendbeam_setup_steps() {
 			'key'    => 'connect',
 			'done'   => $connected,
 			'label'  => __( 'Connect your SendBeam account', 'sendbeam' ),
-			'detail' => $connected
-				? __( 'Your key works.', 'sendbeam' )
-				: __( 'Press Connect SendBeam, approve what this site may do, and the key arrives on its own.', 'sendbeam' ),
+			'detail' => sendbeam_connect_step_sentence( $connected ),
 			'target' => sendbeam_tab_url( 'overview' ) . '#sendbeam_api_key',
 		),
 		array(

@@ -712,6 +712,15 @@ function sendbeam_connect_disconnect() {
 }
 
 /**
+ * Is this site's key pinned in wp-config.php?
+ *
+ * @return bool
+ */
+function sendbeam_key_in_config() {
+	return defined( 'SENDBEAM_API_KEY' ) && '' !== trim( (string) SENDBEAM_API_KEY );
+}
+
+/**
  * Was this site connected through the button rather than a pasted key?
  *
  * @return bool
@@ -808,6 +817,18 @@ function sendbeam_connect_render_result( $connected, $heading, $detail, $is_popu
  */
 function sendbeam_connect_panel() {
 	$origin = sendbeam_connect_site_origin();
+
+	/*
+	 * A key defined in wp-config.php beats anything stored here, everywhere.
+	 * Connecting on such a site mints a key, stores it, and then never uses
+	 * it — a real key sitting unused in a database, which is the worst of
+	 * both worlds. So the button is not offered, and the panel says where the
+	 * live key actually is.
+	 */
+	if ( sendbeam_key_in_config() ) {
+		echo '<p class="sb-note">' . esc_html__( 'This site sends with the key defined as SENDBEAM_API_KEY in wp-config.php. That key wins over anything saved here, so connecting would store a second key nothing would ever use. Change it in wp-config.php, or remove that line to connect from this screen instead.', 'sendbeam' ) . '</p>';
+		return;
+	}
 
 	if ( ! sendbeam_connect_origin_ok( $origin ) ) {
 		echo '<p class="sb-note">' . esc_html__( 'This site is not served over https, so SendBeam cannot connect to it. Paste an API key below instead.', 'sendbeam' ) . '</p>';

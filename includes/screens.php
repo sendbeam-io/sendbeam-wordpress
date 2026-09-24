@@ -494,6 +494,10 @@ function sendbeam_connect_connected_panel( $status = null ) {
 		echo '<p style="margin-top:0"><strong>' . esc_html( sprintf( __( 'Connected to %s', 'sendbeam' ), $workspace ) ) . '</strong></p>';
 	}
 
+	if ( sendbeam_key_in_config() ) {
+		echo '<p class="sb-note">' . esc_html__( 'This site sends with the key defined as SENDBEAM_API_KEY in wp-config.php, not the one stored here. Change it there; Disconnect will not revoke it.', 'sendbeam' ) . '</p>';
+	}
+
 	$granted = sendbeam_connect_granted_list();
 	if ( $granted ) {
 		echo '<ul class="sb-granted">';
