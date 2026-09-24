@@ -258,20 +258,35 @@ function sendbeam_screen_wizard() {
  * @param int   $current 1-based step number.
  */
 function sendbeam_wizard_rail( $steps, $current ) {
+	/*
+	 * A tick means done, not "behind us". Walking forward past a step — and
+	 * every step has Skip this step on it — used to tick it, so opening
+	 * step 3 on a site with no key at all showed "✓ Connect ✓ Sending
+	 * domain" above a body reading "This step needs a connected site". The
+	 * Overview's checklist has always been able to answer this properly;
+	 * the rail reads the same answer now.
+	 */
+	$done = array();
+	foreach ( sendbeam_setup_steps() as $known ) {
+		$done[ $known['key'] ] = ! empty( $known['done'] );
+	}
+
 	echo '<ol class="sb-rail">';
 	foreach ( $steps as $i => $step ) {
-		$number = $i + 1;
-		$state  = 'sb-rail__step';
-		if ( $number < $current ) {
+		$number    = $i + 1;
+		$is_done   = ! empty( $done[ $step['key'] ] );
+		$state     = 'sb-rail__step';
+		if ( $is_done ) {
 			$state .= ' is-done';
-		} elseif ( $number === $current ) {
+		}
+		if ( $number === $current ) {
 			$state .= ' is-current';
 		}
 		printf(
 			'<li class="%1$s"%2$s><span class="sb-rail__num" aria-hidden="true">%3$s</span><span class="sb-rail__label">%4$s</span></li>',
 			esc_attr( $state ),
 			$number === $current ? ' aria-current="step"' : '',
-			$number < $current ? '&#10003;' : (int) $number,
+			$is_done ? '&#10003;' : (int) $number,
 			esc_html( $step['label'] )
 		);
 	}

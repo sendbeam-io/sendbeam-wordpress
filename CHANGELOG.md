@@ -60,6 +60,8 @@
 
 - **"SendBeam could not be reached", straight after SendBeam answered.** `domain_state: unavailable` wears two opposite meanings — the plugin's, "the request failed", and SendBeam's, "I could not set that domain up, and here is why". Only the first was in the sentence, so a site that had just connected successfully was told SendBeam was unreachable while its cached status held `ok: true` and "That domain is already registered" in two places. The step prints the reason SendBeam gave when the answer came from SendBeam, and keeps the unreachable wording for the case it was written for.
 
+- **The setup guide ticked steps nobody had done.** The rail ticked every step whose number was below the current one, and **Skip this step** is on every step — so opening step 3 on a site with no API key showed "✓ Connect · ✓ Sending domain" above a body reading "This step needs a connected site. Go back to step 1", while the Overview's own checklist said neither was done. The rail reads the same answer the checklist does.
+
 ### Connect
 
 - **Connect SendBeam.** Onboarding was four steps before the plugin did anything: make an account on sendbeam.io, verify a domain, create an API key with the right permissions, paste it back. Every one of those was somewhere to stop. The Overview tab's first step is now a button: tick what this site may do, create the account or sign in in a pop-up on sendbeam.io — with the site name and the administrator's email address already filled in — and the site is handed a key with exactly those permissions.

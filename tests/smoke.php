@@ -1571,6 +1571,37 @@ ok( '' === sendbeam_settings()['api_key'], 'disconnect: but this site forgets it
 ok( '' === sendbeam_settings()['sendbeam_connected_via'], 'disconnect: and stops claiming how it was connected' );
 has( $GLOBALS['stub']['redirect']['url'], 'sendbeam_disconnected=pasted', 'disconnect: and the notice says which of the two happened' );
 
+// ── #5 The setup guide ticked steps that had not been done ──────────────
+// The rail ticked every step whose number was lower than the current one, so
+// opening step 3 on a site with no key showed "✓ Connect ✓ Sending domain"
+// above a body reading "This step needs a connected site. Go back to step 1."
+// Every step has Skip this step on it, so this is one press away.
+sb_seed_settings( array( 'api_key' => '' ) );
+sendbeam_connect_cache_status( sendbeam_connect_empty_status() );
+ok( false === sendbeam_setup_steps()[0]['done'], 'wizard: a site with no key has not done step 1' );
+ob_start();
+sendbeam_wizard_rail( sendbeam_wizard_steps(), 3 );
+$sb_rail = ob_get_clean();
+ok( false === strpos( $sb_rail, '&#10003;' ), 'wizard: so the rail on step 3 ticks nothing' );
+has( $sb_rail, 'is-current', 'wizard: it still says which step you are standing on' );
+ok( 2 === substr_count( $sb_rail, 'sb-rail__num" aria-hidden="true">1<' ) + substr_count( $sb_rail, '>1</span>' ), 'wizard: and step 1 is still numbered 1' );
+
+// A step that IS done is ticked wherever you are standing.
+sb_seed_settings( array( 'api_key' => 'sb_live_railrailrailrailra' ) );
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace' => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'    => array( 'name' => 'harbourlane.co.uk', 'verified' => true, 'records' => array() ),
+		)
+	)
+);
+ob_start();
+sendbeam_wizard_rail( sendbeam_wizard_steps(), 1 );
+$sb_rail = ob_get_clean();
+ok( false !== strpos( $sb_rail, '&#10003;' ), 'wizard: a step that is done is ticked from step 1' );
+sb_seed_settings( array() );
+
 /* ─────────────────────────────────────────────────────────────────────────
  * QA regressions that need a site with no API key at all. They have to sit
  * above the define() below: once SENDBEAM_API_KEY exists in this process,
