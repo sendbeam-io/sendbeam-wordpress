@@ -53,6 +53,11 @@ function sendbeam_default_settings() {
 		// Cleared the moment the key is changed or removed by hand.
 		'sendbeam_connected_via'     => '',
 		'sendbeam_connect_workspace' => '',
+		// The workspace's own ID, which is what says whether a reconnect
+		// landed in the same workspace or a different one. The name cannot
+		// answer that: two workspaces can share one, and renaming a
+		// workspace would otherwise look like moving to another.
+		'sendbeam_connect_workspace_id' => '',
 		// The permissions SendBeam actually granted this key, as a csv. What
 		// was *asked* for is not the same thing — the person can untick a box
 		// on the consent page — and the Overview has to say "you did not give

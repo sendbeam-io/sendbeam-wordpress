@@ -535,9 +535,32 @@ function sendbeam_connect_store_key( $api_key, $workspace, $data = array() ) {
 	$before = sendbeam_settings();
 	$filled = isset( $before['sendbeam_connect_filled'] ) && is_array( $before['sendbeam_connect_filled'] ) ? $before['sendbeam_connect_filled'] : array();
 
-	$clean['sendbeam_connected_via']     = 'connect';
-	$clean['sendbeam_connect_workspace'] = $workspace;
-	$clean['sendbeam_connect_granted']   = implode( ',', $granted );
+	/*
+	 * A reconnect into a *different* workspace is not a reconnect, it is a
+	 * move. Everything Connect filled in points at the workspace this site
+	 * has just left — a form ID the new workspace does not own, a From
+	 * address on a domain it cannot send from — and carrying it across is
+	 * how an embed starts 404ing silently on a live page. So the filled-in
+	 * values are released first, and the fills below start from empty and
+	 * come entirely out of the new workspace's answer. Anything the owner
+	 * typed themselves is not on that list, and is left alone.
+	 */
+	if ( sendbeam_connect_moved_workspace( $before, $status, $workspace ) ) {
+		foreach ( array( 'default_form', 'mail_from_name', 'mail_from_email' ) as $key ) {
+			if ( in_array( $key, $filled, true ) ) {
+				$clean[ $key ] = '';
+			}
+		}
+		if ( in_array( 'mail_enabled', $filled, true ) ) {
+			$clean['mail_enabled'] = 0;
+		}
+		$filled = array();
+	}
+
+	$clean['sendbeam_connected_via']        = 'connect';
+	$clean['sendbeam_connect_workspace']    = $workspace;
+	$clean['sendbeam_connect_workspace_id'] = (string) $status['workspace']['id'];
+	$clean['sendbeam_connect_granted']      = implode( ',', $granted );
 
 	// The form SendBeam made during consent becomes this site's default, but
 	// only when the site has not already chosen one: a reconnect must not
@@ -585,6 +608,38 @@ function sendbeam_connect_store_key( $api_key, $workspace, $data = array() ) {
 	sendbeam_connect_cache_status( $status );
 	sendbeam_connect_schedule_recheck( $status );
 	return true;
+}
+
+/**
+ * Did this connection land in a different workspace from the last one?
+ *
+ * The ID is the answer wherever there is one on both sides: workspace names
+ * are not unique and can be changed, so comparing them would call a rename a
+ * move and miss two workspaces that happen to share a name. Connections made
+ * before the ID was recorded have only the name, and the name is better than
+ * nothing for them.
+ *
+ * A site that has never connected has nothing to move away from, so it is
+ * never a move — the first connection must not throw away settings the owner
+ * put there by hand before it.
+ *
+ * @param array  $before    This site's settings before the write.
+ * @param array  $status    The normalised exchange response.
+ * @param string $workspace The workspace name the exchange reported.
+ * @return bool
+ */
+function sendbeam_connect_moved_workspace( $before, $status, $workspace ) {
+	$was_id = isset( $before['sendbeam_connect_workspace_id'] ) ? (string) $before['sendbeam_connect_workspace_id'] : '';
+	$now_id = isset( $status['workspace']['id'] ) ? (string) $status['workspace']['id'] : '';
+	if ( '' !== $was_id && '' !== $now_id ) {
+		return $was_id !== $now_id;
+	}
+
+	$was_name = isset( $before['sendbeam_connect_workspace'] ) ? (string) $before['sendbeam_connect_workspace'] : '';
+	if ( '' === $was_name || '' === (string) $workspace ) {
+		return false;
+	}
+	return $was_name !== (string) $workspace;
 }
 
 /**
@@ -690,9 +745,10 @@ function sendbeam_connect_disconnect() {
 	}
 
 	$settings['api_key']                    = '';
-	$settings['sendbeam_connected_via']     = '';
-	$settings['sendbeam_connect_workspace'] = '';
-	$settings['sendbeam_connect_notes']     = array();
+	$settings['sendbeam_connected_via']        = '';
+	$settings['sendbeam_connect_workspace']    = '';
+	$settings['sendbeam_connect_workspace_id'] = '';
+	$settings['sendbeam_connect_notes']        = array();
 	$settings['sendbeam_connect_granted']   = '';
 	$settings['sendbeam_connect_filled']    = array();
 	$settings['sendbeam_mail_deferred']     = 0;

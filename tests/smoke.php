@@ -1045,6 +1045,50 @@ sb_v2_exchange( sb_v2_body(), array( 'mail_from_email' => 'orders@harbourlane.co
 $v2 = sendbeam_settings();
 ok( 'orders@harbourlane.co.uk' === $v2['mail_from_email'] && 'Orders' === $v2['mail_from_name'], 'connect v2: a sender the owner set is left alone' );
 
+// ── Reconnecting into a different workspace ────────────────────────────
+// Everything Connect filled in names something in the workspace this site
+// has just left: a form the new workspace does not own 404s on every page it
+// is embedded on, and a From address on a domain it cannot send from bounces.
+sb_v2_exchange( sb_v2_body() );
+$v2_first = sendbeam_settings();
+ok( $form === $v2_first['default_form'], 'workspace move: the first connection fills the form in' );
+ok( 'ws_1' === $v2_first['sendbeam_connect_workspace_id'], 'workspace move: the workspace ID is remembered, not only its name' );
+
+$sb_second = sb_v2_body(
+	array(
+		'api_key'      => 'sb_live_' . str_repeat( 'm', 32 ),
+		'workspace'    => array( 'id' => 'ws_2', 'name' => 'Second Roastery' ),
+		'default_form' => array( 'id' => $other, 'name' => 'Second signup' ),
+		'sender'       => array( 'from_name' => 'Second Roastery', 'from_email' => 'hello@second.example' ),
+	)
+);
+sb_v2_exchange( $sb_second, $v2_first );
+$v2_moved = sendbeam_settings();
+ok( $other === $v2_moved['default_form'], 'workspace move: the old workspace\'s form is released, and the new workspace\'s takes its place' );
+ok( 'hello@second.example' === $v2_moved['mail_from_email'], 'workspace move: the sender follows the site to the new workspace' );
+ok( 'ws_2' === $v2_moved['sendbeam_connect_workspace_id'], 'workspace move: the new workspace ID is what is remembered afterwards' );
+
+// The same workspace is not a move: nothing is released, and a reconnect
+// does not repoint an embed that is live on a page.
+sb_v2_exchange( sb_v2_body() );
+$v2_first = sendbeam_settings();
+sb_v2_exchange( sb_v2_body( array( 'api_key' => 'sb_live_' . str_repeat( 'n', 32 ) ) ), $v2_first );
+ok( $form === sendbeam_settings()['default_form'], 'workspace move: reconnecting into the same workspace keeps what Connect filled' );
+
+// A setting the owner typed is not Connect's to release, wherever the site
+// reconnects to. Saving the tab by hand is what takes it off the list.
+sb_v2_exchange( sb_v2_body() );
+$v2_owned                             = sendbeam_settings();
+$v2_owned['mail_from_email']          = 'orders@harbourlane.co.uk';
+$v2_owned['sendbeam_connect_filled']  = array_values( array_diff( $v2_owned['sendbeam_connect_filled'], array( 'mail_from_email' ) ) );
+sb_v2_exchange( $sb_second, $v2_owned );
+ok( 'orders@harbourlane.co.uk' === sendbeam_settings()['mail_from_email'], 'workspace move: an address the owner typed survives the move' );
+
+// What counts as a move.
+ok( ! sendbeam_connect_moved_workspace( array(), array( 'workspace' => array( 'id' => 'ws_1' ) ), 'Harbour Lane' ), 'workspace move: a first connection has nothing to move away from' );
+ok( sendbeam_connect_moved_workspace( array( 'sendbeam_connect_workspace' => 'Harbour Lane' ), array( 'workspace' => array( 'id' => '' ) ), 'Second Roastery' ), 'workspace move: a connection made before IDs were recorded falls back to the name' );
+ok( ! sendbeam_connect_moved_workspace( array( 'sendbeam_connect_workspace_id' => 'ws_1', 'sendbeam_connect_workspace' => 'Old Name' ), array( 'workspace' => array( 'id' => 'ws_1' ) ), 'New Name' ), 'workspace move: renaming a workspace is not moving to another one' );
+
 // ── /api/v1/connect/status ─────────────────────────────────────────────
 sb_connect_reset();
 sendbeam_connect_forget_status();
