@@ -172,12 +172,12 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 1. The SendBeam Form block on a page: the real form, as visitors see it.
 2. SendBeam → Overview: what this site is connected to, how far through set-up it is, and what the workspace holds.
 3. SendBeam → Set up, the four-step guide a new site sees once. Every step can be skipped and the whole thing can be left.
-4. SendBeam → Forms: the default forms, their colours, and every form in the workspace as a list you can search.
+4. SendBeam → Forms: the default forms and their colours; every form in the workspace is a searchable list further down.
 5. SendBeam → Settings → Sending domain: the DNS records, each value one click from the clipboard, with a column saying which are live yet.
 6. SendBeam → Site email: the relay, a test send that reports in the page, and the log of what went out.
 7. SendBeam → Pop-ups. Rules are matched top to bottom and the first one wins.
 8. A pop-up on the site, using the site's own colours.
-9. SendBeam → Help: the documentation, the shortcodes, the permissions, and a system-status block that copies for support.
+9. SendBeam → Help: a system-status block that copies for support, and where to get help.
 
 == Changelog ==
 
