@@ -4631,6 +4631,50 @@ $_REQUEST = array();
 sb_connect_reset();
 sb_seed_settings( array() );
 
+// ── #15 The page about the sending domain said less than the checklist ──
+// The Overview's step 2 gave SendBeam's own reason; Settings → Sending domain
+// dropped it and said only "Add one under Settings → Domains in SendBeam" —
+// on the screen dedicated to the subject. The Overview also named two
+// different SendBeam screens in consecutive sentences, because its own
+// instruction was appended after SendBeam's.
+sb_connect_reset();
+sb_seed_settings( array( 'api_key' => SENDBEAM_API_KEY ) );
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace'    => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'       => null,
+			'domain_state' => 'not_found',
+			'domain_note'  => "This site's sending domain is no longer in the workspace. Reconnect the site, or add the domain again under Settings → Sending.",
+		)
+	)
+);
+$sb_status = sendbeam_connect_status();
+
+$sb_sentence = sendbeam_domain_missing_sentence( $sb_status );
+has( $sb_sentence, 'no longer in the workspace', 'domain: the sentence carries the reason SendBeam gave' );
+lacks( $sb_sentence, 'Settings → Domains', 'domain: and does not name a second SendBeam screen after SendBeam named one' );
+
+ob_start();
+sendbeam_domain_panel( $sb_status, true );
+$sb_panel = ob_get_clean();
+has( $sb_panel, 'no longer in the workspace', 'domain: the Sending domain screen says as much as the checklist does' );
+
+// With no note, the plugin's own instruction is the only one there is.
+sendbeam_connect_cache_status(
+	sendbeam_connect_normalise_status(
+		array(
+			'workspace'    => array( 'id' => 'w1', 'name' => 'Harbour Lane' ),
+			'domain'       => null,
+			'domain_state' => 'not_found',
+		)
+	)
+);
+$sb_sentence = sendbeam_domain_missing_sentence( sendbeam_connect_status() );
+has( $sb_sentence, 'Add one under Settings → Domains in SendBeam', 'domain: with nothing from SendBeam, the plugin says where to go' );
+sb_connect_reset();
+sb_seed_settings( array() );
+
 // One version number, five files. 1.6.2 shipped with the block's asset
 // version still on 1.6.1, which is how WordPress decides whether the editor
 // may reuse a cached copy of the block script.

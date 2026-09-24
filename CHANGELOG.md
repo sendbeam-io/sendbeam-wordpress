@@ -76,6 +76,7 @@
 - **The longest DNS host was cut off inside the field you are told to click.** The wrapping rule lived only inside the ≤782px media query, so the phone case that had been complained about was fixed and the desktop one was not: at 1280px the Host column is about 282px and `resend._domainkey.mail.<domain>` does not fit in it. Click-to-copy still copied the whole value, but somebody comparing what they pasted into their registrar against what is on screen could not see the end of it. The field wraps at every width now, and keeps `overflow: auto` so a browser with no JavaScript scrolls to the rest rather than hiding it.
 
 - **Check now comes back to the screen it was pressed on.** The check is offered on the Overview and on Settings → Sending domain and always landed on the Overview, so somebody working through the DNS records was moved to a different screen to be told the result and had to navigate back to carry on.
+- **The page about the sending domain said less than the checklist did.** Step 2 on the Overview carried the reason SendBeam gave; Settings → Sending domain dropped it, on the screen dedicated to the subject. There is one sentence for "this site has no sending domain" now, and where SendBeam's own note already says what to do, the plugin stops appending a second instruction naming a different SendBeam screen.
 
 ### Connect
 

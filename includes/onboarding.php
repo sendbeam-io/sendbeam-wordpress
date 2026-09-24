@@ -290,7 +290,7 @@ function sendbeam_connect_step_sentence( $connected ) {
  */
 function sendbeam_domain_sentence( $name, $verified ) {
 	if ( '' === (string) $name ) {
-		return __( 'No sending domain is set up for this site. Add one under Settings → Domains in SendBeam.', 'sendbeam' );
+		return sendbeam_domain_missing_sentence( null );
 	}
 	if ( $verified ) {
 		/*
@@ -304,6 +304,35 @@ function sendbeam_domain_sentence( $name, $verified ) {
 	}
 	/* translators: %s: the sending domain, e.g. harbourlane.co.uk */
 	return sprintf( __( 'Add these records to the DNS for %s, then press Check now. Until they are in place SendBeam cannot send as you.', 'sendbeam' ), $name );
+}
+
+/**
+ * What to say when this site has no sending domain.
+ *
+ * One sentence in one place, because there were two: the Overview's said why,
+ * using the reason SendBeam gave, and the screen actually dedicated to the
+ * sending domain said only "No sending domain is set up for this site. Add
+ * one under Settings → Domains in SendBeam" — dropping the explanation on the
+ * page most likely to be read by somebody looking for it.
+ *
+ * SendBeam's own note also tends to end in an instruction, and appending ours
+ * after it named two different SendBeam screens in consecutive sentences.
+ * Where SendBeam has said what to do, that stands on its own.
+ *
+ * @param array|null $status Normalised status, fetched when omitted.
+ * @return string
+ */
+function sendbeam_domain_missing_sentence( $status = null ) {
+	if ( ! is_array( $status ) ) {
+		$status = sendbeam_is_connected() ? sendbeam_connect_status() : sendbeam_connect_empty_status();
+	}
+	$note = isset( $status['domain_note'] ) ? trim( (string) $status['domain_note'] ) : '';
+	$out  = __( 'No sending domain is set up for this site.', 'sendbeam' );
+
+	if ( '' !== $note && sendbeam_connect_status_is_live( $status ) ) {
+		return $out . ' ' . rtrim( $note, '.' ) . '.';
+	}
+	return $out . ' ' . __( 'Add one under Settings → Domains in SendBeam.', 'sendbeam' );
 }
 
 /**
@@ -381,11 +410,7 @@ function sendbeam_setup_steps() {
 			}
 		}
 	} elseif ( 'no_site' === $state || 'not_found' === $state ) {
-		$domain_detail = __( 'No sending domain is set up for this site.', 'sendbeam' );
-		if ( '' !== $note ) {
-			$domain_detail .= ' ' . rtrim( $note, '.' ) . '.';
-		}
-		$domain_detail .= ' ' . __( 'Add one under Settings → Domains in SendBeam.', 'sendbeam' );
+		$domain_detail = sendbeam_domain_missing_sentence( $status );
 
 		/*
 		 * A key with no site host behind it cannot be told which domain this

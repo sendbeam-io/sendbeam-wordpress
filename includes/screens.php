@@ -425,7 +425,10 @@ function sendbeam_domain_panel( $status, $standalone = false ) {
 	 */
 	if ( '' === $domain['name'] ) {
 		if ( $standalone ) {
-			echo '<p>' . esc_html( sendbeam_domain_sentence( '', false ) ) . '</p>';
+			// With the reason SendBeam gave, which the Overview's step has
+			// always had and this screen — the one about the sending domain —
+			// used to drop.
+			echo '<p>' . esc_html( sendbeam_domain_missing_sentence( $status ) ) . '</p>';
 		}
 		if ( in_array( $state, array( 'no_site', 'not_found', 'managed_host' ), true ) ) {
 			echo '<div class="sb-step__panel"><div class="sb-actions">';
