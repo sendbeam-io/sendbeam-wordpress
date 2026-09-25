@@ -27,6 +27,7 @@ class WC_Order {
 	public function get_total() { return isset( $this->data['total'] ) ? $this->data['total'] : 0; }
 	public function get_currency() { return isset( $this->data['currency'] ) ? $this->data['currency'] : 'USD'; }
 	public function get_id() { return isset( $this->data['id'] ) ? $this->data['id'] : 0; }
+	public function get_date_created() { return new DateTime( '2026-09-25T08:00:00+00:00' ); }
 	// Order meta lives in the shared stub store, keyed by order id, so a
 	// second WC_Order for the same id sees what the first one saved.
 	public function get_meta( $key ) { $id = $this->get_id(); return isset( $GLOBALS['stub']['wc_order_meta'][ $id ][ $key ] ) ? $GLOBALS['stub']['wc_order_meta'][ $id ][ $key ] : ''; }

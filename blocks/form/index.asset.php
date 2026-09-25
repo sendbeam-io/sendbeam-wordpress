@@ -10,5 +10,5 @@ return array(
 	// editor renders a placeholder card now. Loading a script nothing uses is
 	// how an editor gets slow one dependency at a time.
 	'dependencies' => array( 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n', 'wp-api-fetch' ),
-	'version'      => '1.8.3',
+	'version'      => '1.8.4',
 );
