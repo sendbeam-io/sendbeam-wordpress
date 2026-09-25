@@ -5000,6 +5000,31 @@ $stub['cron'] = array();
 sendbeam_ecommerce_on_order_paid( 999 );
 ok( empty( $stub['cron'] ), 'order placed: an order that does not exist sends nothing' );
 
+// Refunds and cancellations (1.8.5): netted in SendBeam, only for orders the plugin reported.
+ok( in_array( 'woocommerce_order_refunded=>sendbeam_ecommerce_on_order_refunded', $sb_reg, true ), 'refund: listens to a refund being recorded' );
+ok( in_array( 'woocommerce_order_status_cancelled=>sendbeam_ecommerce_on_order_cancelled', $sb_reg, true ), 'cancel: and to an order being cancelled' );
+$stub['cron'] = array();
+$stub['wc_refunds'][701] = array( 'amount' => 12.5, 'currency' => 'GBP' );
+$stub['wc_orders'][602] = array( 'email' => 'never@example.test', 'total' => 40, 'currency' => 'GBP' );
+sendbeam_ecommerce_on_order_refunded( 602, 701 );
+sendbeam_ecommerce_on_order_cancelled( 602 );
+ok( empty( $stub['cron'] ), 'refund/cancel: an order SendBeam was never told about sends nothing' );
+sendbeam_ecommerce_on_order_refunded( 601, 701 );
+ok( 1 === count( $stub['cron'] ) && 'order_refunded' === $stub['cron'][0]['args'][0]['type'], 'refund: queues one order_refunded for a known order' );
+$sb_refund = $stub['cron'][0]['args'][0];
+ok( 12.5 === $sb_refund['value'] && '601' === $sb_refund['order_id'] && 'GBP' === $sb_refund['currency'] && 'paid@example.test' === $sb_refund['email'], 'refund: carries the refunded amount, the order id and the currency' );
+$stub['cron'] = array();
+$stub['wc_refunds'][702] = array( 'amount' => 0 );
+sendbeam_ecommerce_on_order_refunded( 601, 702 );
+ok( empty( $stub['cron'] ), 'refund: a zero refund sends nothing' );
+sendbeam_ecommerce_on_order_cancelled( 601 );
+ok( 1 === count( $stub['cron'] ) && 'order_cancelled' === $stub['cron'][0]['args'][0]['type'] && '601' === $stub['cron'][0]['args'][0]['order_id'], 'cancel: queues one order_cancelled for a known order' );
+ok( ! empty( $stub['wc_order_meta'][601][ SENDBEAM_ORDER_CANCELLED_META ] ), 'cancel: and marks the order' );
+sendbeam_ecommerce_on_order_cancelled( 601 );
+sendbeam_ecommerce_on_order_cancelled( wc_get_order( 601 ) );
+ok( 1 === count( $stub['cron'] ), 'cancel: once per order' );
+$stub['cron'] = array();
+
 // The block checkout field: registered only while the source can subscribe anybody.
 $stub['wc_checkout_fields'] = array();
 update_option( 'sendbeam_sync', array( 'woocommerce' => 0, 'registration' => 0, 'comments' => 0, 'lists' => array( 'list-1' ), 'label' => 'Keep me posted' ) );

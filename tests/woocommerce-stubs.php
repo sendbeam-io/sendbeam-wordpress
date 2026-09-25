@@ -40,7 +40,16 @@ function is_checkout() { return ! empty( $GLOBALS['stub']['query']['checkout'] )
 function is_account_page() { return ! empty( $GLOBALS['stub']['query']['account'] ); }
 function is_wc_endpoint_url() { return ! empty( $GLOBALS['stub']['query']['wc_endpoint'] ); }
 function woocommerce_register_additional_checkout_field( $options ) { $GLOBALS['stub']['wc_checkout_fields'][] = $options; }
+/** A refund, as wc_get_order() returns one: an order-shaped object with an amount. */
+class WC_Order_Refund extends WC_Order {
+	private $amount;
+	public function __construct( $data ) { parent::__construct( $data ); $this->amount = isset( $data['amount'] ) ? $data['amount'] : 0; }
+	public function get_amount() { return $this->amount; }
+}
 function wc_get_order( $id ) {
+	if ( isset( $GLOBALS['stub']['wc_refunds'][ $id ] ) ) {
+		return new WC_Order_Refund( $GLOBALS['stub']['wc_refunds'][ $id ] + array( 'id' => $id ) );
+	}
 	return isset( $GLOBALS['stub']['wc_orders'][ $id ] ) ? new WC_Order( $GLOBALS['stub']['wc_orders'][ $id ] + array( 'id' => $id ) ) : false;
 }
 

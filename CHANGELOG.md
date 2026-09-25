@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.5
+
+- Refunds and cancellations: a refund recorded in WooCommerce is netted off the order in SendBeam's revenue figures and the customer's lifetime value, and a cancelled order drops out of them. Only for orders the plugin reported.
+
 ## 1.8.4
 
 - WooCommerce orders carry `order_id` and `placed_at`, so SendBeam stores each order once, attributes it to the email that led to it, and counts it in revenue. Orders reported by earlier versions cannot be attributed retroactively.

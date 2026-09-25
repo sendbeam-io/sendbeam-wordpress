@@ -42,6 +42,7 @@ const SENDBEAM_CART_WINDOW_MIN  = 5;
 const SENDBEAM_CART_WINDOW_MAX  = 10080; // 7 days.
 /** Order meta that says Order placed has already gone out for this order. */
 const SENDBEAM_ORDER_PLACED_META = '_sendbeam_order_placed_sent';
+const SENDBEAM_ORDER_CANCELLED_META = '_sendbeam_order_cancelled_sent';
 
 add_action( 'admin_post_sendbeam_save_ecommerce', 'sendbeam_handle_save_ecommerce' );
 add_action( SENDBEAM_ECOMMERCE_HOOK, 'sendbeam_ecommerce_run_event' );
@@ -63,6 +64,8 @@ add_action( SENDBEAM_CART_CHECK_HOOK, 'sendbeam_ecommerce_check_cart_abandonment
 add_action( 'woocommerce_payment_complete', 'sendbeam_ecommerce_on_order_paid', 10, 1 );
 add_action( 'woocommerce_order_status_processing', 'sendbeam_ecommerce_on_order_paid', 10, 1 );
 add_action( 'woocommerce_order_status_completed', 'sendbeam_ecommerce_on_order_paid', 10, 1 );
+add_action( 'woocommerce_order_refunded', 'sendbeam_ecommerce_on_order_refunded', 10, 2 );
+add_action( 'woocommerce_order_status_cancelled', 'sendbeam_ecommerce_on_order_cancelled', 10, 1 );
 add_action( 'woocommerce_single_product_summary', 'sendbeam_ecommerce_on_product_viewed', 1 );
 add_action( 'woocommerce_add_to_cart', 'sendbeam_ecommerce_on_add_to_cart', 10, 6 );
 add_action( 'woocommerce_before_checkout_form', 'sendbeam_ecommerce_refresh_cart_email' );
@@ -171,9 +174,9 @@ function sendbeam_ecommerce_known_email() {
  * call never delays the page the customer is looking at — the same pattern
  * includes/bridges.php uses for form-plugin subscriptions.
  *
- * @param string $type  'order_placed' | 'product_viewed' | 'cart_abandoned'.
+ * @param string $type  'order_placed' | 'product_viewed' | 'cart_abandoned' | 'order_refunded' | 'order_cancelled'.
  * @param string $email Contact email.
- * @param array  $extra name / value / currency / source.
+ * @param array  $extra name / value / currency / source / order_id.
  */
 function sendbeam_ecommerce_queue_event( $type, $email, $extra = array() ) {
 	if ( ! is_email( $email ) ) {
@@ -307,6 +310,75 @@ function sendbeam_ecommerce_on_order_paid( $order_id ) {
 	$order->update_meta_data( SENDBEAM_ORDER_PLACED_META, time() );
 	$order->save();
 	sendbeam_ecommerce_on_order_placed( $order );
+}
+
+/**
+ * A refund was recorded against an order SendBeam already knows. The amount
+ * is netted off that order in SendBeam's revenue figures and the customer's
+ * lifetime value. Only for orders this plugin reported (the meta mark): a
+ * refund on an order SendBeam never stored has nothing to net against, and
+ * would only fill the log with "unknown order".
+ *
+ * @param int $order_id  Order ID.
+ * @param int $refund_id The WC_Order_Refund ID.
+ */
+function sendbeam_ecommerce_on_order_refunded( $order_id, $refund_id ) {
+	if ( ! sendbeam_ecommerce_active( 'order_placed' ) || ! function_exists( 'wc_get_order' ) ) {
+		return;
+	}
+	$order = wc_get_order( $order_id );
+	if ( ! $order || ! $order->get_meta( SENDBEAM_ORDER_PLACED_META ) ) {
+		return;
+	}
+	$refund = wc_get_order( $refund_id );
+	$amount = $refund && method_exists( $refund, 'get_amount' ) ? (float) $refund->get_amount() : 0.0;
+	if ( $amount <= 0 ) {
+		return;
+	}
+	$email = $order->get_billing_email();
+	if ( ! is_email( $email ) ) {
+		return;
+	}
+	sendbeam_ecommerce_queue_event(
+		'order_refunded',
+		$email,
+		array(
+			'value'    => $amount,
+			'currency' => $order->get_currency(),
+			'order_id' => (string) $order->get_id(),
+		)
+	);
+}
+
+/**
+ * An order SendBeam already knows was cancelled: it drops out of revenue and
+ * its unrefunded remainder comes off the customer's lifetime value. Once per
+ * order, by the same kind of mark that keeps Order placed to one event.
+ *
+ * @param int|WC_Order $order_id Order ID, or the order itself.
+ */
+function sendbeam_ecommerce_on_order_cancelled( $order_id ) {
+	if ( ! sendbeam_ecommerce_active( 'order_placed' ) || ! function_exists( 'wc_get_order' ) ) {
+		return;
+	}
+	$order = $order_id instanceof WC_Order ? $order_id : wc_get_order( $order_id );
+	if ( ! $order || ! $order->get_meta( SENDBEAM_ORDER_PLACED_META ) || $order->get_meta( SENDBEAM_ORDER_CANCELLED_META ) ) {
+		return;
+	}
+	$email = $order->get_billing_email();
+	if ( ! is_email( $email ) ) {
+		return;
+	}
+	$order->update_meta_data( SENDBEAM_ORDER_CANCELLED_META, time() );
+	$order->save();
+	sendbeam_ecommerce_queue_event(
+		'order_cancelled',
+		$email,
+		array(
+			'currency' => $order->get_currency(),
+			'order_id' => (string) $order->get_id(),
+		)
+	);
 }
 
 /* ---------------------------------------------------------- Product viewed */
