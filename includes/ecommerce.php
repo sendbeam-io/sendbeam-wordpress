@@ -275,9 +275,16 @@ function sendbeam_ecommerce_on_order_placed( $order_id ) {
 		'order_placed',
 		$email,
 		array(
-			'name'     => trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() ),
-			'value'    => (float) $order->get_total(),
-			'currency' => $order->get_currency(),
+			'name'      => trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() ),
+			'value'     => (float) $order->get_total(),
+			'currency'  => $order->get_currency(),
+			// The order id is what lets SendBeam store the order, attribute it
+			// to the email that led to it, and treat a retried delivery as the
+			// same order rather than a second one. Without it the event fires
+			// automations and moves lifetime value but appears in no revenue
+			// figure.
+			'order_id'  => (string) $order->get_id(),
+			'placed_at' => $order->get_date_created() ? $order->get_date_created()->format( DATE_ATOM ) : gmdate( DATE_ATOM ),
 		)
 	);
 }

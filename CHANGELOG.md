@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.4
+
+- WooCommerce orders carry `order_id` and `placed_at`, so SendBeam stores each order once, attributes it to the email that led to it, and counts it in revenue. Orders reported by earlier versions cannot be attributed retroactively.
+
 ## 1.8.3
 
 - Connect SendBeam: one button connects the site and hands it a key with exactly the permissions you tick, and can add your sending domain at the same time. Pasting a key by hand still works.

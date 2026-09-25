@@ -572,6 +572,7 @@ $stub['wc_orders'][501]  = array( 'email' => 'buyer@example.test', 'first_name' 
 sendbeam_ecommerce_on_order_placed( 501 );
 ok( 1 === count( $stub['cron'] ) && SENDBEAM_ECOMMERCE_HOOK === $stub['cron'][0]['hook'], 'order placed: queued as a single cron event, like every other subscription' );
 $sendbeam_order_job = $stub['cron'][0]['args'][0];
+ok( '501' === $sendbeam_order_job['order_id'] && ! empty( $sendbeam_order_job['placed_at'] ) && false !== strtotime( $sendbeam_order_job['placed_at'] ), 'order placed: carries the order id and the time it was placed, so SendBeam stores and attributes it (#105)' );
 ok( 'order_placed' === $sendbeam_order_job['type'] && 'buyer@example.test' === $sendbeam_order_job['email'] && 'Ada Lovelace' === $sendbeam_order_job['name'] && 84.5 === $sendbeam_order_job['value'] && 'GBP' === $sendbeam_order_job['currency'], 'order placed: name, total and currency are read from the order' );
 
 $stub['remote']       = array();

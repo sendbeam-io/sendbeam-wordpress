@@ -4,7 +4,7 @@ Tags: newsletter, email marketing, signup form, popup, contact form
 Requires at least: 6.1
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.8.3
+Stable tag: 1.8.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -180,6 +180,9 @@ Yes. The form is an iframe and the pop-up is a script tag, both cache-safe.
 9. SendBeam → Help: a system-status block that copies for support, and where to get help.
 
 == Changelog ==
+
+= 1.8.4 =
+* WooCommerce orders now carry the order number and the time it was placed, so SendBeam stores each order once, attributes it to the email that led to it, and counts it in revenue. Orders reported by earlier versions fired automations and lifetime value but cannot be attributed after the fact.
 
 = 1.8.3 =
 * Connect SendBeam: one button connects the site and hands it a key with exactly the permissions you tick, and can add your sending domain at the same time. Pasting a key by hand still works.
